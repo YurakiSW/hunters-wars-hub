@@ -304,6 +304,12 @@ function ContentTab() {
   }
 
   const total = selectedDefs.size + selectedCounters.size;
+  const allSelected = defs.length > 0 && defs.every((d) => selectedDefs.has(d.id));
+
+  function toggleSelectAll() {
+    setSelectedDefs(allSelected ? new Set() : new Set(defs.map((d) => d.id)));
+    setSelectedCounters(new Set());
+  }
 
   async function bulkDelete() {
     const counters = [...selectedCounters].map((key) => { const [defId, counterId] = key.split("::"); return { defId, counterId }; });
@@ -317,9 +323,14 @@ function ContentTab() {
 
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 14 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 14, flexWrap: "wrap", gap: 8 }}>
         <div className="section-label">Difese e Counter ({defs.length} difese)</div>
-        <button className="btn btn-danger" disabled={total === 0} onClick={() => setConfirmOpen(true)}>🗑 Elimina selezionati ({total})</button>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button className="btn btn-ghost" onClick={toggleSelectAll} disabled={defs.length === 0}>
+            {allSelected ? "Deseleziona tutto" : "Seleziona tutte le Difese"}
+          </button>
+          <button className="btn btn-danger" disabled={total === 0} onClick={() => setConfirmOpen(true)}>🗑 Elimina selezionati ({total})</button>
+        </div>
       </div>
       {defs.map((d) => (
         <div key={d.id} style={{ borderBottom: "1px solid var(--border-soft)" }}>

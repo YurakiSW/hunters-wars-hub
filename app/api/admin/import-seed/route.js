@@ -33,7 +33,7 @@ export async function POST(request) {
           desc: defData.desc || "",
           authorId: user.id,
           authorNickname: user.nickname,
-          autoApprove: true,
+          autoApprove: defData.status === "approved",
         });
 
         // E per ogni Difesa, tutti i suoi Counter in parallelo.
@@ -52,7 +52,7 @@ export async function POST(request) {
                 video: null,
                 images: [],
               },
-              { authorId: user.id, authorNickname: c.author || user.nickname, autoApprove: true }
+              { authorId: user.id, authorNickname: c.author || user.nickname, autoApprove: c.status === "approved" }
             )
           )
         );

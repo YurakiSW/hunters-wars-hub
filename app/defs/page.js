@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Header from "../../components/Header";
 import MonsterPicker from "../../components/MonsterPicker";
+import MonsterCrest from "../../components/MonsterCrest";
 import Modal from "../../components/Modal";
 
 export default function DefsPage() {
@@ -40,6 +41,13 @@ export default function DefsPage() {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 14 }}>
           {filtered.map((d) => (
             <a key={d.id} href={`/defs/${d.id}`} className="card" style={{ display: "block", textDecoration: "none" }}>
+              <div style={{ display: "flex", marginBottom: 8 }}>
+                {d.monsters.map((m, i) => (
+                  <div key={i} style={{ marginLeft: i === 0 ? 0 : -10, zIndex: 10 - i }}>
+                    <MonsterCrest name={m} size={40} />
+                  </div>
+                ))}
+              </div>
               <div className="f-display" style={{ fontSize: 16, marginBottom: 6 }}>{d.monsters.join(" / ")}</div>
               {d.desc && <p style={{ color: "var(--text-muted)", fontSize: 12.5, margin: "0 0 10px" }}>{d.desc}</p>}
               <span className="badge badge-approved">{d.counters.filter((c) => c.status === "approved").length} counter</span>{" "}

@@ -3,8 +3,36 @@ import { useState } from "react";
 import MonsterPicker from "./MonsterPicker";
 import { RUNE_SETS, SLOT2_OPTIONS, SLOT4_OPTIONS, SLOT6_OPTIONS, ARTIFACT_LEFT_OPTIONS, ARTIFACT_RIGHT_OPTIONS } from "../lib/gameData";
 
+import VideoPreview from "./VideoPreview";
+
 function emptyUnit() {
   return { name: "", lead: false, runes: "", stats: "", artifactLeft: [], artifactRight: [], notes: [""] };
+}
+
+// Ridimensiona a un lato massimo di 1600px e ricomprime in JPEG 75%,
+// direttamente nel browser: niente immagini enormi salvate.
+function compressImage(file, maxDim = 1600, quality = 0.75) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const reader = new FileReader();
+    reader.onload = () => {
+      img.onload = () => {
+        const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+        const w = Math.round(img.width * scale);
+        const h = Math.round(img.height * scale);
+        const canvas = document.createElement("canvas");
+        canvas.width = w;
+        canvas.height = h;
+        canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+        const dataUrl = canvas.toDataURL("image/jpeg", quality);
+        resolve({ name: file.name, dataUrl });
+      };
+      img.onerror = reject;
+      img.src = reader.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
 }
 
 function StatSelect({ value, onChange }) {
@@ -60,6 +88,8 @@ export default function CounterForm({ defMonsters, initial, onSubmit, onCancel }
   const [strategy, setStrategy] = useState(initial?.strategy || "");
   const [warning, setWarning] = useState(initial?.warning || "");
   const [video, setVideo] = useState(initial?.video || "");
+  const [images, setImages] = useState(initial?.images || []);
+  const [compressing, setCompressing] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -72,10 +102,18 @@ export default function CounterForm({ defMonsters, initial, onSubmit, onCancel }
     if (units.length < 4) setUnits((prev) => [...prev, emptyUnit()]);
   }
 
+  async function handleImageFiles(fileList) {
+    setCompressing(true);
+    const files = Array.from(fileList);
+    const results = await Promise.all(files.map((f) => compressImage(f).catch(() => null)));
+    setImages((prev) => [...prev, ...results.filter(Boolean)]);
+    setCompressing(false);
+  }
+
   async function submit() {
     setLoading(true);
     setError("");
-    const payload = { units, turnOrder, focus, strategy, warning, video, images: initial?.images || [] };
+    const payload = { units, turnOrder, focus, strategy, warning, video, images };
     const res = await onSubmit(payload);
     setLoading(false);
     if (res?.error) setError(res.error);
@@ -168,9 +206,38 @@ export default function CounterForm({ defMonsters, initial, onSubmit, onCancel }
         <div style={{ fontSize: 12.5, marginBottom: 5, fontWeight: 600 }}>Avvertenze (facoltativo)</div>
         <input value={warning} onChange={(e) => setWarning(e.target.value)} />
       </label>
+      <label style={{ display: "block", marginBottom: 12 }}>
+        <div style={{ fontSize: 12.5, marginBottom: 5, fontWeight: 600 }}>Immagini (facoltativo)</div>
+        <label
+          style={{
+            display: "block", border: "1.5px dashed var(--border)", borderRadius: 8, padding: "14px 12px",
+            textAlign: "center", cursor: "pointer", color: "var(--text-muted)", fontSize: 12.5, background: "var(--bg-soft)",
+          }}
+        >
+          {compressing ? "⏳ Comprimo le immagini..." : "📎 Clicca per allegare immagini"}
+          <input type="file" accept="image/*" multiple style={{ display: "none" }} onChange={(e) => e.target.files?.length && handleImageFiles(e.target.files)} />
+        </label>
+        {images.length > 0 && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
+            {images.map((img, i) => (
+              <div key={i} style={{ position: "relative" }}>
+                <img src={img.dataUrl} alt={img.name} style={{ width: 60, height: 60, objectFit: "cover", borderRadius: 8, border: "1px solid var(--border-soft)" }} />
+                <span
+                  onClick={() => setImages((prev) => prev.filter((_, idx) => idx !== i))}
+                  style={{ position: "absolute", top: -6, right: -6, background: "var(--red)", color: "#fff", borderRadius: "50%", width: 18, height: 18, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, cursor: "pointer" }}
+                >
+                  ✕
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+        <p style={{ color: "var(--text-faint)", fontSize: 11, marginTop: 4 }}>Vengono ridimensionate e compresse automaticamente prima di essere allegate.</p>
+      </label>
       <label style={{ display: "block", marginBottom: 16 }}>
         <div style={{ fontSize: 12.5, marginBottom: 5, fontWeight: 600 }}>Link video (facoltativo)</div>
         <input value={video} onChange={(e) => setVideo(e.target.value)} placeholder="https://youtube.com/..." />
+        <VideoPreview url={video} />
       </label>
 
       {error && <p style={{ color: "var(--red)", fontSize: 13, marginBottom: 12 }}>{error}</p>}
