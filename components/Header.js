@@ -3,7 +3,7 @@ import { useRouter } from "next/navigation";
 
 export default function Header({ user }) {
   const router = useRouter();
-  const canManage = user?.role === "admin" || user?.role === "reviewer";
+  const canManage = user?.role === "admin" || user?.role === "reviewer" || user?.canUploadRoster;
 
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
