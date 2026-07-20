@@ -4,37 +4,26 @@ import { setSyncedMonsters } from "../../../../lib/monsters";
 // Chiamata da cron-job.org (stesso meccanismo usato per SW Auto Redeemer):
 // GET /api/monsters/sync?secret=CRON_SECRET
 //
-// IMPORTANTE — da verificare al primo deploy:
-// L'endpoint esatto dell'API v2 di swarfarm per l'elenco mostri non è
-// documentato in modo leggibile pubblicamente (la doc è in formato
-// CoreAPI binario). Questo codice assume la convenzione standard REST di
-// Django REST Framework usata dal resto del sito (viewset paginato su
-// /api/v2/monsters/, con "results", "next", e campi name/element/
-// image_filename per ogni mostro) — che è lo stesso schema usato da SWOP
-// e dagli altri tool della community. Se al primo giro la risposta non
-// torna nel formato atteso, va aperta https://swarfarm.com/api/v2/monsters/
-// da browser per vedere la struttura reale e aggiustare i nomi dei campi
-// qui sotto (sono isolati nella funzione parseMonster).
+// Campi verificati leggendo il codice sorgente reale di swarfarm
+// (github.com/swarfarm/swarfarm, bestiary/serializers.py + models/monsters.py):
+// name, image_filename, element, awaken_level (0=non risvegliato,
+// 1=risvegliato, 2=secondo risveglio, -1=incompleto). Il parametro
+// "awaken_level=1" nella query filtra lato server solo le forme
+// risvegliate standard — quella giusta da usare per una Difesa/Counter.
 const SWARFARM_BASE = "https://swarfarm.com";
 const ICON_BASE = "https://swarfarm.com/static/herders/images/monsters/";
 
 function parseRaw(raw) {
-  // Adatta qui se i nomi dei campi reali sono diversi.
-  const name = raw.name || raw.monster_name;
-  const element = raw.element || raw.attribute;
+  const name = raw.name;
+  const element = raw.element;
   const imageFilename = raw.image_filename;
   if (!name || !imageFilename) return null;
-  if (raw.is_awakened === false) return null; // scarta le forme non risvegliate, doppioni inutili
   // Alcuni elementi del bestiario sono materiali di fusione (es. "Living
   // Armor") senza nome localizzato in inglese: swarfarm restituisce il nome
   // in coreano. Non sono mostri giocabili in una Difesa/Counter, li scartiamo.
   if (/[\u3131-\uD79D\u4E00-\u9FFF]/.test(name)) return null;
 
   return { name, element, iconUrl: `${ICON_BASE}${imageFilename}` };
-}
-
-function capitalize(s) {
-  return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
 }
 
 export async function GET(request) {
@@ -45,7 +34,7 @@ export async function GET(request) {
 
   try {
     const raws = [];
-    let url = `${SWARFARM_BASE}/api/v2/monsters/?is_awakened=true&limit=100`;
+    let url = `${SWARFARM_BASE}/api/v2/monsters/?awaken_level=1&limit=100`;
     let guard = 0;
     while (url && guard < 100) {
       guard++;
@@ -60,15 +49,28 @@ export async function GET(request) {
       url = data.next || null;
     }
 
-    // Un nome, un'icona — niente doppioni, niente logica sull'elemento.
-    // Per la manciata di mostri con lo stesso nome su più elementi (le
-    // vere collab, es. Nobara/Aragorn), vince quello trovato per ultimo;
-    // se serve l'icona di un elemento specifico diverso, si sistema a
-    // mano da Pannello Admin → Mostri (aggiunta manuale, che vince sempre
-    // su questo elenco sincronizzato).
-    const byName = new Map();
-    for (const m of raws) byName.set(m.name, { name: m.name, iconUrl: m.iconUrl });
-    const finalList = Array.from(byName.values());
+    // Un nome, un'icona — TRANNE per i pochi mostri con lo stesso nome su
+    // più elementi (le vere collab, es. Nobara/Aragorn): per quelli si
+    // aggiunge l'elemento davanti, altrimenti sarebbero ambigui. Ora che
+    // filtriamo per awaken_level=1 lato server, non ci sono più forme
+    // diverse a creare falsi "doppioni" — il conteggio è affidabile.
+    const byBareName = new Map();
+    for (const m of raws) {
+      if (!byBareName.has(m.name)) byBareName.set(m.name, []);
+      byBareName.get(m.name).push(m);
+    }
+
+    const finalList = [];
+    for (const [name, variants] of byBareName) {
+      const uniqueElements = new Set(variants.map((v) => v.element));
+      if (uniqueElements.size <= 1) {
+        finalList.push({ name, iconUrl: variants[0].iconUrl });
+      } else {
+        for (const v of variants) {
+          finalList.push({ name: `${v.element} ${name}`, iconUrl: v.iconUrl });
+        }
+      }
+    }
 
     await setSyncedMonsters(finalList);
 
