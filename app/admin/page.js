@@ -254,6 +254,7 @@ function ImportTab() {
   );
 }
 
+function ContentTab() {
   const [defs, setDefs] = useState([]);
   const [selectedDefs, setSelectedDefs] = useState(new Set());
   const [selectedCounters, setSelectedCounters] = useState(new Set());
