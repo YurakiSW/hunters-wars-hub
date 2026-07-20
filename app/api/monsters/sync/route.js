@@ -23,14 +23,18 @@ function parseMonster(raw) {
   const name = raw.name || raw.monster_name;
   const element = raw.element || raw.attribute;
   const imageFilename = raw.image_filename;
-  if (!name || !imageFilename) return null;
-  // Alcuni mostri sono "family" con più elementi: per quelli con più
-  // varianti, il nome visibile include l'elemento (es. "Water Nobara"),
-  // per i mostri a elemento fisso resta solo il nome base.
-  const displayName = raw.is_awakened === false ? null : name; // scarta le forme non risvegliate, doppioni inutili
-  if (!displayName) return null;
-  const label = element && raw.awaken_bonus_content ? `${capitalize(element)} ${name}` : name;
-  return { name: label, iconUrl: `${ICON_BASE}${imageFilename}` };
+  if (!name || !imageFilename) return [];
+  if (raw.is_awakened === false) return []; // scarta le forme non risvegliate, doppioni inutili
+
+  const iconUrl = `${ICON_BASE}${imageFilename}`;
+  // Emettiamo SEMPRE sia il nome nudo (es. "Veromos") sia quello con
+  // l'elemento davanti (es. "Water Irène") per lo stesso mostro: così
+  // funzionano entrambi i modi in cui la gilda potrebbe scriverlo,
+  // senza dover indovinare se un mostro fa parte di una "famiglia"
+  // multi-elemento o no (quel dato non è documentato in modo affidabile).
+  const out = [{ name, iconUrl }];
+  if (element) out.push({ name: `${capitalize(element)} ${name}`, iconUrl });
+  return out;
 }
 
 function capitalize(s) {
@@ -54,8 +58,7 @@ export async function GET(request) {
       const data = await res.json();
       const items = data.results || data;
       for (const raw of Array.isArray(items) ? items : []) {
-        const parsed = parseMonster(raw);
-        if (parsed) results.push(parsed);
+        results.push(...parseMonster(raw));
       }
       url = data.next || null;
     }
