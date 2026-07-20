@@ -124,7 +124,7 @@ export default function DefDetailPage({ params }) {
             onEdit={() => setEditingCounter(c)}
             onDelete={() => setConfirmDeleteCounter(c)}
             onApprove={() => approveCounter(c.id, "approved")}
-            onReject={() => approveCounter(c.id, "pending")}
+            onReject={() => setConfirmDeleteCounter(c)}
           />
         ))}
         {def.counters.length === 0 && <p style={{ color: "var(--text-faint)" }}>Nessun counter ancora per questa difesa.</p>}
@@ -183,19 +183,6 @@ function CounterCard({ counter: c, user, canManage, onEdit, onDelete, onApprove,
         </div>
       </div>
 
-      <div className="section-label">Ordine turni</div>
-      <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 12, overflowX: "auto" }}>
-        {c.turnOrder.map((name, i) => (
-          <div key={i} style={{ display: "flex", alignItems: "center", gap: 4 }}>
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", minWidth: 52 }}>
-              <MonsterCrest name={name} size={36} lead={name === c.lead} />
-              <span style={{ fontSize: 11, marginTop: 4 }}>{name}</span>
-            </div>
-            {i < c.turnOrder.length - 1 && <div style={{ width: 18, height: 0, borderTop: "2px dashed var(--border)", marginBottom: 18 }} />}
-          </div>
-        ))}
-      </div>
-
       <button className="btn btn-ghost" onClick={() => setOpen((o) => !o)}>
         {open ? "Nascondi dettagli ▲" : "Mostra dettagli completi ▼"}
       </button>
@@ -204,7 +191,7 @@ function CounterCard({ counter: c, user, canManage, onEdit, onDelete, onApprove,
         <div style={{ marginTop: 14 }}>
           <div className="section-label">Squadra</div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 10, marginBottom: 14 }}>
-            {c.units.map((u) => (
+            {[...c.units].sort((a, b) => (b.lead ? 1 : 0) - (a.lead ? 1 : 0)).map((u) => (
               <div key={u.name} style={{ background: "var(--bg-soft)", border: "1px solid var(--border-soft)", borderRadius: 10, padding: 12 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
                   <MonsterCrest name={u.name} size={28} lead={u.lead} />
@@ -240,6 +227,20 @@ function CounterCard({ counter: c, user, canManage, onEdit, onDelete, onApprove,
                     </ul>
                   </div>
                 )}
+              </div>
+            ))}
+          </div>
+
+          <div className="section-label">Speed Tuning</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 14, overflowX: "auto" }}>
+            {c.turnOrder.map((name, i) => (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", minWidth: 52 }}>
+                  <span className="f-mono" style={{ fontSize: 10, color: "var(--violet)", fontWeight: 700, marginBottom: 2 }}>Turno {i + 1}</span>
+                  <MonsterCrest name={name} size={36} lead={name === c.lead} />
+                  <span style={{ fontSize: 11, marginTop: 4 }}>{name}</span>
+                </div>
+                {i < c.turnOrder.length - 1 && <div style={{ width: 18, height: 0, borderTop: "2px dashed var(--border)", marginBottom: 22, alignSelf: "center" }} />}
               </div>
             ))}
           </div>

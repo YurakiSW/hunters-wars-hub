@@ -43,7 +43,7 @@ export async function POST(request) {
     desc,
     authorId: user.id,
     authorNickname: user.nickname,
-    autoApprove: user.role === "admin",
+    autoApprove: canManage(user),
   });
   return NextResponse.json({ def });
 }

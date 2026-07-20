@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser } from "../../../../../lib/auth";
+import { getCurrentUser, canManage } from "../../../../../lib/auth";
 import { getDef, createCounter } from "../../../../../lib/defs";
 import { isKnownMonster } from "../../../../../lib/monsters";
 import { validateCounterPayload } from "../../../../../lib/gameData";
@@ -44,7 +44,7 @@ export async function POST(request, { params }) {
       video: payload.video,
       images: payload.images,
     },
-    { authorId: user.id, authorNickname: user.nickname, autoApprove: user.role === "admin" }
+    { authorId: user.id, authorNickname: user.nickname, autoApprove: canManage(user) }
   );
 
   return NextResponse.json({ counter });
