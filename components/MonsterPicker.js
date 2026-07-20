@@ -20,6 +20,11 @@ export default function MonsterPicker({ value, onChange, placeholder }) {
       <input
         value={value}
         placeholder={placeholder || "Inizia a scrivere il nome..."}
+        autoComplete="off"
+        autoCorrect="off"
+        autoCapitalize="off"
+        spellCheck="false"
+        name="monster-search-not-a-contact"
         onChange={(e) => { onChange(e.target.value); setOpen(true); }}
         onFocus={() => setOpen(true)}
         onBlur={() => setTimeout(() => setOpen(false), 120)}
