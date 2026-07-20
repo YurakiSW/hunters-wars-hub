@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser, defaultRoleForGrade, defaultCanUploadRosterForGrade, isAdmin } from "../../../../lib/auth";
-import { getRoster, setRoster, extractRosterFromGameExport } from "../../../../lib/roster";
+import { getRoster, setRoster } from "../../../../lib/roster";
 import { redis } from "../../../../lib/redis";
 
 export async function GET() {
@@ -17,12 +17,12 @@ export async function POST(request) {
     return NextResponse.json({ error: "Non hai il permesso di caricare il roster (serve grado Vice o autorizzazione dell'Admin)." }, { status: 403 });
   }
 
-  const { rawJson } = await request.json();
-  let entries;
-  try {
-    entries = extractRosterFromGameExport(rawJson);
-  } catch (err) {
-    return NextResponse.json({ error: String(err.message || err) }, { status: 400 });
+  // Il browser ha già estratto solo nickname+grado dal file di gioco
+  // (che può essere anche di svariati MB) prima di mandarlo qui — così non
+  // trasferiamo mai al server dati di gioco non necessari.
+  const { entries } = await request.json();
+  if (!Array.isArray(entries) || !entries.length) {
+    return NextResponse.json({ error: "Lista membri mancante o vuota." }, { status: 400 });
   }
 
   await setRoster(entries);
