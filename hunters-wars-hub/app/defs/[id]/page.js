@@ -6,6 +6,7 @@ import Modal from "../../../components/Modal";
 import ConfirmModal from "../../../components/ConfirmModal";
 import CounterForm from "../../../components/CounterForm";
 import MonsterCrest from "../../../components/MonsterCrest";
+import VideoPreview from "../../../components/VideoPreview";
 
 export default function DefDetailPage({ params }) {
   const [user, setUser] = useState(null);
@@ -248,6 +249,20 @@ function CounterCard({ counter: c, user, canManage, onEdit, onDelete, onApprove,
           {c.warning && (
             <div style={{ background: "var(--red-soft)", border: "1px solid var(--red)", borderRadius: 8, padding: "8px 12px", color: "var(--red)", fontSize: 12.5, marginBottom: 12 }}>
               ⚠ {c.warning}
+            </div>
+          )}
+
+          {(c.video || c.images?.length > 0) && (
+            <div>
+              <div className="section-label">Allegati</div>
+              {c.video && <VideoPreview url={c.video} />}
+              {c.images?.length > 0 && (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: c.video ? 8 : 0 }}>
+                  {c.images.map((img, i) => (
+                    <img key={i} src={img.dataUrl} alt={img.name} title={img.name} style={{ width: 64, height: 64, objectFit: "cover", borderRadius: 8, border: "1px solid var(--border-soft)" }} />
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>

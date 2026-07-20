@@ -1,32 +1,25 @@
 "use client";
+import { useEffect, useState } from "react";
 
-// Solo mostri VERIFICATI uno per uno su swarfarm.com hanno un'icona vera.
-// Tutti gli altri restano con un cerchio colorato + iniziali, finché non
-// vengono aggiunti qui (a mano dal pannello "Mostri") o dalla sync automatica.
-const ICON_MAP = {
-  teshar: "https://swarfarm.com/static/herders/images/monsters/unit_icon_0017_2_3.png",
-  jaara: "https://swarfarm.com/static/herders/images/monsters/unit_icon_0017_4_3.png",
-  narsha: "https://swarfarm.com/static/herders/images/monsters/unit_icon_0054_3_1.png",
-  veromos: "https://swarfarm.com/static/herders/images/monsters/unit_icon_0032_4_2.png",
-  geldnir: "https://swarfarm.com/static/herders/images/monsters/unit_icon_0047_3_2.png",
-  chandra: "https://swarfarm.com/static/herders/images/monsters/unit_icon_0027_0_1.png",
-  taranys: "https://swarfarm.com/static/herders/images/monsters/unit_icon_0046_2_2.png",
-  "water nobara": "https://swarfarm.com/static/herders/images/monsters/unit_icon_0156_1_1.png",
-  "fire nobara": "https://swarfarm.com/static/herders/images/monsters/unit_icon_0156_1_2.png",
-  "wind nobara": "https://swarfarm.com/static/herders/images/monsters/unit_icon_0156_1_3.png",
-  "light nobara": "https://swarfarm.com/static/herders/images/monsters/unit_icon_0156_1_4.png",
-  "dark nobara": "https://swarfarm.com/static/herders/images/monsters/unit_icon_0156_1_5.png",
-  "water aragorn": "https://swarfarm.com/static/herders/images/monsters/unit_icon_0206_1_1.png",
-  "fire aragorn": "https://swarfarm.com/static/herders/images/monsters/unit_icon_0206_1_2.png",
-  "wind aragorn": "https://swarfarm.com/static/herders/images/monsters/unit_icon_0206_1_3.png",
-  "light aragorn": "https://swarfarm.com/static/herders/images/monsters/unit_icon_0206_1_4.png",
-  "dark aragorn": "https://swarfarm.com/static/herders/images/monsters/unit_icon_0206_1_5.png",
-  "water tanjiro": "https://swarfarm.com/static/herders/images/monsters/unit_icon_0167_1_1.png",
-  "fire tanjiro": "https://swarfarm.com/static/herders/images/monsters/unit_icon_0167_1_2.png",
-  "wind tanjiro": "https://swarfarm.com/static/herders/images/monsters/unit_icon_0167_1_3.png",
-  "light tanjiro": "https://swarfarm.com/static/herders/images/monsters/unit_icon_0167_1_4.png",
-  "dark tanjiro": "https://swarfarm.com/static/herders/images/monsters/unit_icon_0167_1_5.png",
-};
+// Cache condivisa in memoria: tutti i MonsterCrest della pagina fanno UNA
+// sola richiesta, non una a testa. La lista arriva da /api/admin/monsters,
+// che unisce i mostri sincronizzati da swarfarm.com (in automatico) e
+// quelli aggiunti a mano dall'Admin.
+let cache = null;
+let pending = null;
+function getMonsterList() {
+  if (cache) return Promise.resolve(cache);
+  if (!pending) {
+    pending = fetch("/api/admin/monsters")
+      .then((r) => r.json())
+      .then((d) => {
+        cache = d.monsters || [];
+        return cache;
+      })
+      .catch(() => []);
+  }
+  return pending;
+}
 
 function hashHue(str) {
   let h = 0;
@@ -35,9 +28,21 @@ function hashHue(str) {
 }
 
 export default function MonsterCrest({ name, size = 40, lead = false }) {
+  const [icon, setIcon] = useState(undefined);
+
+  useEffect(() => {
+    let alive = true;
+    getMonsterList().then((list) => {
+      if (!alive) return;
+      const match = list.find((m) => m.name.toLowerCase() === (name || "").toLowerCase());
+      setIcon(match?.iconUrl || null);
+    });
+    return () => { alive = false; };
+  }, [name]);
+
   const key = (name || "").toLowerCase().trim();
-  const icon = ICON_MAP[key];
   const hue = hashHue(key || "x");
+
   return (
     <div
       title={name}
