@@ -75,12 +75,14 @@ export async function GET(request) {
 
     const finalList = [];
     for (const [name, variants] of byBareName) {
-      if (variants.length === 1) {
+      const uniqueElements = new Set(variants.filter((v) => v.element).map((v) => v.element.toLowerCase()));
+      if (uniqueElements.size <= 1) {
+        // Un solo elemento coinvolto (anche se compare più volte nei dati
+        // grezzi, es. per gradi diversi): nome nudo, nessun prefisso.
         finalList.push({ name, iconUrl: variants[0].iconUrl });
       } else {
-        // Nome ambiguo su più elementi: niente voce "nuda", solo quelle
-        // con l'elemento davanti, una per elemento (dedup se un elemento
-        // compare più volte per via di più forme/gradi).
+        // Nome davvero ambiguo su più elementi distinti: niente voce
+        // "nuda", solo quelle col prefisso elemento, una per elemento.
         const seenElements = new Set();
         for (const v of variants) {
           if (!v.element) continue;
