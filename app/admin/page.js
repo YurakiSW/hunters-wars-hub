@@ -201,6 +201,59 @@ function MonstersTab() {
           <button className="btn btn-danger" onClick={() => remove(m.name)}>Rimuovi</button>
         </div>
       ))}
+
+      <AliasUploadCard />
+    </div>
+  );
+}
+
+function AliasUploadCard() {
+  const [status, setStatus] = useState("idle");
+  const [msg, setMsg] = useState("");
+  const [aliases, setAliasesState] = useState({});
+
+  useEffect(() => { fetch("/api/admin/aliases").then((r) => r.json()).then((d) => setAliasesState(d.aliases || {})); }, []);
+
+  function handleFile(file) {
+    setStatus("loading"); setMsg("");
+    const reader = new FileReader();
+    reader.onload = async () => {
+      let parsed;
+      try {
+        parsed = JSON.parse(reader.result);
+      } catch {
+        setStatus("error"); setMsg("Il file non è un JSON valido.");
+        return;
+      }
+      const res = await fetch("/api/admin/aliases", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(parsed) });
+      const data = await res.json();
+      setStatus(res.ok ? "done" : "error");
+      setMsg(res.ok ? `Aggiunti ${data.count} alias (totale: ${data.total}).` : data.error);
+      if (res.ok) fetch("/api/admin/aliases").then((r) => r.json()).then((d) => setAliasesState(d.aliases || {}));
+    };
+    reader.readAsText(file);
+  }
+
+  return (
+    <div className="card" style={{ marginTop: 18 }}>
+      <div className="section-label">Alias nomignoli → nome ufficiale (in blocco)</div>
+      <p style={{ color: "var(--text-faint)", fontSize: 12, marginBottom: 10 }}>
+        Carica un file .json tipo <code>{`{"Nomignolo": "Nome Ufficiale"}`}</code> per collegare in blocco i nomignoli di gilda ai
+        mostri veri — prendono così l'icona corretta ovunque vengano usati.
+      </p>
+      <label style={{ display: "block", border: "1.5px dashed var(--border)", borderRadius: 8, padding: "14px 12px", textAlign: "center", cursor: "pointer", color: "var(--text-muted)", fontSize: 12.5, background: "var(--bg-soft)" }}>
+        {status === "loading" ? "Caricamento..." : "📎 Clicca per selezionare il file .json"}
+        <input type="file" accept="application/json" style={{ display: "none" }} onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])} />
+      </label>
+      {msg && <p style={{ color: status === "error" ? "var(--red)" : "var(--green)", fontSize: 12.5, marginTop: 8 }}>{msg}</p>}
+      {Object.keys(aliases).length > 0 && (
+        <div style={{ marginTop: 12 }}>
+          <div className="f-mono" style={{ fontSize: 10.5, color: "var(--text-faint)", marginBottom: 4 }}>ALIAS ATTUALI ({Object.keys(aliases).length})</div>
+          {Object.entries(aliases).map(([k, v]) => (
+            <div key={k} style={{ fontSize: 12, padding: "3px 0" }}>{k} → {v}</div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

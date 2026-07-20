@@ -51,6 +51,18 @@ input, select, textarea {
   width: 100%;
 }
 
+/* Le checkbox/radio NON devono ereditare width:100% dalla regola sopra —
+   altrimenti si allargano a riempire tutto lo spazio flessibile a
+   disposizione e sfasciano il layout di qualsiasi riga in cui compaiono
+   (esattamente il bug visto in Gestione contenuti). */
+input[type="checkbox"], input[type="radio"] {
+  width: auto;
+  background: none;
+  border: none;
+  padding: 0;
+  flex-shrink: 0;
+}
+
 button {
   font-family: inherit;
   cursor: pointer;

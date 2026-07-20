@@ -5,6 +5,7 @@ import Header from "../../../components/Header";
 import Modal from "../../../components/Modal";
 import ConfirmModal from "../../../components/ConfirmModal";
 import CounterForm from "../../../components/CounterForm";
+import DefForm from "../../../components/DefForm";
 import MonsterCrest from "../../../components/MonsterCrest";
 import VideoPreview from "../../../components/VideoPreview";
 
@@ -13,6 +14,7 @@ export default function DefDetailPage({ params }) {
   const [def, setDef] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [editingCounter, setEditingCounter] = useState(null);
+  const [editingDef, setEditingDef] = useState(false);
   const [confirmDeleteCounter, setConfirmDeleteCounter] = useState(null);
   const [confirmDeleteDef, setConfirmDeleteDef] = useState(false);
   const router = useRouter();
@@ -73,6 +75,17 @@ export default function DefDetailPage({ params }) {
     router.push("/defs");
   }
 
+  async function submitEditDef({ m1, m2, m3, desc }) {
+    const res = await fetch(`/api/defs/${def.id}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ m1, m2, m3, desc }),
+    });
+    const data = await res.json();
+    if (!res.ok) return { error: data.error };
+    setEditingDef(false);
+    load();
+    return {};
+  }
+
   return (
     <div>
       <Header user={user} />
@@ -89,7 +102,10 @@ export default function DefDetailPage({ params }) {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
           <h1 className="f-display" style={{ fontSize: 26, margin: "0 0 4px" }}>{def.monsters.join(" / ")}</h1>
           {canManage && (
-            <button className="btn btn-danger" onClick={() => setConfirmDeleteDef(true)}>🗑 Elimina difesa</button>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button className="btn btn-ghost" onClick={() => setEditingDef(true)}>✎ Modifica difesa</button>
+              <button className="btn btn-danger" onClick={() => setConfirmDeleteDef(true)}>🗑 Elimina difesa</button>
+            </div>
           )}
         </div>
         {def.desc && <p style={{ color: "var(--text-muted)" }}>{def.desc}</p>}
@@ -137,6 +153,11 @@ export default function DefDetailPage({ params }) {
           onConfirm={deleteDef}
           onCancel={() => setConfirmDeleteDef(false)}
         />
+      )}
+      {editingDef && (
+        <Modal title={`Modifica difesa — ${def.monsters.join(" / ")}`} onClose={() => setEditingDef(false)}>
+          <DefForm initial={def} onSubmit={submitEditDef} onCancel={() => setEditingDef(false)} />
+        </Modal>
       )}
     </div>
   );
