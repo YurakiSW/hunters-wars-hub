@@ -1,0 +1,19 @@
+{
+  "name": "hunters-wars-hub",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "sync-monsters": "node scripts/sync-monsters.mjs"
+  },
+  "dependencies": {
+    "@upstash/redis": "^1.34.3",
+    "bcryptjs": "^2.4.3",
+    "jose": "^5.9.6",
+    "next": "14.2.15",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  }
+}
