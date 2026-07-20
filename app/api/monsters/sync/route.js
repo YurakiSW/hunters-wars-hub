@@ -60,39 +60,21 @@ export async function GET(request) {
       url = data.next || null;
     }
 
-    // La maggior parte dei mostri ha un nome già unico per elemento (es.
-    // "Son Zhang Lao" è sempre Oscurità: non ha senso offrire anche "Dark
-    // Son Zhang Lao", è ridondante e confonde). Solo quando lo STESSO nome
-    // compare su più elementi (i pochi mostri da collab tipo Nobara,
-    // Aragorn, Irène) ha senso distinguerli col prefisso elemento — e in
-    // quel caso è anche OBBLIGATORIO, altrimenti "Irène" da sola sarebbe
-    // ambigua tra 5 icone diverse.
-    const byBareName = new Map();
+    // Per ogni mostro salviamo SEMPRE sia il nome nudo (es. "Savannah",
+    // "Son Zhang Lao") sia quello con l'elemento davanti (es. "Wind
+    // Savannah") quando l'elemento è noto. Crea qualche doppione nella
+    // ricerca per i mostri con nome già unico, ma non nasconde MAI il
+    // nome nudo — un doppione in più è molto meno grave di un mostro che
+    // sparisce dall'elenco.
+    const byLabel = new Map();
     for (const m of raws) {
-      if (!byBareName.has(m.name)) byBareName.set(m.name, []);
-      byBareName.get(m.name).push(m);
-    }
-
-    const finalList = [];
-    for (const [name, variants] of byBareName) {
-      const uniqueElements = new Set(variants.filter((v) => v.element).map((v) => v.element.toLowerCase()));
-      if (uniqueElements.size <= 1) {
-        // Un solo elemento coinvolto (anche se compare più volte nei dati
-        // grezzi, es. per gradi diversi): nome nudo, nessun prefisso.
-        finalList.push({ name, iconUrl: variants[0].iconUrl });
-      } else {
-        // Nome davvero ambiguo su più elementi distinti: niente voce
-        // "nuda", solo quelle col prefisso elemento, una per elemento.
-        const seenElements = new Set();
-        for (const v of variants) {
-          if (!v.element) continue;
-          const label = `${capitalize(v.element)} ${name}`;
-          if (seenElements.has(label)) continue;
-          seenElements.add(label);
-          finalList.push({ name: label, iconUrl: v.iconUrl });
-        }
+      if (!byLabel.has(m.name)) byLabel.set(m.name, m);
+      if (m.element) {
+        const label = `${capitalize(m.element)} ${m.name}`;
+        if (!byLabel.has(label)) byLabel.set(label, { name: label, iconUrl: m.iconUrl });
       }
     }
+    const finalList = Array.from(byLabel.values()).map((m) => ({ name: m.name, iconUrl: m.iconUrl }));
 
     await setSyncedMonsters(finalList);
 
