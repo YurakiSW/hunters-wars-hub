@@ -60,21 +60,15 @@ export async function GET(request) {
       url = data.next || null;
     }
 
-    // Per ogni mostro salviamo SEMPRE sia il nome nudo (es. "Savannah",
-    // "Son Zhang Lao") sia quello con l'elemento davanti (es. "Wind
-    // Savannah") quando l'elemento è noto. Crea qualche doppione nella
-    // ricerca per i mostri con nome già unico, ma non nasconde MAI il
-    // nome nudo — un doppione in più è molto meno grave di un mostro che
-    // sparisce dall'elenco.
-    const byLabel = new Map();
-    for (const m of raws) {
-      if (!byLabel.has(m.name)) byLabel.set(m.name, m);
-      if (m.element) {
-        const label = `${capitalize(m.element)} ${m.name}`;
-        if (!byLabel.has(label)) byLabel.set(label, { name: label, iconUrl: m.iconUrl });
-      }
-    }
-    const finalList = Array.from(byLabel.values()).map((m) => ({ name: m.name, iconUrl: m.iconUrl }));
+    // Un nome, un'icona — niente doppioni, niente logica sull'elemento.
+    // Per la manciata di mostri con lo stesso nome su più elementi (le
+    // vere collab, es. Nobara/Aragorn), vince quello trovato per ultimo;
+    // se serve l'icona di un elemento specifico diverso, si sistema a
+    // mano da Pannello Admin → Mostri (aggiunta manuale, che vince sempre
+    // su questo elenco sincronizzato).
+    const byName = new Map();
+    for (const m of raws) byName.set(m.name, { name: m.name, iconUrl: m.iconUrl });
+    const finalList = Array.from(byName.values());
 
     await setSyncedMonsters(finalList);
 
