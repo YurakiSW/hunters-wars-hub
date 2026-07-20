@@ -1,6 +1,12 @@
 "use client";
 import { useEffect, useState } from "react";
 
+// Toglie gli accenti per il confronto (Irène si trova anche scrivendo
+// "irene" senza accento).
+function normalize(s) {
+  return (s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+}
+
 export default function MonsterPicker({ value, onChange, placeholder }) {
   const [allNames, setAllNames] = useState([]);
   const [open, setOpen] = useState(false);
@@ -12,8 +18,21 @@ export default function MonsterPicker({ value, onChange, placeholder }) {
       .catch(() => {});
   }, []);
 
-  const matches = (value?.trim() ? allNames.filter((n) => n.toLowerCase().includes(value.toLowerCase())) : allNames).slice(0, 8);
-  const isValid = allNames.some((n) => n.toLowerCase() === (value || "").trim().toLowerCase());
+  const q = normalize(value);
+  // Chi INIZIA col testo scritto viene prima di chi lo contiene solo in
+  // mezzo — altrimenti con liste lunghe (2000+ mostri) il nome giusto
+  // rischia di restare fuori dai primi risultati mostrati.
+  const matches = !q
+    ? allNames.slice(0, 8)
+    : allNames
+        .filter((n) => normalize(n).includes(q))
+        .sort((a, b) => {
+          const aStarts = normalize(a).startsWith(q) ? 0 : 1;
+          const bStarts = normalize(b).startsWith(q) ? 0 : 1;
+          return aStarts - bStarts || a.localeCompare(b);
+        })
+        .slice(0, 8);
+  const isValid = allNames.some((n) => normalize(n) === q);
 
   return (
     <div style={{ position: "relative" }}>

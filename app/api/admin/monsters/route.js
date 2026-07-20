@@ -1,8 +1,13 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser, canManage } from "../../../../lib/auth";
-import { getFullMonsterList, addManualMonster, removeManualMonster } from "../../../../lib/monsters";
+import { getFullMonsterList, getManualMonsters, addManualMonster, removeManualMonster } from "../../../../lib/monsters";
 
-export async function GET() {
+export async function GET(request) {
+  const { searchParams } = new URL(request.url);
+  if (searchParams.get("manualOnly") === "1") {
+    const manual = await getManualMonsters();
+    return NextResponse.json({ manual });
+  }
   const list = await getFullMonsterList();
   return NextResponse.json({ monsters: list });
 }

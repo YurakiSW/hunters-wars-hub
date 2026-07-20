@@ -169,7 +169,7 @@ function MonstersTab() {
   const [name, setName] = useState("");
   const [iconUrl, setIconUrl] = useState("");
 
-  useEffect(() => { fetch("/api/admin/monsters").then((r) => r.json()).then((d) => setManual((d.monsters || []).filter((m) => !m.isAlias))); }, []);
+  useEffect(() => { fetch("/api/admin/monsters?manualOnly=1").then((r) => r.json()).then((d) => setManual(d.manual || [])); }, []);
 
   async function add() {
     const res = await fetch("/api/admin/monsters", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, iconUrl }) });

@@ -18,27 +18,19 @@ import { setSyncedMonsters } from "../../../../lib/monsters";
 const SWARFARM_BASE = "https://swarfarm.com";
 const ICON_BASE = "https://swarfarm.com/static/herders/images/monsters/";
 
-function parseMonster(raw) {
+function parseRaw(raw) {
   // Adatta qui se i nomi dei campi reali sono diversi.
   const name = raw.name || raw.monster_name;
   const element = raw.element || raw.attribute;
   const imageFilename = raw.image_filename;
-  if (!name || !imageFilename) return [];
-  if (raw.is_awakened === false) return []; // scarta le forme non risvegliate, doppioni inutili
+  if (!name || !imageFilename) return null;
+  if (raw.is_awakened === false) return null; // scarta le forme non risvegliate, doppioni inutili
   // Alcuni elementi del bestiario sono materiali di fusione (es. "Living
   // Armor") senza nome localizzato in inglese: swarfarm restituisce il nome
   // in coreano. Non sono mostri giocabili in una Difesa/Counter, li scartiamo.
-  if (/[\u3131-\uD79D\u4E00-\u9FFF]/.test(name)) return [];
+  if (/[\u3131-\uD79D\u4E00-\u9FFF]/.test(name)) return null;
 
-  const iconUrl = `${ICON_BASE}${imageFilename}`;
-  // Emettiamo SEMPRE sia il nome nudo (es. "Veromos") sia quello con
-  // l'elemento davanti (es. "Water Irène") per lo stesso mostro: così
-  // funzionano entrambi i modi in cui la gilda potrebbe scriverlo,
-  // senza dover indovinare se un mostro fa parte di una "famiglia"
-  // multi-elemento o no (quel dato non è documentato in modo affidabile).
-  const out = [{ name, iconUrl }];
-  if (element) out.push({ name: `${capitalize(element)} ${name}`, iconUrl });
-  return out;
+  return { name, element, iconUrl: `${ICON_BASE}${imageFilename}` };
 }
 
 function capitalize(s) {
@@ -52,7 +44,7 @@ export async function GET(request) {
   }
 
   try {
-    const results = [];
+    const raws = [];
     let url = `${SWARFARM_BASE}/api/v2/monsters/?is_awakened=true&limit=100`;
     let guard = 0;
     while (url && guard < 100) {
@@ -62,15 +54,43 @@ export async function GET(request) {
       const data = await res.json();
       const items = data.results || data;
       for (const raw of Array.isArray(items) ? items : []) {
-        results.push(...parseMonster(raw));
+        const parsed = parseRaw(raw);
+        if (parsed) raws.push(parsed);
       }
       url = data.next || null;
     }
 
-    // Dedup per nome (mantieni il primo trovato)
-    const byName = new Map();
-    for (const m of results) if (!byName.has(m.name)) byName.set(m.name, m);
-    const finalList = Array.from(byName.values());
+    // La maggior parte dei mostri ha un nome già unico per elemento (es.
+    // "Son Zhang Lao" è sempre Oscurità: non ha senso offrire anche "Dark
+    // Son Zhang Lao", è ridondante e confonde). Solo quando lo STESSO nome
+    // compare su più elementi (i pochi mostri da collab tipo Nobara,
+    // Aragorn, Irène) ha senso distinguerli col prefisso elemento — e in
+    // quel caso è anche OBBLIGATORIO, altrimenti "Irène" da sola sarebbe
+    // ambigua tra 5 icone diverse.
+    const byBareName = new Map();
+    for (const m of raws) {
+      if (!byBareName.has(m.name)) byBareName.set(m.name, []);
+      byBareName.get(m.name).push(m);
+    }
+
+    const finalList = [];
+    for (const [name, variants] of byBareName) {
+      if (variants.length === 1) {
+        finalList.push({ name, iconUrl: variants[0].iconUrl });
+      } else {
+        // Nome ambiguo su più elementi: niente voce "nuda", solo quelle
+        // con l'elemento davanti, una per elemento (dedup se un elemento
+        // compare più volte per via di più forme/gradi).
+        const seenElements = new Set();
+        for (const v of variants) {
+          if (!v.element) continue;
+          const label = `${capitalize(v.element)} ${name}`;
+          if (seenElements.has(label)) continue;
+          seenElements.add(label);
+          finalList.push({ name: label, iconUrl: v.iconUrl });
+        }
+      }
+    }
 
     await setSyncedMonsters(finalList);
 

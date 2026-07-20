@@ -1,6 +1,10 @@
 "use client";
 import { useEffect, useState } from "react";
 
+function normalize(s) {
+  return (s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+}
+
 // Cache condivisa in memoria: tutti i MonsterCrest della pagina fanno UNA
 // sola richiesta, non una a testa. La lista arriva da /api/admin/monsters,
 // che unisce i mostri sincronizzati da swarfarm.com (in automatico) e
@@ -34,13 +38,14 @@ export default function MonsterCrest({ name, size = 40, lead = false }) {
     let alive = true;
     getMonsterList().then((list) => {
       if (!alive) return;
-      const match = list.find((m) => m.name.toLowerCase() === (name || "").toLowerCase());
+      const target = normalize(name);
+      const match = list.find((m) => normalize(m.name) === target);
       setIcon(match?.iconUrl || null);
     });
     return () => { alive = false; };
   }, [name]);
 
-  const key = (name || "").toLowerCase().trim();
+  const key = normalize(name);
   const hue = hashHue(key || "x");
 
   return (
