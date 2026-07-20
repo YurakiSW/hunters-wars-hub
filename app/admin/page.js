@@ -69,8 +69,21 @@ function RosterTab() {
     setError(""); setMsg("");
     const reader = new FileReader();
     reader.onload = async () => {
+      let entries;
+      try {
+        const data = JSON.parse(reader.result);
+        const members = data?.guild?.guild_members;
+        if (!members) throw new Error("Non trovo guild.guild_members in questo file.");
+        entries = Object.values(members).map((m) => ({ nickname: m.wizard_name, grade: m.grade }));
+      } catch (e) {
+        setLoading(false);
+        setError("File non valido: " + (e.message || e));
+        return;
+      }
+      // Manda solo la lista estratta (nickname+grado), non il file intero:
+      // molto più leggero e veloce di spedire 6+ MB di dati di gioco.
       const res = await fetch("/api/admin/roster", {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ rawJson: reader.result }),
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ entries }),
       });
       const data = await res.json();
       setLoading(false);
@@ -217,7 +230,17 @@ function ImportTab() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(parsed),
         });
-        const data = await res.json();
+        const raw = await res.text();
+        let data;
+        try {
+          data = JSON.parse(raw);
+        } catch {
+          throw new Error(
+            res.status === 504
+              ? "Il server ha impiegato troppo tempo (troppi dati insieme). Riprova, o dividi il file in più parti più piccole."
+              : `Il server ha risposto in modo inatteso (status ${res.status}). Riprova tra poco.`
+          );
+        }
         if (!res.ok) throw new Error(data.error || "Errore sconosciuto");
         setResult(data);
         setStatus("done");
