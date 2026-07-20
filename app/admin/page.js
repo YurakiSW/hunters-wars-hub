@@ -57,30 +57,43 @@ export default function AdminPage() {
 }
 
 function RosterTab() {
-  const [text, setText] = useState("");
   const [roster, setRoster] = useState([]);
   const [error, setError] = useState("");
   const [msg, setMsg] = useState("");
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => { fetch("/api/admin/roster").then((r) => r.json()).then((d) => setRoster(d.roster || [])); }, []);
 
-  async function upload() {
+  function handleFile(file) {
+    setLoading(true);
     setError(""); setMsg("");
-    const res = await fetch("/api/admin/roster", {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ rawJson: text }),
-    });
-    const data = await res.json();
-    if (!res.ok) return setError(data.error);
-    setMsg(`Roster aggiornato: ${data.count} membri.`);
-    fetch("/api/admin/roster").then((r) => r.json()).then((d) => setRoster(d.roster || []));
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const res = await fetch("/api/admin/roster", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ rawJson: reader.result }),
+      });
+      const data = await res.json();
+      setLoading(false);
+      if (!res.ok) return setError(data.error);
+      setMsg(`Roster aggiornato: ${data.count} membri.`);
+      fetch("/api/admin/roster").then((r) => r.json()).then((d) => setRoster(d.roster || []));
+    };
+    reader.readAsText(file);
   }
 
   return (
     <div>
       <div className="card" style={{ marginBottom: 18 }}>
         <div className="section-label">Carica JSON export (SWEX/SWProxy)</div>
-        <textarea rows={6} value={text} onChange={(e) => setText(e.target.value)} placeholder="Incolla qui il contenuto del file JSON..." />
-        <button className="btn btn-primary" onClick={upload} style={{ marginTop: 10 }}>Aggiorna roster</button>
+        <label
+          style={{
+            display: "block", border: "1.5px dashed var(--border)", borderRadius: 8, padding: "18px 12px",
+            textAlign: "center", cursor: "pointer", color: "var(--text-muted)", fontSize: 12.5, background: "var(--bg-soft)",
+          }}
+        >
+          {loading ? "Caricamento..." : "📎 Clicca per selezionare il file .json"}
+          <input type="file" accept="application/json" style={{ display: "none" }} onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])} />
+        </label>
         {error && <p style={{ color: "var(--red)", fontSize: 13, marginTop: 8 }}>{error}</p>}
         {msg && <p style={{ color: "var(--green)", fontSize: 13, marginTop: 8 }}>{msg}</p>}
         <p style={{ color: "var(--text-faint)", fontSize: 11, marginTop: 8 }}>Vengono estratti solo nickname e grado — nessun altro dato dell'export viene salvato.</p>
