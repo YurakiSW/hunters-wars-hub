@@ -25,6 +25,10 @@ function parseMonster(raw) {
   const imageFilename = raw.image_filename;
   if (!name || !imageFilename) return [];
   if (raw.is_awakened === false) return []; // scarta le forme non risvegliate, doppioni inutili
+  // Alcuni elementi del bestiario sono materiali di fusione (es. "Living
+  // Armor") senza nome localizzato in inglese: swarfarm restituisce il nome
+  // in coreano. Non sono mostri giocabili in una Difesa/Counter, li scartiamo.
+  if (/[\u3131-\uD79D\u4E00-\u9FFF]/.test(name)) return [];
 
   const iconUrl = `${ICON_BASE}${imageFilename}`;
   // Emettiamo SEMPRE sia il nome nudo (es. "Veromos") sia quello con

@@ -35,6 +35,30 @@ function compressImage(file, maxDim = 1600, quality = 0.75) {
   });
 }
 
+// Fino a 3 set rune per mostro (le build reali sono sempre 2+2+2 oppure
+// 4+2 — mai più di 3 set diversi in un unico piano rune da 6 pezzi).
+function RunePicker({ value, onChange }) {
+  const selected = (value || "").split("/").map((s) => s.trim()).filter(Boolean);
+  function toggle(set) {
+    if (selected.includes(set)) onChange(selected.filter((s) => s !== set).join(" / "));
+    else if (selected.length < 3) onChange([...selected, set].join(" / "));
+  }
+  return (
+    <div style={{ background: "var(--bg-soft)", border: "1px solid var(--border-soft)", borderRadius: 8, padding: 8, maxHeight: 160, overflowY: "auto" }}>
+      {RUNE_SETS.map((s) => {
+        const idx = selected.indexOf(s);
+        return (
+          <label key={s} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, padding: "3px 0", cursor: "pointer" }}>
+            <input type="checkbox" checked={idx >= 0} disabled={idx < 0 && selected.length >= 3} onChange={() => toggle(s)} />
+            {idx >= 0 && <span className="f-mono" style={{ color: "var(--violet)", fontSize: 10 }}>{idx + 1}</span>}
+            {s}
+          </label>
+        );
+      })}
+    </div>
+  );
+}
+
 function StatSelect({ value, onChange }) {
   const parts = (value || "").split("/").map((p) => p.trim());
   const [s2, s4, s6] = [parts[0] || "", parts[1] || "", parts[2] || ""];
@@ -122,7 +146,7 @@ export default function CounterForm({ defMonsters, initial, onSubmit, onCancel }
   return (
     <div>
       <p style={{ color: "var(--text-faint)", fontSize: 12.5, marginBottom: 16 }}>
-        Tutti i campi sono obbligatori. Il counter {initial ? "torna" : "entra"} in coda "in attesa" per l'approvazione.
+        I campi con <span style={{ color: "var(--red)" }}>*</span> sono obbligatori. Il counter {initial ? "torna" : "entra"} in coda "in attesa" per l'approvazione.
       </p>
 
       <div className="section-label">Squadra</div>
@@ -134,32 +158,30 @@ export default function CounterForm({ defMonsters, initial, onSubmit, onCancel }
               <input type="checkbox" checked={u.lead} onChange={(e) => setUnit(i, { lead: e.target.checked })} /> Lead
             </label>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+          <div style={{ marginBottom: 10 }}>
+            <div style={{ fontSize: 11, marginBottom: 4, color: "var(--text-muted)" }}>Nome mostro <span style={{ color: "var(--red)" }}>*</span></div>
             <MonsterPicker value={u.name} onChange={(v) => setUnit(i, { name: v })} placeholder="Nome mostro" />
-            <div>
-              <div style={{ fontSize: 11, marginBottom: 4, color: "var(--text-muted)" }}>Rune</div>
-              <select value={u.runes} onChange={(e) => setUnit(i, { runes: e.target.value })}>
-                <option value="">Seleziona set...</option>
-                {RUNE_SETS.map((r) => <option key={r} value={r}>{r}</option>)}
-              </select>
-            </div>
           </div>
           <div style={{ marginBottom: 10 }}>
-            <div style={{ fontSize: 11, marginBottom: 4, color: "var(--text-muted)" }}>Priorità statistiche</div>
+            <div style={{ fontSize: 11, marginBottom: 4, color: "var(--text-muted)" }}>Rune (fino a 3 set — es. 2+2+2 o 4+2) <span style={{ color: "var(--red)" }}>*</span></div>
+            <RunePicker value={u.runes} onChange={(v) => setUnit(i, { runes: v })} />
+          </div>
+          <div style={{ marginBottom: 10 }}>
+            <div style={{ fontSize: 11, marginBottom: 4, color: "var(--text-muted)" }}>Priorità statistiche <span style={{ color: "var(--red)" }}>*</span></div>
             <StatSelect value={u.stats} onChange={(v) => setUnit(i, { stats: v })} />
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
             <div>
-              <div style={{ fontSize: 11, marginBottom: 4, color: "var(--text-muted)" }}>Artefatto Attributo (sx)</div>
+              <div style={{ fontSize: 11, marginBottom: 4, color: "var(--text-muted)" }}>Artefatto Attributo (sx) <span style={{ color: "var(--red)" }}>*</span></div>
               <ArtifactPicker value={u.artifactLeft} onChange={(v) => setUnit(i, { artifactLeft: v })} options={ARTIFACT_LEFT_OPTIONS} />
             </div>
             <div>
-              <div style={{ fontSize: 11, marginBottom: 4, color: "var(--text-muted)" }}>Artefatto Tipo (dx)</div>
+              <div style={{ fontSize: 11, marginBottom: 4, color: "var(--text-muted)" }}>Artefatto Tipo (dx) <span style={{ color: "var(--red)" }}>*</span></div>
               <ArtifactPicker value={u.artifactRight} onChange={(v) => setUnit(i, { artifactRight: v })} options={ARTIFACT_RIGHT_OPTIONS} />
             </div>
           </div>
           <div>
-            <div style={{ fontSize: 11, marginBottom: 4, color: "var(--text-muted)" }}>Note</div>
+            <div style={{ fontSize: 11, marginBottom: 4, color: "var(--text-muted)" }}>Note <span style={{ color: "var(--red)" }}>*</span></div>
             <textarea rows={2} value={u.notes[0] || ""} onChange={(e) => setUnit(i, { notes: [e.target.value] })} />
           </div>
         </div>
@@ -168,7 +190,10 @@ export default function CounterForm({ defMonsters, initial, onSubmit, onCancel }
         <button className="btn btn-ghost" onClick={addVariant} style={{ marginBottom: 16 }}>+ Aggiungi variante al terzo mostro</button>
       )}
 
-      <div className="section-label" style={{ marginTop: 16 }}>Ordine turni</div>
+      <div className="section-label" style={{ marginTop: 16 }}>Ordine turni — SPD tuning <span style={{ color: "var(--red)" }}>*</span></div>
+      <p style={{ color: "var(--text-faint)", fontSize: 11.5, marginTop: -4, marginBottom: 8 }}>
+        Seleziona i 3 mostri della squadra nell'ordine in cui agiscono davvero in game (dal più veloce al più lento).
+      </p>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
         {unitNames.map((_, i) => (
           <select
@@ -183,7 +208,7 @@ export default function CounterForm({ defMonsters, initial, onSubmit, onCancel }
         ))}
       </div>
 
-      <div className="section-label">Focus priority (bersagli sulla difesa)</div>
+      <div className="section-label">Focus priority (bersagli sulla difesa) <span style={{ color: "var(--red)" }}>*</span></div>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
         {defMonsters.map((_, i) => (
           <select
@@ -199,7 +224,7 @@ export default function CounterForm({ defMonsters, initial, onSubmit, onCancel }
       </div>
 
       <label style={{ display: "block", marginBottom: 12 }}>
-        <div style={{ fontSize: 12.5, marginBottom: 5, fontWeight: 600 }}>Strategia</div>
+        <div style={{ fontSize: 12.5, marginBottom: 5, fontWeight: 600 }}>Strategia <span style={{ color: "var(--red)" }}>*</span></div>
         <textarea rows={4} value={strategy} onChange={(e) => setStrategy(e.target.value)} />
       </label>
       <label style={{ display: "block", marginBottom: 12 }}>
