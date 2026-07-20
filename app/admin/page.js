@@ -6,41 +6,51 @@ import ConfirmModal from "../../components/ConfirmModal";
 
 export default function AdminPage() {
   const [user, setUser] = useState(null);
-  const [tab, setTab] = useState("roster");
+  const [tab, setTab] = useState("content");
   const router = useRouter();
 
   useEffect(() => {
     fetch("/api/me").then((r) => r.json()).then((d) => {
       if (!d.user) return router.push("/login");
-      if (!["admin", "reviewer"].includes(d.user.role)) return router.push("/defs");
+      const allowed = ["admin", "reviewer"].includes(d.user.role) || d.user.canUploadRoster;
+      if (!allowed) return router.push("/defs");
       setUser(d.user);
-      setTab(d.user.role === "admin" ? "roster" : "content");
+      setTab(d.user.role === "admin" ? "roster" : d.user.canUploadRoster ? "roster" : "content");
     });
   }, []);
 
   if (!user) return null;
   const isAdmin = user.role === "admin";
+  // Chi ha il permesso "canUploadRoster" (di solito grado Vice in game) vede
+  // il tab Roster anche senza essere Admin/Revisore — esattamente come
+  // testato nella bozza: aggiorna il roster chiunque abbia il permesso.
+  const canSeeRoster = isAdmin || user.canUploadRoster;
+  const canManageContent = isAdmin || user.role === "reviewer";
 
   return (
     <div>
       <Header user={user} />
       <div style={{ maxWidth: 1040, margin: "0 auto", padding: "24px 20px 60px" }}>
         <h1 className="f-display" style={{ fontSize: 24 }}>{isAdmin ? "Pannello Admin" : "Pannello Gestione"}</h1>
-        <div style={{ display: "flex", gap: 8, margin: "18px 0" }}>
+        <div style={{ display: "flex", gap: 8, margin: "18px 0", flexWrap: "wrap" }}>
+          {canSeeRoster && (
+            <button className={`btn ${tab === "roster" ? "btn-primary" : "btn-ghost"}`} onClick={() => setTab("roster")}>Roster gilda</button>
+          )}
           {isAdmin && (
-            <>
-              <button className={`btn ${tab === "roster" ? "btn-primary" : "btn-ghost"}`} onClick={() => setTab("roster")}>Roster gilda</button>
-              <button className={`btn ${tab === "users" ? "btn-primary" : "btn-ghost"}`} onClick={() => setTab("users")}>Utenti & ruoli</button>
-            </>
+            <button className={`btn ${tab === "users" ? "btn-primary" : "btn-ghost"}`} onClick={() => setTab("users")}>Utenti & ruoli</button>
           )}
           <button className={`btn ${tab === "monsters" ? "btn-primary" : "btn-ghost"}`} onClick={() => setTab("monsters")}>Mostri</button>
-          <button className={`btn ${tab === "content" ? "btn-primary" : "btn-ghost"}`} onClick={() => setTab("content")}>Gestione contenuti</button>
+          {canManageContent && (
+            <button className={`btn ${tab === "content" ? "btn-primary" : "btn-ghost"}`} onClick={() => setTab("content")}>Gestione contenuti</button>
+          )}
+          {isAdmin && <button className={`btn ${tab === "import" ? "btn-primary" : "btn-ghost"}`} onClick={() => setTab("import")}>Importa dati</button>}
         </div>
 
-        {tab === "roster" && isAdmin && <RosterTab />}
+        {tab === "roster" && canSeeRoster && <RosterTab />}
         {tab === "users" && isAdmin && <UsersTab />}
         {tab === "monsters" && <MonstersTab />}
-        {tab === "content" && <ContentTab />}
+        {tab === "content" && canManageContent && <ContentTab />}
+        {tab === "import" && isAdmin && <ImportTab />}
       </div>
     </div>
   );
@@ -169,7 +179,81 @@ function MonstersTab() {
   );
 }
 
-function ContentTab() {
+function ImportTab() {
+  const [status, setStatus] = useState("idle"); // idle | loading | done | error
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState("");
+
+  function handleFile(file) {
+    setStatus("loading");
+    setError("");
+    setResult(null);
+    const reader = new FileReader();
+    reader.onload = async () => {
+      let parsed;
+      try {
+        parsed = JSON.parse(reader.result);
+      } catch {
+        setStatus("error");
+        setError("Il file non è un JSON valido.");
+        return;
+      }
+      try {
+        const res = await fetch("/api/admin/import-seed", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(parsed),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Errore sconosciuto");
+        setResult(data);
+        setStatus("done");
+      } catch (e) {
+        setStatus("error");
+        setError(String(e.message || e));
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  return (
+    <div className="card">
+      <div className="section-label">Importa Difese e Counter da file JSON</div>
+      <p style={{ color: "var(--text-faint)", fontSize: 12.5, marginBottom: 12 }}>
+        Carica un file .json (es. quello preparato durante la fase di bozza) per popolare in blocco Difese e Counter.
+        Vengono importati già "approvati", con te come autore.
+      </p>
+      <label
+        style={{
+          display: "block", border: "1.5px dashed var(--border)", borderRadius: 8, padding: "18px 12px",
+          textAlign: "center", cursor: "pointer", color: "var(--text-muted)", fontSize: 12.5, background: "var(--bg-soft)",
+        }}
+      >
+        📎 Clicca per selezionare il file .json
+        <input type="file" accept="application/json" style={{ display: "none" }} onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])} />
+      </label>
+
+      {status === "loading" && <p style={{ color: "var(--text-muted)", fontSize: 13, marginTop: 10 }}>Importazione in corso...</p>}
+      {status === "error" && <p style={{ color: "var(--red)", fontSize: 13, marginTop: 10 }}>{error}</p>}
+      {status === "done" && result && (
+        <div style={{ marginTop: 10 }}>
+          <p style={{ color: "var(--green)", fontSize: 13 }}>
+            Importate {result.importedDefs} Difese e {result.importedCounters} Counter.
+          </p>
+          {result.errors?.length > 0 && (
+            <details style={{ marginTop: 6 }}>
+              <summary style={{ color: "var(--ember)", fontSize: 12, cursor: "pointer" }}>{result.errors.length} avvisi</summary>
+              <ul style={{ fontSize: 11, color: "var(--text-faint)" }}>
+                {result.errors.map((e, i) => <li key={i}>{e}</li>)}
+              </ul>
+            </details>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
   const [defs, setDefs] = useState([]);
   const [selectedDefs, setSelectedDefs] = useState(new Set());
   const [selectedCounters, setSelectedCounters] = useState(new Set());
