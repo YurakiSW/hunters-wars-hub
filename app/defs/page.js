@@ -32,9 +32,10 @@ export default function DefsPage() {
 
   if (!user) return null;
   const canManage = user.role === "admin" || user.role === "reviewer";
+  const sorted = [...defs].sort((a, b) => (a.monsters[0] || "").localeCompare(b.monsters[0] || ""));
   const filtered = query.trim()
-    ? defs.filter((d) => d.monsters.some((m) => m.toLowerCase().includes(query.toLowerCase())))
-    : defs;
+    ? sorted.filter((d) => d.monsters.some((m) => m.toLowerCase().includes(query.toLowerCase())))
+    : sorted;
 
   async function submitEditDef({ m1, m2, m3, desc }) {
     const res = await fetch(`/api/defs/${editingDef.id}`, {
