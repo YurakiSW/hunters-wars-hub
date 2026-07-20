@@ -1,49 +1,76 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser, defaultRoleForGrade, defaultCanUploadRosterForGrade, isAdmin } from "../../../../lib/auth";
-import { getRoster, setRoster } from "../../../../lib/roster";
-import { redis } from "../../../../lib/redis";
+import { getCurrentUser, isAdmin } from "../../../../lib/auth";
+import { createDef, createCounter } from "../../../../lib/defs";
 
-export async function GET() {
-  const user = await getCurrentUser();
-  if (!user) return NextResponse.json({ error: "Non autorizzato." }, { status: 401 });
-  const roster = await getRoster();
-  return NextResponse.json({ roster });
-}
+// Consenti fino a 60s di esecuzione (l'import di tante Difese/Counter fatto
+// una alla volta supererebbe il limite di default di Vercel e andrebbe in
+// timeout, con una pagina di errore invece della risposta JSON attesa).
+export const maxDuration = 60;
 
+// Importazione dati: l'Admin carica il file JSON direttamente dal pannello
+// (tab "Importa dati"), che lo manda qui come corpo della richiesta.
+// Nessun file va aggiunto al repo per questo.
 export async function POST(request) {
   const user = await getCurrentUser();
-  if (!user) return NextResponse.json({ error: "Non autorizzato." }, { status: 401 });
-  if (!isAdmin(user) && !user.canUploadRoster) {
-    return NextResponse.json({ error: "Non hai il permesso di caricare il roster (serve grado Vice o autorizzazione dell'Admin)." }, { status: 403 });
+  if (!user || !isAdmin(user)) {
+    return NextResponse.json({ error: "Solo l'Admin può eseguire l'importazione." }, { status: 403 });
   }
 
-  // Il browser ha già estratto solo nickname+grado dal file di gioco
-  // (che può essere anche di svariati MB) prima di mandarlo qui — così non
-  // trasferiamo mai al server dati di gioco non necessari.
-  const { entries } = await request.json();
-  if (!Array.isArray(entries) || !entries.length) {
-    return NextResponse.json({ error: "Lista membri mancante o vuota." }, { status: 400 });
+  const seedData = await request.json();
+  if (!Array.isArray(seedData)) {
+    return NextResponse.json({ error: "Il file non è nel formato atteso (deve essere un elenco di Difese)." }, { status: 400 });
   }
 
-  await setRoster(entries);
+  const errors = [];
 
-  // Ricalcola ruolo/permesso di ogni utente esistente che combacia col nuovo
-  // roster, MA solo se non è stato impostato a mano dall'Admin in precedenza.
-  // Nota: KEYS è ok per una gilda (poche decine di utenti); se in futuro
-  // servisse scalare molto di più, meglio mantenere un Set "user:ids" come
-  // fatto per le Difese in lib/defs.js.
-  const userIds = await redis.keys("user:user_*");
-  for (const key of userIds) {
-    const u = await redis.get(key);
-    if (!u) continue;
-    const match = entries.find((r) => (r.nickname || "").toLowerCase() === (u.nickname || "").toLowerCase());
-    if (!match) continue;
-    const patch = { grade: match.grade };
-    if (u.status === "pending") patch.status = "approved";
-    if (!u.manualRole) patch.role = defaultRoleForGrade(match.grade);
-    if (!u.manualPerm) patch.canUploadRoster = defaultCanUploadRosterForGrade(match.grade);
-    await redis.set(key, { ...u, ...patch });
-  }
+  // Tutte le Difese in parallelo (sono indipendenti tra loro) — molto più
+  // veloce che scriverle una alla volta.
+  const defResults = await Promise.all(
+    seedData.map(async (defData) => {
+      try {
+        const def = await createDef({
+          monsters: defData.monsters,
+          desc: defData.desc || "",
+          authorId: user.id,
+          authorNickname: user.nickname,
+          autoApprove: true,
+        });
 
-  return NextResponse.json({ ok: true, count: entries.length });
+        // E per ogni Difesa, tutti i suoi Counter in parallelo.
+        const counterResults = await Promise.allSettled(
+          (defData.counters || []).map((c) =>
+            createCounter(
+              def.id,
+              {
+                offense: c.offense,
+                lead: c.lead,
+                turnOrder: c.turnOrder,
+                units: c.units,
+                focus: c.focus,
+                strategy: c.strategy,
+                warning: c.warning || "",
+                video: null,
+                images: [],
+              },
+              { authorId: user.id, authorNickname: c.author || user.nickname, autoApprove: true }
+            )
+          )
+        );
+        const counterErrors = counterResults
+          .filter((r) => r.status === "rejected")
+          .map((r) => `Counter su ${defData.monsters.join("/")}: ${String(r.reason)}`);
+        const importedCounters = counterResults.filter((r) => r.status === "fulfilled").length;
+
+        return { ok: true, importedCounters, errors: counterErrors };
+      } catch (e) {
+        return { ok: false, importedCounters: 0, errors: [`Difesa ${defData.monsters.join("/")}: ${String(e)}`] };
+      }
+    })
+  );
+
+  const importedDefs = defResults.filter((r) => r.ok).length;
+  const importedCounters = defResults.reduce((sum, r) => sum + r.importedCounters, 0);
+  for (const r of defResults) errors.push(...r.errors);
+
+  return NextResponse.json({ ok: true, importedDefs, importedCounters, errors });
 }
