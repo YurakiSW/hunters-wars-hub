@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
 import { redis } from "../../../../lib/redis";
 import { verifyPassword } from "../../../../lib/auth";
-import { createSessionToken, SESSION_COOKIE } from "../../../../lib/session";
+import { createSessionToken, SESSION_COOKIE, sessionCookieOptions } from "../../../../lib/session";
 import { safeJson } from "../../../../lib/apiUtils";
 
 export async function POST(request) {
   const { data, error: parseError } = await safeJson(request);
   if (parseError) return NextResponse.json({ error: parseError }, { status: 400 });
-  const { email, password } = data;
+  const { email, password, keepSignedIn = true } = data;
   if (!email || !password) {
     return NextResponse.json({ error: "Email e password sono obbligatorie." }, { status: 400 });
   }
@@ -25,8 +25,8 @@ export async function POST(request) {
     return NextResponse.json({ error: "Email o password non corretti." }, { status: 401 });
   }
 
-  const token = await createSessionToken(user.id);
+  const token = await createSessionToken(user.id, keepSignedIn);
   const res = NextResponse.json({ ok: true });
-  res.cookies.set(SESSION_COOKIE.name, token, SESSION_COOKIE.options);
+  res.cookies.set(SESSION_COOKIE.name, token, sessionCookieOptions(keepSignedIn));
   return res;
 }

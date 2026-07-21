@@ -75,8 +75,22 @@ export default function DefsPage() {
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 14 }}>
-          {filtered.map((d) => (
-            <div key={d.id} className="card" style={{ position: "relative" }}>
+          {filtered.map((d) => {
+            const hasPending = d.counters.some((c) => c.status === "pending");
+            const accent = d.pinned ? "var(--gold)" : hasPending ? "var(--ember)" : "var(--violet)";
+            return (
+              <div
+                key={d.id}
+                className="card"
+                style={{
+                  position: "relative",
+                  borderTop: `2.5px solid ${accent}`,
+                  boxShadow: `0 0 22px -10px ${accent}`,
+                  transition: "transform .12s, box-shadow .15s",
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = `0 4px 26px -8px ${accent}`; }}
+                onMouseLeave={(e) => { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = `0 0 22px -10px ${accent}`; }}
+              >
               {canManage && (
                 <div style={{ position: "absolute", top: 10, right: 10, display: "flex", gap: 6, zIndex: 2 }}>
                   <button
@@ -117,12 +131,13 @@ export default function DefsPage() {
                 </div>
                 {d.desc && <p style={{ color: "var(--text-muted)", fontSize: 12.5, margin: "0 0 10px" }}>{d.desc}</p>}
                 <span className="badge badge-approved">{d.counters.filter((c) => c.status === "approved").length} counter</span>{" "}
-                {d.counters.some((c) => c.status === "pending") && (
+                {hasPending && (
                   <span className="badge badge-pending">{d.counters.filter((c) => c.status === "pending").length} in coda</span>
                 )}
               </a>
-            </div>
-          ))}
+              </div>
+            );
+          })}
         </div>
         {filtered.length === 0 && <p style={{ color: "var(--text-faint)", marginTop: 20 }}>Nessuna difesa trovata.</p>}
       </div>

@@ -1,4 +1,5 @@
 import "./globals.css";
+import CookieNotice from "../components/CookieNotice";
 
 export const metadata = {
   title: "Hunters Wars — Counter Siege",
@@ -15,7 +16,10 @@ export default function RootLayout({ children }) {
           rel="stylesheet"
         />
       </head>
-      <body>{children}</body>
+      <body>
+        {children}
+        <CookieNotice />
+      </body>
     </html>
   );
 }
