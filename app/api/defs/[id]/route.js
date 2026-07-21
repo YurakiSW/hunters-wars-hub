@@ -40,16 +40,21 @@ export async function DELETE(request, { params }) {
 }
 
 // Approvazione/rifiuto rapido (usato dai bottoni Approva/Rifiuta sui Counter,
-// riusa lo stesso schema anche per la Difesa)
+// riusa lo stesso schema anche per la Difesa) + toggle "pinnata in cima"
 export async function PUT(request, { params }) {
   const user = await getCurrentUser();
   if (!user || !canManage(user)) {
     return NextResponse.json({ error: "Non autorizzato." }, { status: 403 });
   }
-  const { status } = await request.json();
-  if (!["approved", "pending"].includes(status)) {
-    return NextResponse.json({ error: "Stato non valido." }, { status: 400 });
+  const { status, pinned } = await request.json();
+  const patch = {};
+  if (status !== undefined) {
+    if (!["approved", "pending"].includes(status)) {
+      return NextResponse.json({ error: "Stato non valido." }, { status: 400 });
+    }
+    patch.status = status;
   }
-  const def = await updateDef(params.id, { status });
+  if (typeof pinned === "boolean") patch.pinned = pinned;
+  const def = await updateDef(params.id, patch);
   return NextResponse.json({ def });
 }

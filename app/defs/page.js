@@ -32,7 +32,10 @@ export default function DefsPage() {
 
   if (!user) return null;
   const canManage = user.role === "admin" || user.role === "reviewer";
-  const sorted = [...defs].sort((a, b) => (a.monsters[0] || "").localeCompare(b.monsters[0] || ""));
+  const sorted = [...defs].sort((a, b) => {
+    if (Boolean(a.pinned) !== Boolean(b.pinned)) return a.pinned ? -1 : 1;
+    return (a.monsters[0] || "").localeCompare(b.monsters[0] || "");
+  });
   const filtered = query.trim()
     ? sorted.filter((d) => d.monsters.some((m) => m.toLowerCase().includes(query.toLowerCase())))
     : sorted;
@@ -54,6 +57,14 @@ export default function DefsPage() {
     reload();
   }
 
+  async function togglePin(d) {
+    const res = await fetch(`/api/defs/${d.id}`, {
+      method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pinned: !d.pinned }),
+    });
+    const data = await res.json();
+    if (data.def) setDefs((prev) => prev.map((x) => (x.id === d.id ? { ...x, pinned: data.def.pinned } : x)));
+  }
+
   return (
     <div>
       <Header user={user} />
@@ -69,6 +80,14 @@ export default function DefsPage() {
             <div key={d.id} className="card" style={{ position: "relative" }}>
               {canManage && (
                 <div style={{ position: "absolute", top: 10, right: 10, display: "flex", gap: 6, zIndex: 2 }}>
+                  <button
+                    className="btn btn-ghost"
+                    style={{ padding: "3px 8px", color: d.pinned ? "var(--gold)" : undefined }}
+                    title={d.pinned ? "Togli dalla cima" : "Fissa in cima"}
+                    onClick={(e) => { e.preventDefault(); togglePin(d); }}
+                  >
+                    📌
+                  </button>
                   <button
                     className="btn btn-ghost"
                     style={{ padding: "3px 8px" }}
@@ -93,7 +112,10 @@ export default function DefsPage() {
                     </div>
                   ))}
                 </div>
-                <div className="f-display" style={{ fontSize: 16, marginBottom: 6 }}>{d.monsters.join(" / ")}</div>
+                <div className="f-display" style={{ fontSize: 16, marginBottom: 6 }}>
+                  {d.pinned && <span title="Fissata in cima" style={{ color: "var(--gold)" }}>📌 </span>}
+                  {d.monsters.join(" / ")}
+                </div>
                 {d.desc && <p style={{ color: "var(--text-muted)", fontSize: 12.5, margin: "0 0 10px" }}>{d.desc}</p>}
                 <span className="badge badge-approved">{d.counters.filter((c) => c.status === "approved").length} counter</span>{" "}
                 {d.counters.some((c) => c.status === "pending") && (
