@@ -77,14 +77,14 @@ export default function DefsPage() {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 14 }}>
           {filtered.map((d) => {
             const hasPending = d.counters.some((c) => c.status === "pending");
-            const accent = d.pinned ? "var(--gold)" : hasPending ? "var(--ember)" : "var(--violet)";
+            const accent = d.pinned ? "var(--gold)" : hasPending ? "var(--red)" : "var(--violet)";
             return (
               <div
                 key={d.id}
                 className="card"
                 style={{
                   position: "relative",
-                  borderTop: `2.5px solid ${accent}`,
+                  borderTop: `1.5px solid ${accent}`,
                   boxShadow: `0 0 22px -10px ${accent}`,
                   transition: "transform .12s, box-shadow .15s",
                 }}
@@ -126,7 +126,6 @@ export default function DefsPage() {
                   ))}
                 </div>
                 <div className="f-display" style={{ fontSize: 16, marginBottom: 6 }}>
-                  {d.pinned && <span title="Fissata in cima" style={{ color: "var(--gold)" }}>📌 </span>}
                   {d.monsters.join(" / ")}
                 </div>
                 {d.desc && <p style={{ color: "var(--text-muted)", fontSize: 12.5, margin: "0 0 10px" }}>{d.desc}</p>}

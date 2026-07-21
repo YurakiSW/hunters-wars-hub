@@ -44,73 +44,70 @@ export default function LoginPage() {
 
   return (
     <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: "6vh 20px" }}>
-      <div style={{ width: "100%", maxWidth: 400 }}>
-        <h1 className="f-hero" style={{ fontSize: 40, textAlign: "center", color: "var(--gold)", textShadow: "0 0 24px rgba(211,169,79,.45)", marginBottom: 4 }}>
+      <div style={{ width: "100%", maxWidth: 420 }}>
+        <h1 className="f-hero" style={{ fontSize: 44, textAlign: "center", color: "var(--gold)", textShadow: "0 0 26px rgba(211,169,79,.5)", marginBottom: 4 }}>
           Hunters Wars
         </h1>
-        <div style={{ textAlign: "center", color: "var(--border)", fontSize: 12, marginBottom: 28 }}>✦ · ✦ · ✦</div>
+        <div style={{ textAlign: "center", color: "var(--gold)", fontSize: 12, marginBottom: 28, opacity: 0.6 }}>✦ · ✦ · ✦</div>
 
         <div
           style={{
             border: "1.5px solid var(--gold)",
             borderRadius: 18,
-            padding: "32px 28px",
-            background: "linear-gradient(180deg, rgba(211,169,79,.06), transparent 40%), var(--surface)",
-            boxShadow: "0 0 40px -6px rgba(211,169,79,.25), inset 0 0 30px -10px rgba(211,169,79,.12)",
+            padding: "34px 30px",
+            background: "linear-gradient(180deg, rgba(211,169,79,.07), transparent 40%), var(--surface)",
+            boxShadow: "0 0 46px -6px rgba(211,169,79,.28), inset 0 0 30px -10px rgba(211,169,79,.14)",
           }}
         >
-          <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
+          <div style={{ display: "flex", justifyContent: "center", marginBottom: 18 }}>
             <img
               src="/logo.jpg"
               alt="Hunters Nux"
-              style={{ width: 84, height: 84, borderRadius: "9999px", border: "2px solid var(--gold)", boxShadow: "0 0 30px 4px rgba(255,106,53,.4)" }}
+              style={{ width: 116, height: 116, borderRadius: "9999px", border: "2px solid var(--gold)", boxShadow: "0 0 40px 6px rgba(255,106,53,.4)" }}
             />
           </div>
-          <h2 className="f-display" style={{ fontSize: 22, textAlign: "center", color: "var(--text)", margin: "0 0 4px" }}>
+          <h2 className="f-display" style={{ fontSize: 26, textAlign: "center", color: "var(--gold)", margin: "0 0 4px" }}>
             Bentornato
           </h2>
-          <p style={{ textAlign: "center", color: "var(--text-faint)", fontSize: 13, marginBottom: 24 }}>
+          <p style={{ textAlign: "center", color: "var(--text-faint)", fontSize: 13, marginBottom: 20 }}>
             Accedi al Counter Siege hub
           </p>
 
           <form onSubmit={handleSubmit}>
-            <div style={{ display: "flex", justifyContent: "center", gap: 20, marginBottom: 16, flexWrap: "wrap" }}>
-              <label className="f-mono" style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11.5, color: "var(--text-muted)", cursor: "pointer" }}>
-                <input type="checkbox" checked={rememberEmail} onChange={(e) => setRememberEmail(e.target.checked)} />
+            <div style={{ display: "flex", justifyContent: "center", gap: 20, marginBottom: 20, flexWrap: "wrap" }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--text-muted)", cursor: "pointer" }}>
+                <input type="checkbox" checked={rememberEmail} onChange={(e) => setRememberEmail(e.target.checked)} style={{ accentColor: "var(--violet)" }} />
                 Ricorda email
               </label>
-              <label className="f-mono" style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11.5, color: "var(--text-muted)", cursor: "pointer" }}>
-                <input type="checkbox" checked={keepSignedIn} onChange={(e) => setKeepSignedIn(e.target.checked)} />
+              <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--text-muted)", cursor: "pointer" }}>
+                <input type="checkbox" checked={keepSignedIn} onChange={(e) => setKeepSignedIn(e.target.checked)} style={{ accentColor: "var(--gold)" }} />
                 Resta connesso
               </label>
             </div>
 
             <div className="section-label" style={{ marginBottom: 6 }}>Email</div>
-            <div style={{ position: "relative", marginBottom: 16 }}>
-              <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--gold)", fontSize: 14 }}>✉</span>
-              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required style={{ paddingLeft: 34 }} />
+            <div style={{ display: "flex", alignItems: "stretch", marginBottom: 16, border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden" }}>
+              <span style={{ display: "flex", alignItems: "center", padding: "0 11px", background: "var(--bg-soft)", borderRight: "1px solid var(--border)", color: "var(--gold)", fontSize: 14 }}>✉</span>
+              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required style={{ border: "none", borderRadius: 0 }} />
             </div>
 
             <div className="section-label" style={{ marginBottom: 6 }}>Password</div>
-            <div style={{ position: "relative", marginBottom: 22 }}>
-              <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--gold)", fontSize: 14 }}>🔒</span>
+            <div style={{ display: "flex", alignItems: "stretch", marginBottom: 8, border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden" }}>
+              <span style={{ display: "flex", alignItems: "center", padding: "0 11px", background: "var(--bg-soft)", borderRight: "1px solid var(--border)", color: "var(--gold)", fontSize: 14 }}>🔒</span>
               <input
                 type={showPassword ? "text" : "password"}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                style={{ paddingLeft: 34, paddingRight: 34 }}
+                style={{ border: "none", borderRadius: 0, flex: 1 }}
               />
               <span
                 onClick={() => setShowPassword((s) => !s)}
-                style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", color: "var(--text-faint)", fontSize: 13, cursor: "pointer" }}
+                style={{ display: "flex", alignItems: "center", padding: "0 11px", color: "var(--text-faint)", fontSize: 13, cursor: "pointer" }}
               >
                 {showPassword ? "🙈" : "👁"}
               </span>
             </div>
-            <p style={{ textAlign: "right", marginTop: -14, marginBottom: 18 }}>
-              <a href="/forgot-password" style={{ color: "var(--text-faint)", fontSize: 12 }}>Password dimenticata?</a>
-            </p>
 
             {error && <p style={{ color: "var(--red)", fontSize: 13, marginBottom: 14 }}>{error}</p>}
 
@@ -119,10 +116,10 @@ export default function LoginPage() {
               disabled={loading}
               className="f-display"
               style={{
-                width: "100%", padding: "12px 0", borderRadius: 10, border: "1px solid var(--gold)",
+                width: "100%", padding: "13px 0", borderRadius: 10, border: "1px solid var(--gold)",
                 background: "linear-gradient(180deg, #e6c874, var(--gold))",
-                color: "#1a1408", fontSize: 15, fontWeight: 700, letterSpacing: ".08em", textTransform: "uppercase",
-                cursor: "pointer", boxShadow: "0 4px 16px -4px rgba(211,169,79,.5)",
+                color: "#1a1408", fontSize: 15, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase",
+                cursor: "pointer", boxShadow: "0 4px 16px -4px rgba(211,169,79,.5)", marginTop: 14,
               }}
             >
               {loading ? "Accesso..." : "✦ Accedi ✦"}
@@ -131,9 +128,28 @@ export default function LoginPage() {
 
           <div style={{ textAlign: "center", color: "var(--border)", fontSize: 11, margin: "22px 0 14px" }}>✦</div>
 
-          <p style={{ textAlign: "center", fontSize: 13, color: "var(--text-muted)" }}>
-            Non hai un account? <a href="/register" style={{ color: "var(--violet)" }}>Registrati</a>
-          </p>
+          <div style={{ display: "flex", gap: 10 }}>
+            <a
+              href="/register"
+              className="f-mono"
+              style={{
+                flex: 1, textAlign: "center", padding: "10px 6px", borderRadius: 8, border: "1px solid var(--border)",
+                color: "var(--gold)", fontSize: 11, letterSpacing: ".04em", textTransform: "uppercase", textDecoration: "none",
+              }}
+            >
+              👤+ Crea account
+            </a>
+            <a
+              href="/forgot-password"
+              className="f-mono"
+              style={{
+                flex: 1, textAlign: "center", padding: "10px 6px", borderRadius: 8, border: "1px solid var(--border)",
+                color: "var(--gold)", fontSize: 11, letterSpacing: ".04em", textTransform: "uppercase", textDecoration: "none",
+              }}
+            >
+              🔒 Password persa
+            </a>
+          </div>
         </div>
       </div>
     </div>
