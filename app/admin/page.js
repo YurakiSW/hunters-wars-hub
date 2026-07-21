@@ -44,6 +44,8 @@ export default function AdminPage() {
             <button className={`btn ${tab === "content" ? "btn-primary" : "btn-ghost"}`} onClick={() => setTab("content")}>Gestione contenuti</button>
           )}
           {isAdmin && <button className={`btn ${tab === "import" ? "btn-primary" : "btn-ghost"}`} onClick={() => setTab("import")}>Importa dati</button>}
+          {isAdmin && <button className={`btn ${tab === "backup" ? "btn-primary" : "btn-ghost"}`} onClick={() => setTab("backup")}>Backup</button>}
+          {isAdmin && <button className={`btn ${tab === "diagnostica" ? "btn-primary" : "btn-ghost"}`} onClick={() => setTab("diagnostica")}>Diagnostica</button>}
         </div>
 
         {tab === "roster" && canSeeRoster && <RosterTab />}
@@ -51,6 +53,8 @@ export default function AdminPage() {
         {tab === "monsters" && <MonstersTab />}
         {tab === "content" && canManageContent && <ContentTab />}
         {tab === "import" && isAdmin && <ImportTab />}
+        {tab === "backup" && isAdmin && <BackupTab />}
+        {tab === "diagnostica" && isAdmin && <DiagnosticaTab />}
       </div>
     </div>
   );
@@ -88,7 +92,7 @@ function RosterTab() {
       const data = await res.json();
       setLoading(false);
       if (!res.ok) return setError(data.error);
-      setMsg(`Roster aggiornato: ${data.count} membri.`);
+      setMsg(`Roster aggiornato: ${data.count} membri.${data.removed ? ` ${data.removed} account rimossi (usciti dalla gilda).` : ""}`);
       fetch("/api/admin/roster").then((r) => r.json()).then((d) => setRoster(d.roster || []));
     };
     reader.readAsText(file);
@@ -254,6 +258,122 @@ function AliasUploadCard() {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+function BackupTab() {
+  const [status, setStatus] = useState("idle");
+  const [msg, setMsg] = useState("");
+  const [confirmFile, setConfirmFile] = useState(null); // file in attesa di conferma prima del ripristino
+
+  function download() {
+    window.location.href = "/api/admin/backup";
+  }
+
+  function handleFile(file) {
+    setConfirmFile(file);
+  }
+
+  async function doRestore() {
+    const file = confirmFile;
+    setConfirmFile(null);
+    setStatus("loading");
+    setMsg("");
+    const reader = new FileReader();
+    reader.onload = async () => {
+      let parsed;
+      try {
+        parsed = JSON.parse(reader.result);
+      } catch {
+        setStatus("error");
+        setMsg("Il file non è un JSON valido.");
+        return;
+      }
+      const res = await fetch("/api/admin/backup", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(parsed),
+      });
+      const data = await res.json();
+      setStatus(res.ok ? "done" : "error");
+      setMsg(res.ok
+        ? `Ripristinato: ${data.restoredDefs} Difese, ${data.restoredCounters} Counter, ${data.restoredUsers} utenti.`
+        : data.error);
+    };
+    reader.readAsText(file);
+  }
+
+  return (
+    <div>
+      <div className="card" style={{ marginBottom: 18 }}>
+        <div className="section-label">Scarica backup</div>
+        <p style={{ color: "var(--text-faint)", fontSize: 12.5, marginBottom: 12 }}>
+          Scarica un file .json con tutto il sito così com'è ora: Difese, Counter, roster, utenti e mostri/alias aggiunti a mano.
+          Tienilo da parte — se qualcosa va storto, lo ricarichi qui sotto e torna tutto come prima.
+        </p>
+        <button className="btn btn-gold" onClick={download}>⬇ Scarica backup</button>
+      </div>
+
+      <div className="card">
+        <div className="section-label">Ripristina da backup</div>
+        <p style={{ color: "var(--text-faint)", fontSize: 12.5, marginBottom: 12 }}>
+          ⚠️ Sovrascrive completamente Difese, Counter, roster e utenti con quello che c'è nel file. Usalo solo per
+          tornare a uno stato precedente conosciuto.
+        </p>
+        <label
+          style={{
+            display: "block", border: "1.5px dashed var(--border)", borderRadius: 8, padding: "14px 12px",
+            textAlign: "center", cursor: "pointer", color: "var(--text-muted)", fontSize: 12.5, background: "var(--bg-soft)",
+          }}
+        >
+          {status === "loading" ? "Ripristino in corso..." : "📎 Clicca per selezionare il file di backup"}
+          <input type="file" accept="application/json" style={{ display: "none" }} onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])} />
+        </label>
+        {status === "error" && <p style={{ color: "var(--red)", fontSize: 13, marginTop: 8 }}>{msg}</p>}
+        {status === "done" && <p style={{ color: "var(--green)", fontSize: 13, marginTop: 8 }}>{msg}</p>}
+      </div>
+
+      {confirmFile && (
+        <ConfirmModal
+          message={`Ripristinare il sito dal file "${confirmFile.name}"? Tutte le Difese, Counter, roster e utenti attuali verranno sostituiti. Non si può annullare.`}
+          confirmLabel="Ripristina"
+          onConfirm={doRestore}
+          onCancel={() => setConfirmFile(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+function DiagnosticaTab() {
+  const [checks, setChecks] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  function load() {
+    setLoading(true);
+    fetch("/api/admin/healthcheck").then((r) => r.json()).then((d) => {
+      setChecks(d.checks || null);
+      setLoading(false);
+    });
+  }
+
+  useEffect(() => { load(); }, []);
+
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+        <div className="section-label">Controllo configurazione</div>
+        <button className="btn btn-ghost" onClick={load} disabled={loading}>{loading ? "Controllo..." : "↻ Ricontrolla"}</button>
+      </div>
+      <p style={{ color: "var(--text-faint)", fontSize: 12.5, marginBottom: 14 }}>
+        Verifica veloce se le variabili d'ambiente e i collegamenti (Upstash, roster, mostri sincronizzati) sono a
+        posto — utile per capire subito dove cercare se qualcosa non funziona.
+      </p>
+      {checks?.map((c, i) => (
+        <div key={i} className="card" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+          <span style={{ fontSize: 13.5 }}>{c.ok ? "✅" : "❌"} {c.name}</span>
+          <span className="f-mono" style={{ fontSize: 11.5, color: c.ok ? "var(--green)" : "var(--red)" }}>{c.detail}</span>
+        </div>
+      ))}
     </div>
   );
 }

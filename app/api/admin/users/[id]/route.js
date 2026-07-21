@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser, isAdmin } from "../../../../../lib/auth";
 import { redis } from "../../../../../lib/redis";
+import { sendWelcomeEmail } from "../../../../../lib/email";
 
 export async function PATCH(request, { params }) {
   const admin = await getCurrentUser();
@@ -11,6 +12,8 @@ export async function PATCH(request, { params }) {
   const key = `user:${params.id}`;
   const target = await redis.get(key);
   if (!target) return NextResponse.json({ error: "Utente non trovato." }, { status: 404 });
+
+  const wasPending = target.status === "pending";
 
   const { role, canUploadRoster, status } = await request.json();
   const patch = {};
@@ -27,6 +30,13 @@ export async function PATCH(request, { params }) {
 
   const updated = { ...target, ...patch };
   await redis.set(key, updated);
+
+  // Se l'Admin ha appena approvato a mano qualcuno che era "in attesa",
+  // parte la mail di benvenuto (non blocca la risposta se l'invio fallisce).
+  if (wasPending && updated.status === "approved" && updated.email) {
+    sendWelcomeEmail(updated).catch(() => {});
+  }
+
   const { passwordHash, ...safe } = updated;
   return NextResponse.json({ user: safe });
 }

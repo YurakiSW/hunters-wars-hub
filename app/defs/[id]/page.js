@@ -5,6 +5,7 @@ import Header from "../../../components/Header";
 import Modal from "../../../components/Modal";
 import ConfirmModal from "../../../components/ConfirmModal";
 import CounterForm from "../../../components/CounterForm";
+import CounterTemplatePicker from "../../../components/CounterTemplatePicker";
 import DefForm from "../../../components/DefForm";
 import MonsterCrest from "../../../components/MonsterCrest";
 import VideoPreview from "../../../components/VideoPreview";
@@ -13,6 +14,8 @@ export default function DefDetailPage({ params }) {
   const [user, setUser] = useState(null);
   const [def, setDef] = useState(null);
   const [showForm, setShowForm] = useState(false);
+  const [showTemplatePicker, setShowTemplatePicker] = useState(false);
+  const [template, setTemplate] = useState(null);
   const [editingCounter, setEditingCounter] = useState(null);
   const [editingDef, setEditingDef] = useState(false);
   const [confirmDeleteCounter, setConfirmDeleteCounter] = useState(null);
@@ -110,9 +113,12 @@ export default function DefDetailPage({ params }) {
         </div>
         {def.desc && <p style={{ color: "var(--text-muted)" }}>{def.desc}</p>}
 
-        <div style={{ display: "flex", justifyContent: "space-between", margin: "22px 0 14px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", margin: "22px 0 14px", flexWrap: "wrap", gap: 8 }}>
           <div className="section-label">Counter proposti ({def.counters.length})</div>
-          <button className="btn btn-primary" onClick={() => setShowForm(true)}>+ Proponi counter</button>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button className="btn btn-ghost" onClick={() => setShowTemplatePicker(true)}>📋 Parti da un counter esistente</button>
+            <button className="btn btn-primary" onClick={() => { setTemplate(null); setShowForm(true); }}>+ Proponi counter</button>
+          </div>
         </div>
 
         {def.counters.map((c) => (
@@ -130,14 +136,37 @@ export default function DefDetailPage({ params }) {
         {def.counters.length === 0 && <p style={{ color: "var(--text-faint)" }}>Nessun counter ancora per questa difesa.</p>}
       </div>
 
+      {showTemplatePicker && (
+        <Modal title="Parti da un counter esistente" onClose={() => setShowTemplatePicker(false)} wide>
+          <CounterTemplatePicker
+            onClose={() => setShowTemplatePicker(false)}
+            onSelect={(sourceCounter) => {
+              // Copia tutto tranne id/stato/autore/focus: il Focus riguardava
+              // i bersagli DELL'ALTRA difesa, va sempre reimpostato per questa.
+              setTemplate({
+                units: sourceCounter.units.map((u) => ({ ...u })),
+                turnOrder: [...sourceCounter.turnOrder],
+                focus: [],
+                strategy: sourceCounter.strategy,
+                warning: sourceCounter.warning || "",
+                video: sourceCounter.video || "",
+                images: [],
+              });
+              setShowTemplatePicker(false);
+              setShowForm(true);
+            }}
+          />
+        </Modal>
+      )}
+
       {showForm && (
         <Modal title={`Nuovo counter — ${def.monsters.join(" / ")}`} onClose={() => setShowForm(false)} wide>
-          <CounterForm defMonsters={def.monsters} onSubmit={submitNewCounter} onCancel={() => setShowForm(false)} />
+          <CounterForm defMonsters={def.monsters} initial={template} onSubmit={submitNewCounter} onCancel={() => setShowForm(false)} />
         </Modal>
       )}
       {editingCounter && (
         <Modal title={`Modifica counter`} onClose={() => setEditingCounter(null)} wide>
-          <CounterForm defMonsters={def.monsters} initial={editingCounter} onSubmit={submitEditCounter} onCancel={() => setEditingCounter(null)} />
+          <CounterForm defMonsters={def.monsters} initial={editingCounter} isEdit onSubmit={submitEditCounter} onCancel={() => setEditingCounter(null)} />
         </Modal>
       )}
       {confirmDeleteCounter && (

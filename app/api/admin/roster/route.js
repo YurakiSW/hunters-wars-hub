@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser, defaultRoleForGrade, defaultCanUploadRosterForGrade, isAdmin } from "../../../../lib/auth";
-import { getRoster, setRoster } from "../../../../lib/roster";
+import { getRoster, setRoster, normalizeNickname } from "../../../../lib/roster";
 import { redis } from "../../../../lib/redis";
 
 export async function GET() {
@@ -33,11 +33,26 @@ export async function POST(request) {
   // servisse scalare molto di più, meglio mantenere un Set "user:ids" come
   // fatto per le Difese in lib/defs.js.
   const userIds = await redis.keys("user:user_*");
+  let removed = 0;
   for (const key of userIds) {
     const u = await redis.get(key);
     if (!u) continue;
-    const match = entries.find((r) => (r.nickname || "").toLowerCase() === (u.nickname || "").toLowerCase());
-    if (!match) continue;
+    const match = entries.find((r) => normalizeNickname(r.nickname) === normalizeNickname(u.nickname));
+
+    if (!match) {
+      // Non è più nel roster: ha lasciato la gilda. L'account viene
+      // rimosso (mai quello dell'Admin, per sicurezza — se un file caricato
+      // per sbaglio fosse incompleto, non si perde l'accesso al pannello).
+      // Le Difese/Counter che ha creato restano intatte: l'autore ci resta
+      // scritto sopra come testo, non dipende dall'account che esiste ancora.
+      if (u.role !== "admin") {
+        await redis.del(key);
+        if (u.email) await redis.del(`user:byEmail:${u.email.toLowerCase()}`);
+        removed++;
+      }
+      continue;
+    }
+
     const patch = { grade: match.grade };
     if (u.status === "pending") patch.status = "approved";
     if (!u.manualRole) patch.role = defaultRoleForGrade(match.grade);
@@ -45,5 +60,5 @@ export async function POST(request) {
     await redis.set(key, { ...u, ...patch });
   }
 
-  return NextResponse.json({ ok: true, count: entries.length });
+  return NextResponse.json({ ok: true, count: entries.length, removed });
 }

@@ -105,7 +105,7 @@ function ArtifactPicker({ value, onChange, options }) {
   );
 }
 
-export default function CounterForm({ defMonsters, initial, onSubmit, onCancel }) {
+export default function CounterForm({ defMonsters, initial, isEdit, onSubmit, onCancel }) {
   const [units, setUnits] = useState(initial?.units?.map((u) => ({ ...u })) || [emptyUnit(), emptyUnit(), emptyUnit()]);
   const [turnOrder, setTurnOrder] = useState(initial?.turnOrder || []);
   const [focus, setFocus] = useState(initial?.focus || []);
@@ -128,7 +128,8 @@ export default function CounterForm({ defMonsters, initial, onSubmit, onCancel }
 
   async function handleImageFiles(fileList) {
     setCompressing(true);
-    const files = Array.from(fileList);
+    const remaining = 6 - images.length;
+    const files = Array.from(fileList).slice(0, Math.max(0, remaining));
     const results = await Promise.all(files.map((f) => compressImage(f).catch(() => null)));
     setImages((prev) => [...prev, ...results.filter(Boolean)]);
     setCompressing(false);
@@ -146,7 +147,7 @@ export default function CounterForm({ defMonsters, initial, onSubmit, onCancel }
   return (
     <div>
       <p style={{ color: "var(--text-faint)", fontSize: 12.5, marginBottom: 16 }}>
-        I campi con <span style={{ color: "var(--red)" }}>*</span> sono obbligatori. Il counter {initial ? "torna" : "entra"} in coda "in attesa" per l'approvazione.
+        I campi con <span style={{ color: "var(--red)" }}>*</span> sono obbligatori. Il counter {isEdit ? "torna" : "entra"} in coda "in attesa" per l'approvazione.
       </p>
 
       <div className="section-label">Squadra</div>
@@ -232,15 +233,20 @@ export default function CounterForm({ defMonsters, initial, onSubmit, onCancel }
         <input value={warning} onChange={(e) => setWarning(e.target.value)} />
       </label>
       <label style={{ display: "block", marginBottom: 12 }}>
-        <div style={{ fontSize: 12.5, marginBottom: 5, fontWeight: 600 }}>Immagini (facoltativo)</div>
+        <div style={{ fontSize: 12.5, marginBottom: 5, fontWeight: 600 }}>Immagini (facoltativo, max 6)</div>
         <label
           style={{
             display: "block", border: "1.5px dashed var(--border)", borderRadius: 8, padding: "14px 12px",
-            textAlign: "center", cursor: "pointer", color: "var(--text-muted)", fontSize: 12.5, background: "var(--bg-soft)",
+            textAlign: "center", cursor: images.length >= 6 ? "not-allowed" : "pointer", color: "var(--text-muted)", fontSize: 12.5,
+            background: "var(--bg-soft)", opacity: images.length >= 6 ? 0.5 : 1,
           }}
         >
-          {compressing ? "⏳ Comprimo le immagini..." : "📎 Clicca per allegare immagini"}
-          <input type="file" accept="image/*" multiple style={{ display: "none" }} onChange={(e) => e.target.files?.length && handleImageFiles(e.target.files)} />
+          {compressing ? "⏳ Comprimo le immagini..." : images.length >= 6 ? "Limite di 6 immagini raggiunto" : `📎 Clicca per allegare immagini (${images.length}/6)`}
+          <input
+            type="file" accept="image/*" multiple disabled={images.length >= 6}
+            style={{ display: "none" }}
+            onChange={(e) => e.target.files?.length && handleImageFiles(e.target.files)}
+          />
         </label>
         {images.length > 0 && (
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
@@ -267,7 +273,7 @@ export default function CounterForm({ defMonsters, initial, onSubmit, onCancel }
 
       {error && <p style={{ color: "var(--red)", fontSize: 13, marginBottom: 12 }}>{error}</p>}
       <div style={{ display: "flex", gap: 8 }}>
-        <button className="btn btn-primary" onClick={submit} disabled={loading}>{initial ? "Salva modifiche" : "Invia per approvazione"}</button>
+        <button className="btn btn-primary" onClick={submit} disabled={loading}>{isEdit ? "Salva modifiche" : "Invia per approvazione"}</button>
         <button className="btn btn-ghost" onClick={onCancel}>Annulla</button>
       </div>
     </div>
