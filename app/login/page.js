@@ -66,7 +66,7 @@ export default function LoginPage() {
               style={{ width: 116, height: 116, borderRadius: "9999px", border: "2px solid var(--gold)", boxShadow: "0 0 40px 6px rgba(255,106,53,.4)" }}
             />
           </div>
-          <h2 className="f-display" style={{ fontSize: 26, textAlign: "center", color: "var(--gold)", margin: "0 0 4px" }}>
+          <h2 className="f-display" style={{ fontSize: 26, textAlign: "center", color: "var(--text)", margin: "0 0 4px" }}>
             Bentornato
           </h2>
           <p style={{ textAlign: "center", color: "var(--text-faint)", fontSize: 13, marginBottom: 20 }}>

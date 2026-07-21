@@ -2,12 +2,13 @@
 import { useRouter } from "next/navigation";
 
 function NavPill({ href, icon, children, accent = "gold", external, onClick }) {
-  const colors = {
-    gold: { border: "var(--gold)", text: "var(--gold)", glow: "rgba(211,169,79,.28)" },
-    violet: { border: "var(--violet)", text: "var(--violet)", glow: "rgba(147,118,242,.28)" },
-    ember: { border: "var(--ember)", text: "var(--ember)", glow: "rgba(255,106,53,.28)" },
-    red: { border: "var(--red)", text: "var(--red)", glow: "rgba(216,72,82,.28)" },
-  }[accent];
+  const glows = {
+    gold: "rgba(211,169,79,.35)",
+    violet: "rgba(147,118,242,.35)",
+    ember: "rgba(255,106,53,.35)",
+    red: "rgba(216,72,82,.35)",
+  };
+  const glow = glows[accent];
 
   const Tag = href ? "a" : "button";
   return (
@@ -21,10 +22,10 @@ function NavPill({ href, icon, children, accent = "gold", external, onClick }) {
         alignItems: "center",
         gap: 8,
         padding: "7px 14px 7px 8px",
-        borderRadius: 999,
-        border: `1px solid ${colors.border}`,
+        borderRadius: 10,
+        border: "1px solid transparent",
         background: "rgba(255,255,255,.02)",
-        color: colors.text,
+        color: "var(--text)",
         textDecoration: "none",
         fontFamily: "'Cinzel', serif",
         fontSize: 13,
@@ -34,14 +35,14 @@ function NavPill({ href, icon, children, accent = "gold", external, onClick }) {
         transition: "box-shadow .15s, transform .1s",
         whiteSpace: "nowrap",
       }}
-      onMouseEnter={(e) => { e.currentTarget.style.boxShadow = `0 0 14px 1px ${colors.glow}`; }}
+      onMouseEnter={(e) => { e.currentTarget.style.boxShadow = `0 0 16px 2px ${glow}`; }}
       onMouseLeave={(e) => { e.currentTarget.style.boxShadow = "none"; }}
     >
       <span
         style={{
           display: "inline-flex", alignItems: "center", justifyContent: "center",
-          width: 22, height: 22, borderRadius: "50%",
-          background: colors.glow, fontSize: 12, flexShrink: 0,
+          width: 22, height: 22, borderRadius: 6,
+          background: glow, fontSize: 12, flexShrink: 0,
         }}
       >
         {icon}
