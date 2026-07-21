@@ -2,7 +2,6 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Header from "../../components/Header";
-import MonsterPicker from "../../components/MonsterPicker";
 import MonsterCrest from "../../components/MonsterCrest";
 import Modal from "../../components/Modal";
 import ConfirmModal from "../../components/ConfirmModal";

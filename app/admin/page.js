@@ -45,7 +45,7 @@ export default function AdminPage() {
           )}
           <button className={`btn ${tab === "monsters" ? "btn-primary" : "btn-ghost"}`} onClick={() => setTab("monsters")}>Mostri</button>
           {canManageContent && (
-            <button className={`btn ${tab === "content" ? "btn-primary" : "btn-ghost"}`} onClick={() => setTab("content")}>Gestione contenuti</button>
+            <button className={`btn ${tab === "content" ? "btn-primary" : "btn-ghost"}`} onClick={() => setTab("content")}>Gestione def/counter</button>
           )}
           {isAdmin && <button className={`btn ${tab === "import" ? "btn-primary" : "btn-ghost"}`} onClick={() => setTab("import")}>Importa dati</button>}
           {isAdmin && <button className={`btn ${tab === "backup" ? "btn-primary" : "btn-ghost"}`} onClick={() => setTab("backup")}>Backup</button>}
@@ -127,48 +127,82 @@ function RosterTab() {
 
 function UsersTab() {
   const [users, setUsers] = useState([]);
+  const [confirmDelete, setConfirmDelete] = useState(null);
+  const [emailMsg, setEmailMsg] = useState("");
   useEffect(() => { fetch("/api/admin/users").then((r) => r.json()).then((d) => setUsers(d.users || [])); }, []);
 
   async function updateUser(id, patch) {
     const res = await fetch(`/api/admin/users/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch) });
     const data = await res.json();
     if (res.ok) setUsers((prev) => prev.map((u) => (u.id === id ? data.user : u)));
+    if (data.emailResult) {
+      setEmailMsg(data.emailResult.ok ? "✅ Email di benvenuto inviata." : `❌ Email NON inviata: ${data.emailResult.error}`);
+    }
+  }
+
+  async function deleteUser(id) {
+    await fetch(`/api/admin/users/${id}`, { method: "DELETE" });
+    setUsers((prev) => prev.filter((u) => u.id !== id));
+    setConfirmDelete(null);
   }
 
   return (
-    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-      <thead>
-        <tr style={{ background: "var(--bg-soft)" }}>
-          <th style={{ textAlign: "left", padding: 8 }}>Nickname</th>
-          <th style={{ textAlign: "left", padding: 8 }}>Grado</th>
-          <th style={{ textAlign: "left", padding: 8 }}>Stato</th>
-          <th style={{ textAlign: "left", padding: 8 }}>Ruolo</th>
-          <th style={{ textAlign: "left", padding: 8 }}>Upload roster</th>
-        </tr>
-      </thead>
-      <tbody>
-        {users.map((u) => (
-          <tr key={u.id} style={{ borderTop: "1px solid var(--border-soft)" }}>
-            <td style={{ padding: 8 }}>{u.nickname}</td>
-            <td style={{ padding: 8 }}>{u.grade ?? "—"}</td>
-            <td style={{ padding: 8 }}><span className={`badge ${u.status === "approved" ? "badge-approved" : "badge-pending"}`}>{u.status}</span></td>
-            <td style={{ padding: 8 }}>
-              <select value={u.role} onChange={(e) => updateUser(u.id, { role: e.target.value })}>
-                <option value="pending">In attesa</option>
-                <option value="member">Membro</option>
-                <option value="reviewer">Revisore Counters</option>
-                <option value="admin">Admin</option>
-              </select>
-              {u.manualRole && <span className="f-mono" style={{ color: "var(--gold)", fontSize: 10, marginLeft: 6 }}>✎ manuale</span>}
-            </td>
-            <td style={{ padding: 8 }}>
-              <input type="checkbox" checked={u.canUploadRoster} onChange={(e) => updateUser(u.id, { canUploadRoster: e.target.checked })} />
-              {u.manualPerm && <span className="f-mono" style={{ color: "var(--gold)", fontSize: 10, marginLeft: 6 }}>✎ manuale</span>}
-            </td>
+    <div>
+      {emailMsg && <p style={{ fontSize: 12.5, marginBottom: 10 }}>{emailMsg}</p>}
+      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+        <thead>
+          <tr style={{ background: "var(--bg-soft)" }}>
+            <th style={{ textAlign: "left", padding: 8 }}>Nickname</th>
+            <th style={{ textAlign: "left", padding: 8 }}>Grado</th>
+            <th style={{ textAlign: "left", padding: 8 }}>Stato</th>
+            <th style={{ textAlign: "left", padding: 8 }}>Ruolo</th>
+            <th style={{ textAlign: "left", padding: 8 }}>Upload roster</th>
+            <th style={{ textAlign: "left", padding: 8 }}></th>
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {users.map((u) => (
+            <tr key={u.id} style={{ borderTop: "1px solid var(--border-soft)" }}>
+              <td style={{ padding: 8 }}>{u.nickname}</td>
+              <td style={{ padding: 8 }}>{u.grade ?? "—"}</td>
+              <td style={{ padding: 8 }}><span className={`badge ${u.status === "approved" ? "badge-approved" : "badge-pending"}`}>{u.status}</span></td>
+              <td style={{ padding: 8 }}>
+                <select value={u.role} onChange={(e) => updateUser(u.id, { role: e.target.value })}>
+                  <option value="pending">In attesa</option>
+                  <option value="member">Membro</option>
+                  <option value="reviewer">Revisore Counters</option>
+                  <option value="admin">Admin</option>
+                </select>
+                {u.manualRole && <span className="f-mono" style={{ color: "var(--gold)", fontSize: 10, marginLeft: 6 }}>✎ manuale</span>}
+              </td>
+              <td style={{ padding: 8 }}>
+                <input type="checkbox" checked={u.canUploadRoster} onChange={(e) => updateUser(u.id, { canUploadRoster: e.target.checked })} />
+                {u.manualPerm && <span className="f-mono" style={{ color: "var(--gold)", fontSize: 10, marginLeft: 6 }}>✎ manuale</span>}
+              </td>
+              <td style={{ padding: 8 }}>
+                {u.role !== "admin" && (
+                  <button className="btn btn-danger" onClick={() => setConfirmDelete(u)}>
+                    {u.status === "pending" ? "✕ Rifiuta" : "🗑 Rimuovi"}
+                  </button>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {confirmDelete && (
+        <ConfirmModal
+          message={
+            confirmDelete.status === "pending"
+              ? `Rifiutare la richiesta di "${confirmDelete.nickname}"? Riceverà una mail di rifiuto. Non si può annullare.`
+              : `Rimuovere l'account di "${confirmDelete.nickname}"? Le sue Difese/Counter restano. Non si può annullare.`
+          }
+          confirmLabel={confirmDelete.status === "pending" ? "Rifiuta" : "Rimuovi"}
+          onConfirm={() => deleteUser(confirmDelete.id)}
+          onCancel={() => setConfirmDelete(null)}
+        />
+      )}
+    </div>
   );
 }
 
@@ -300,7 +334,7 @@ function BackupTab() {
       const data = await res.json();
       setStatus(res.ok ? "done" : "error");
       setMsg(res.ok
-        ? `Ripristinato: ${data.restoredDefs} Difese, ${data.restoredCounters} Counter, ${data.restoredUsers} utenti.`
+        ? `Ripristinato: ${data.restoredDefs} Difese, ${data.restoredCounters} Counter.`
         : data.error);
     };
     reader.readAsText(file);
@@ -311,8 +345,8 @@ function BackupTab() {
       <div className="card" style={{ marginBottom: 18 }}>
         <div className="section-label">Scarica backup</div>
         <p style={{ color: "var(--text-faint)", fontSize: 12.5, marginBottom: 12 }}>
-          Scarica un file .json con tutto il sito così com'è ora: Difese, Counter, roster, utenti e mostri/alias aggiunti a mano.
-          Tienilo da parte — se qualcosa va storto, lo ricarichi qui sotto e torna tutto come prima.
+          Scarica un file .json con tutte le Difese e i Counter così come sono ora (niente utenti/password/roster
+          dentro). Tienilo da parte — se qualcosa va storto, lo ricarichi qui sotto e torna tutto come prima.
         </p>
         <button className="btn btn-gold" onClick={download}>⬇ Scarica backup</button>
       </div>
@@ -320,8 +354,8 @@ function BackupTab() {
       <div className="card">
         <div className="section-label">Ripristina da backup</div>
         <p style={{ color: "var(--text-faint)", fontSize: 12.5, marginBottom: 12 }}>
-          ⚠️ Sovrascrive completamente Difese, Counter, roster e utenti con quello che c'è nel file. Usalo solo per
-          tornare a uno stato precedente conosciuto.
+          ⚠️ Sovrascrive completamente Difese e Counter con quello che c'è nel file (utenti e roster non vengono
+          toccati). Usalo solo per tornare a uno stato precedente conosciuto.
         </p>
         <label
           style={{
