@@ -607,7 +607,10 @@ function PendingApprovalsSection() {
                   <button className="btn btn-danger" onClick={() => setConfirmRejectDef(d)}>✕ Rifiuta</button>
                 </div>
               ) : (
-                pendingCounterCount > 0 && <span className="badge badge-pending">{pendingCounterCount} counter in attesa</span>
+                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                  <button className="btn btn-ghost" onClick={() => setEditingDef(d)}>✎</button>
+                  {pendingCounterCount > 0 && <span className="badge badge-pending">{pendingCounterCount} counter in attesa</span>}
+                </div>
               )}
             </div>
 
@@ -630,7 +633,10 @@ function PendingApprovalsSection() {
                     <button className="btn btn-danger" onClick={() => setConfirmRejectCounter(c)}>✕</button>
                   </div>
                 ) : (
-                  <span className="badge badge-approved">approvato</span>
+                  <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                    <button className="btn btn-ghost" onClick={() => setEditingCounter(c)}>✎</button>
+                    <span className="badge badge-approved">approvato</span>
+                  </div>
                 )}
               </div>
             ))}
