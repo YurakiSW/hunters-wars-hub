@@ -3,6 +3,7 @@ import { getCurrentUser, canManage } from "../../../../lib/auth";
 import { getCounter, updateCounter, deleteCounter, getDef } from "../../../../lib/defs";
 import { isKnownMonster } from "../../../../lib/monsters";
 import { validateCounterPayload } from "../../../../lib/gameData";
+import { safeJson } from "../../../../lib/apiUtils";
 
 function canEdit(user, counter) {
   if (canManage(user)) return true;
@@ -17,7 +18,8 @@ export async function PATCH(request, { params }) {
   if (!counter) return NextResponse.json({ error: "Non trovato." }, { status: 404 });
   if (!canEdit(user, counter)) return NextResponse.json({ error: "Non puoi modificare questo counter." }, { status: 403 });
 
-  const payload = await request.json();
+  const { data: payload, error: parseError } = await safeJson(request);
+  if (parseError) return NextResponse.json({ error: parseError }, { status: 400 });
 
   // Solo Admin/Revisore possono cambiare lo stato (approva/rifiuta) tramite questo campo;
   // qualsiasi altra modifica riporta comunque il counter in "pending".

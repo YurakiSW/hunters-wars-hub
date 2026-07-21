@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser, canManage } from "../../../../lib/auth";
 import { setAliasesBulk, getAliases } from "../../../../lib/monsters";
+import { safeJson } from "../../../../lib/apiUtils";
 
 export async function GET() {
   const aliases = await getAliases();
@@ -12,7 +13,8 @@ export async function POST(request) {
   if (!user || !canManage(user)) {
     return NextResponse.json({ error: "Non autorizzato." }, { status: 403 });
   }
-  const entries = await request.json(); // { "Nomignolo": "Nome Ufficiale", ... }
+  const { data: entries, error } = await safeJson(request); // { "Nomignolo": "Nome Ufficiale", ... }
+  if (error) return NextResponse.json({ error }, { status: 400 });
   if (typeof entries !== "object" || Array.isArray(entries)) {
     return NextResponse.json({ error: "Formato non valido: serve un oggetto { \"nomignolo\": \"nome ufficiale\" }." }, { status: 400 });
   }

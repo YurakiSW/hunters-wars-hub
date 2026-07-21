@@ -1,11 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-
-// Toglie gli accenti per il confronto (Irène si trova anche scrivendo
-// "irene" senza accento).
-function normalize(s) {
-  return (s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
-}
+import { normalizeMonsterName as normalize } from "../lib/textUtils";
 
 export default function MonsterPicker({ value, onChange, placeholder }) {
   const [allNames, setAllNames] = useState([]);

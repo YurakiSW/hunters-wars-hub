@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getCurrentUser, isAdmin } from "../../../../../lib/auth";
 import { redis } from "../../../../../lib/redis";
 import { sendWelcomeEmail, sendRejectionEmail } from "../../../../../lib/email";
+import { safeJson } from "../../../../../lib/apiUtils";
 
 export async function PATCH(request, { params }) {
   const admin = await getCurrentUser();
@@ -15,7 +16,9 @@ export async function PATCH(request, { params }) {
 
   const wasPending = target.status === "pending";
 
-  const { role, canUploadRoster, status } = await request.json();
+  const { data, error: parseError } = await safeJson(request);
+  if (parseError) return NextResponse.json({ error: parseError }, { status: 400 });
+  const { role, canUploadRoster, status } = data;
   const patch = {};
   if (role) {
     patch.role = role;

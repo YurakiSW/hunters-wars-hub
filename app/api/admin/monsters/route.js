@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser, canManage } from "../../../../lib/auth";
 import { getFullMonsterList, getManualMonsters, addManualMonster, removeManualMonster } from "../../../../lib/monsters";
+import { safeJson } from "../../../../lib/apiUtils";
 
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
@@ -17,7 +18,9 @@ export async function POST(request) {
   if (!user || !canManage(user)) {
     return NextResponse.json({ error: "Non autorizzato." }, { status: 403 });
   }
-  const { name, iconUrl } = await request.json();
+  const { data, error } = await safeJson(request);
+  if (error) return NextResponse.json({ error }, { status: 400 });
+  const { name, iconUrl } = data;
   if (!name?.trim()) return NextResponse.json({ error: "Nome mancante." }, { status: 400 });
   const list = await addManualMonster({ name, iconUrl, addedBy: user.nickname });
   return NextResponse.json({ manual: list });
@@ -28,7 +31,8 @@ export async function DELETE(request) {
   if (!user || !canManage(user)) {
     return NextResponse.json({ error: "Non autorizzato." }, { status: 403 });
   }
-  const { name } = await request.json();
-  const list = await removeManualMonster(name);
+  const { data, error } = await safeJson(request);
+  if (error) return NextResponse.json({ error }, { status: 400 });
+  const list = await removeManualMonster(data.name);
   return NextResponse.json({ manual: list });
 }

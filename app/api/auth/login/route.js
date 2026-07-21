@@ -2,9 +2,12 @@ import { NextResponse } from "next/server";
 import { redis } from "../../../../lib/redis";
 import { verifyPassword } from "../../../../lib/auth";
 import { createSessionToken, SESSION_COOKIE } from "../../../../lib/session";
+import { safeJson } from "../../../../lib/apiUtils";
 
 export async function POST(request) {
-  const { email, password } = await request.json();
+  const { data, error: parseError } = await safeJson(request);
+  if (parseError) return NextResponse.json({ error: parseError }, { status: 400 });
+  const { email, password } = data;
   if (!email || !password) {
     return NextResponse.json({ error: "Email e password sono obbligatorie." }, { status: 400 });
   }

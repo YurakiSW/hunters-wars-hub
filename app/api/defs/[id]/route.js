@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getCurrentUser, canManage } from "../../../../lib/auth";
 import { getDef, updateDef, deleteDef } from "../../../../lib/defs";
 import { isKnownMonster } from "../../../../lib/monsters";
+import { safeJson } from "../../../../lib/apiUtils";
 
 export async function GET(request, { params }) {
   const user = await getCurrentUser();
@@ -17,7 +18,9 @@ export async function PATCH(request, { params }) {
   if (!user || !canManage(user)) {
     return NextResponse.json({ error: "Solo Admin e Revisori possono modificare una Difesa." }, { status: 403 });
   }
-  const { m1, m2, m3, desc } = await request.json();
+  const { data, error } = await safeJson(request);
+  if (error) return NextResponse.json({ error }, { status: 400 });
+  const { m1, m2, m3, desc } = data;
   const monsters = [m1, m2, m3];
   for (const m of monsters) {
     if (!(await isKnownMonster(m))) {
@@ -46,7 +49,9 @@ export async function PUT(request, { params }) {
   if (!user || !canManage(user)) {
     return NextResponse.json({ error: "Non autorizzato." }, { status: 403 });
   }
-  const { status, pinned } = await request.json();
+  const { data, error } = await safeJson(request);
+  if (error) return NextResponse.json({ error }, { status: 400 });
+  const { status, pinned } = data;
   const patch = {};
   if (status !== undefined) {
     if (!["approved", "pending"].includes(status)) {

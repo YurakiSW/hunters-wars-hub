@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser, isAdmin } from "../../../../lib/auth";
 import { exportAll, restoreAll } from "../../../../lib/backup";
+import { safeJson } from "../../../../lib/apiUtils";
 
 export const maxDuration = 60;
 
@@ -24,7 +25,8 @@ export async function POST(request) {
   if (!user || !isAdmin(user)) {
     return NextResponse.json({ error: "Solo l'Admin può ripristinare un backup." }, { status: 403 });
   }
-  const data = await request.json();
+  const { data, error: parseError } = await safeJson(request);
+  if (parseError) return NextResponse.json({ error: parseError }, { status: 400 });
   try {
     const result = await restoreAll(data);
     return NextResponse.json({ ok: true, ...result });

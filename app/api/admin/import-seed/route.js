@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser, isAdmin } from "../../../../lib/auth";
 import { createDef, createCounter } from "../../../../lib/defs";
+import { safeJson } from "../../../../lib/apiUtils";
 
 // Consenti fino a 60s di esecuzione (l'import di tante Difese/Counter fatto
 // una alla volta supererebbe il limite di default di Vercel e andrebbe in
@@ -16,7 +17,8 @@ export async function POST(request) {
     return NextResponse.json({ error: "Solo l'Admin può eseguire l'importazione." }, { status: 403 });
   }
 
-  const seedData = await request.json();
+  const { data: seedData, error: parseError } = await safeJson(request);
+  if (parseError) return NextResponse.json({ error: parseError }, { status: 400 });
   if (!Array.isArray(seedData)) {
     return NextResponse.json({ error: "Il file non è nel formato atteso (deve essere un elenco di Difese)." }, { status: 400 });
   }

@@ -3,6 +3,7 @@ import { getCurrentUser, canManage } from "../../../../../lib/auth";
 import { getDef, createCounter } from "../../../../../lib/defs";
 import { isKnownMonster } from "../../../../../lib/monsters";
 import { validateCounterPayload } from "../../../../../lib/gameData";
+import { safeJson } from "../../../../../lib/apiUtils";
 
 export async function POST(request, { params }) {
   const user = await getCurrentUser();
@@ -13,7 +14,8 @@ export async function POST(request, { params }) {
   const def = await getDef(params.id);
   if (!def) return NextResponse.json({ error: "Difesa non trovata." }, { status: 404 });
 
-  const payload = await request.json();
+  const { data: payload, error: parseError } = await safeJson(request);
+  if (parseError) return NextResponse.json({ error: parseError }, { status: 400 });
 
   const errors = validateCounterPayload(payload);
   if (errors.length) {

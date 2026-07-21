@@ -3,11 +3,14 @@ import { redis } from "../../../../lib/redis";
 import { hashPassword, defaultRoleForGrade, defaultCanUploadRosterForGrade } from "../../../../lib/auth";
 import { getRoster, findRosterEntry, normalizeNickname } from "../../../../lib/roster";
 import { createSessionToken, SESSION_COOKIE } from "../../../../lib/session";
+import { safeJson } from "../../../../lib/apiUtils";
 
 const MAX_USERS = 35;
 
 export async function POST(request) {
-  const { email, password, nickname } = await request.json();
+  const { data, error: parseError } = await safeJson(request);
+  if (parseError) return NextResponse.json({ error: parseError }, { status: 400 });
+  const { email, password, nickname } = data;
 
   if (!email || !password || !nickname) {
     return NextResponse.json({ error: "Email, password e nickname sono obbligatori." }, { status: 400 });

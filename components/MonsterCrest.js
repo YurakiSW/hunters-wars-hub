@@ -1,9 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-
-function normalize(s) {
-  return (s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
-}
+import { normalizeMonsterName as normalize } from "../lib/textUtils";
 
 // Cache condivisa in memoria: tutti i MonsterCrest della pagina fanno UNA
 // sola richiesta, non una a testa. La lista arriva da /api/admin/monsters,

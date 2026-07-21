@@ -20,45 +20,54 @@ export async function POST(request) {
   // Il browser ha già estratto solo nickname+grado dal file di gioco
   // (che può essere anche di svariati MB) prima di mandarlo qui — così non
   // trasferiamo mai al server dati di gioco non necessari.
-  const { entries } = await request.json();
+  let entries;
+  try {
+    ({ entries } = await request.json());
+  } catch {
+    return NextResponse.json({ error: "Richiesta non valida (JSON malformato)." }, { status: 400 });
+  }
   if (!Array.isArray(entries) || !entries.length) {
     return NextResponse.json({ error: "Lista membri mancante o vuota." }, { status: 400 });
   }
 
-  await setRoster(entries);
+  try {
+    await setRoster(entries);
 
-  // Ricalcola ruolo/permesso di ogni utente esistente che combacia col nuovo
-  // roster, MA solo se non è stato impostato a mano dall'Admin in precedenza.
-  // Nota: KEYS è ok per una gilda (poche decine di utenti); se in futuro
-  // servisse scalare molto di più, meglio mantenere un Set "user:ids" come
-  // fatto per le Difese in lib/defs.js.
-  const userIds = await redis.keys("user:user_*");
-  let removed = 0;
-  for (const key of userIds) {
-    const u = await redis.get(key);
-    if (!u) continue;
-    const match = entries.find((r) => normalizeNickname(r.nickname) === normalizeNickname(u.nickname));
+    // Ricalcola ruolo/permesso di ogni utente esistente che combacia col nuovo
+    // roster, MA solo se non è stato impostato a mano dall'Admin in precedenza.
+    // Nota: KEYS è ok per una gilda (poche decine di utenti); se in futuro
+    // servisse scalare molto di più, meglio mantenere un Set "user:ids" come
+    // fatto per le Difese in lib/defs.js.
+    const userIds = await redis.keys("user:user_*");
+    let removed = 0;
+    for (const key of userIds) {
+      const u = await redis.get(key);
+      if (!u) continue;
+      const match = entries.find((r) => normalizeNickname(r.nickname) === normalizeNickname(u.nickname));
 
-    if (!match) {
-      // Non è più nel roster: ha lasciato la gilda. L'account viene
-      // rimosso (mai quello dell'Admin, per sicurezza — se un file caricato
-      // per sbaglio fosse incompleto, non si perde l'accesso al pannello).
-      // Le Difese/Counter che ha creato restano intatte: l'autore ci resta
-      // scritto sopra come testo, non dipende dall'account che esiste ancora.
-      if (u.role !== "admin") {
-        await redis.del(key);
-        if (u.email) await redis.del(`user:byEmail:${u.email.toLowerCase()}`);
-        removed++;
+      if (!match) {
+        // Non è più nel roster: ha lasciato la gilda. L'account viene
+        // rimosso (mai quello dell'Admin, per sicurezza — se un file caricato
+        // per sbaglio fosse incompleto, non si perde l'accesso al pannello).
+        // Le Difese/Counter che ha creato restano intatte: l'autore ci resta
+        // scritto sopra come testo, non dipende dall'account che esiste ancora.
+        if (u.role !== "admin") {
+          await redis.del(key);
+          if (u.email) await redis.del(`user:byEmail:${u.email.toLowerCase()}`);
+          removed++;
+        }
+        continue;
       }
-      continue;
+
+      const patch = { grade: match.grade };
+      if (u.status === "pending") patch.status = "approved";
+      if (!u.manualRole) patch.role = defaultRoleForGrade(match.grade);
+      if (!u.manualPerm) patch.canUploadRoster = defaultCanUploadRosterForGrade(match.grade);
+      await redis.set(key, { ...u, ...patch });
     }
 
-    const patch = { grade: match.grade };
-    if (u.status === "pending") patch.status = "approved";
-    if (!u.manualRole) patch.role = defaultRoleForGrade(match.grade);
-    if (!u.manualPerm) patch.canUploadRoster = defaultCanUploadRosterForGrade(match.grade);
-    await redis.set(key, { ...u, ...patch });
+    return NextResponse.json({ ok: true, count: entries.length, removed });
+  } catch (err) {
+    return NextResponse.json({ error: "Errore nell'aggiornamento del roster: " + String(err.message || err) }, { status: 500 });
   }
-
-  return NextResponse.json({ ok: true, count: entries.length, removed });
 }

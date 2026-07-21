@@ -29,6 +29,7 @@ export default function Header({ user }) {
           <a href="/defs" className="btn btn-ghost">Difese</a>
           <a href="/mine" className="btn btn-ghost">📋 Le mie proposte</a>
           {canManage && <a href="/admin" className="btn btn-ghost">⚙ Pannello {user.role === "admin" ? "Admin" : "Gestione"}</a>}
+          <a href="https://sw-guild-site.vercel.app" target="_blank" rel="noopener noreferrer" className="btn btn-ghost">🎁 Redeem codici</a>
           <span className="f-mono" style={{ fontSize: 11, color: "var(--text-faint)" }}>{user?.nickname}</span>
           <button className="btn btn-ghost" onClick={logout}>Esci</button>
         </div>

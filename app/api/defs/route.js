@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getCurrentUser, canManage } from "../../../lib/auth";
 import { listDefs, createDef } from "../../../lib/defs";
 import { isKnownMonster } from "../../../lib/monsters";
+import { safeJson } from "../../../lib/apiUtils";
 
 export async function GET() {
   const user = await getCurrentUser();
@@ -27,7 +28,9 @@ export async function POST(request) {
     return NextResponse.json({ error: "Solo Admin e Revisori possono creare nuove Difese." }, { status: 403 });
   }
 
-  const { m1, m2, m3, desc } = await request.json();
+  const { data, error } = await safeJson(request);
+  if (error) return NextResponse.json({ error }, { status: 400 });
+  const { m1, m2, m3, desc } = data;
   const monsters = [m1, m2, m3];
   if (monsters.some((m) => !m || !m.trim())) {
     return NextResponse.json({ error: "Servono tutti e tre i mostri." }, { status: 400 });
