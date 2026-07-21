@@ -3,6 +3,10 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Header from "../../components/Header";
 import ConfirmModal from "../../components/ConfirmModal";
+import Modal from "../../components/Modal";
+import DefForm from "../../components/DefForm";
+import CounterForm from "../../components/CounterForm";
+import MonsterCrest from "../../components/MonsterCrest";
 
 export default function AdminPage() {
   const [user, setUser] = useState(null);
@@ -464,6 +468,157 @@ function ImportTab() {
 }
 
 function ContentTab() {
+  const [subTab, setSubTab] = useState("pending"); // pending | all
+
+  return (
+    <div>
+      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+        <button className={`btn ${subTab === "pending" ? "btn-primary" : "btn-ghost"}`} onClick={() => setSubTab("pending")}>In attesa di approvazione</button>
+        <button className={`btn ${subTab === "all" ? "btn-primary" : "btn-ghost"}`} onClick={() => setSubTab("all")}>Tutte / elimina in blocco</button>
+      </div>
+      {subTab === "pending" ? <PendingApprovalsSection /> : <AllContentSection />}
+    </div>
+  );
+}
+
+function PendingApprovalsSection() {
+  const [defs, setDefs] = useState([]);
+  const [editingDef, setEditingDef] = useState(null);
+  const [editingCounter, setEditingCounter] = useState(null);
+  const [confirmRejectDef, setConfirmRejectDef] = useState(null);
+  const [confirmRejectCounter, setConfirmRejectCounter] = useState(null);
+
+  function load() {
+    fetch("/api/defs").then((r) => r.json()).then((d) => setDefs(d.defs || []));
+  }
+  useEffect(load, []);
+
+  const pendingDefs = defs.filter((d) => d.status === "pending");
+  const pendingCounters = defs.flatMap((d) =>
+    d.counters.filter((c) => c.status === "pending").map((c) => ({ ...c, defId: d.id, defName: d.monsters.join(" / ") }))
+  );
+
+  async function approveDef(id) {
+    await fetch(`/api/defs/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "approved" }) });
+    load();
+  }
+  async function rejectDef(id) {
+    await fetch(`/api/defs/${id}`, { method: "DELETE" });
+    setConfirmRejectDef(null);
+    load();
+  }
+  async function submitEditDef({ m1, m2, m3, desc }) {
+    const res = await fetch(`/api/defs/${editingDef.id}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ m1, m2, m3, desc }),
+    });
+    const data = await res.json();
+    if (!res.ok) return { error: data.error };
+    setEditingDef(null);
+    load();
+    return {};
+  }
+
+  async function approveCounter(id) {
+    await fetch(`/api/counters/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "approved" }) });
+    load();
+  }
+  async function rejectCounter(id) {
+    await fetch(`/api/counters/${id}`, { method: "DELETE" });
+    setConfirmRejectCounter(null);
+    load();
+  }
+  async function submitEditCounter(payload) {
+    const res = await fetch(`/api/counters/${editingCounter.id}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) return { error: data.error };
+    setEditingCounter(null);
+    load();
+    return {};
+  }
+
+  const total = pendingDefs.length + pendingCounters.length;
+
+  return (
+    <div>
+      {total === 0 && <p style={{ color: "var(--text-faint)", fontSize: 13.5 }}>Niente in attesa — tutto approvato. 🎉</p>}
+
+      {pendingDefs.length > 0 && (
+        <>
+          <div className="section-label">Difese in attesa ({pendingDefs.length})</div>
+          {pendingDefs.map((d) => (
+            <div key={d.id} className="card" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, flexWrap: "wrap", gap: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                {d.monsters.map((m, i) => <MonsterCrest key={i} name={m} size={26} />)}
+                <span style={{ fontSize: 13.5 }}>{d.monsters.join(" / ")}</span>
+                <span className="f-mono" style={{ fontSize: 10.5, color: "var(--text-faint)" }}>proposta da {d.authorNickname}</span>
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button className="btn btn-ghost" onClick={() => setEditingDef(d)}>✎ Modifica</button>
+                <button className="btn btn-green" onClick={() => approveDef(d.id)}>✓ Approva</button>
+                <button className="btn btn-danger" onClick={() => setConfirmRejectDef(d)}>✕ Rifiuta</button>
+              </div>
+            </div>
+          ))}
+        </>
+      )}
+
+      {pendingCounters.length > 0 && (
+        <>
+          <div className="section-label" style={{ marginTop: pendingDefs.length ? 20 : 0 }}>Counter in attesa ({pendingCounters.length})</div>
+          {pendingCounters.map((c) => (
+            <div key={c.id} className="card" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, flexWrap: "wrap", gap: 8 }}>
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  {c.offense.map((m, i) => <MonsterCrest key={i} name={m} size={26} />)}
+                  <span style={{ fontSize: 13.5 }}>{c.offense.join(" · ")}</span>
+                </div>
+                <div className="f-mono" style={{ fontSize: 10.5, color: "var(--text-faint)", marginTop: 4 }}>
+                  su {c.defName} — proposto da {c.authorNickname}
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button className="btn btn-ghost" onClick={() => setEditingCounter(c)}>✎ Modifica</button>
+                <button className="btn btn-green" onClick={() => approveCounter(c.id)}>✓ Approva</button>
+                <button className="btn btn-danger" onClick={() => setConfirmRejectCounter(c)}>✕ Rifiuta</button>
+              </div>
+            </div>
+          ))}
+        </>
+      )}
+
+      {editingDef && (
+        <Modal title={`Modifica difesa — ${editingDef.monsters.join(" / ")}`} onClose={() => setEditingDef(null)}>
+          <DefForm initial={editingDef} onSubmit={submitEditDef} onCancel={() => setEditingDef(null)} />
+        </Modal>
+      )}
+      {editingCounter && (
+        <Modal title="Modifica counter" onClose={() => setEditingCounter(null)} wide>
+          <CounterForm defMonsters={editingCounter.offense} initial={editingCounter} isEdit onSubmit={submitEditCounter} onCancel={() => setEditingCounter(null)} />
+        </Modal>
+      )}
+      {confirmRejectDef && (
+        <ConfirmModal
+          message={`Rifiutare (eliminare) la difesa ${confirmRejectDef.monsters.join(" / ")} e i suoi counter? Non si può annullare.`}
+          confirmLabel="Rifiuta"
+          onConfirm={() => rejectDef(confirmRejectDef.id)}
+          onCancel={() => setConfirmRejectDef(null)}
+        />
+      )}
+      {confirmRejectCounter && (
+        <ConfirmModal
+          message={`Rifiutare (eliminare) il counter ${confirmRejectCounter.offense.join(" / ")}? Non si può annullare.`}
+          confirmLabel="Rifiuta"
+          onConfirm={() => rejectCounter(confirmRejectCounter.id)}
+          onCancel={() => setConfirmRejectCounter(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+function AllContentSection() {
   const [defs, setDefs] = useState([]);
   const [selectedDefs, setSelectedDefs] = useState(new Set());
   const [selectedCounters, setSelectedCounters] = useState(new Set());

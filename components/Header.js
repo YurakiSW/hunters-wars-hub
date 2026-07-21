@@ -14,7 +14,7 @@ export default function Header({ user }) {
   return (
     <div style={{ borderBottom: "1px solid var(--border-soft)", background: "var(--bg-soft)" }}>
       <div style={{ maxWidth: 1040, margin: "0 auto", padding: "16px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <a href="/defs" style={{ display: "flex", alignItems: "center", gap: 12, textDecoration: "none", color: "inherit" }}>
           <img
             src="/logo.jpg"
             alt="Hunters Nux"
@@ -24,7 +24,7 @@ export default function Header({ user }) {
             <div className="f-mono" style={{ color: "var(--text-faint)", fontSize: 10.5, letterSpacing: ".18em", textTransform: "uppercase" }}>Hunters Wars</div>
             <h1 className="f-hero" style={{ fontSize: 20, margin: "1px 0 0", color: "var(--gold)" }}>Counter Siege</h1>
           </div>
-        </div>
+        </a>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <a href="/defs" className="btn btn-ghost">Difese</a>
           <a href="/mine" className="btn btn-ghost">📋 Le mie proposte</a>

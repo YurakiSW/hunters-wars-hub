@@ -6,7 +6,7 @@ import { RUNE_SETS, SLOT2_OPTIONS, SLOT4_OPTIONS, SLOT6_OPTIONS, ARTIFACT_LEFT_O
 import VideoPreview from "./VideoPreview";
 
 function emptyUnit() {
-  return { name: "", lead: false, runes: "", stats: "", artifactLeft: [], artifactRight: [], notes: [""] };
+  return { name: "", lead: false, runes: "", stats: "", statsFlexible: false, statsMinText: "", artifactLeft: [], artifactRight: [], notes: [""] };
 }
 
 // Ridimensiona a un lato massimo di 1600px e ricomprime in JPEG 75%,
@@ -168,8 +168,27 @@ export default function CounterForm({ defMonsters, initial, isEdit, onSubmit, on
             <RunePicker value={u.runes} onChange={(v) => setUnit(i, { runes: v })} />
           </div>
           <div style={{ marginBottom: 10 }}>
-            <div style={{ fontSize: 11, marginBottom: 4, color: "var(--text-muted)" }}>Priorità statistiche <span style={{ color: "var(--red)" }}>*</span></div>
-            <StatSelect value={u.stats} onChange={(v) => setUnit(i, { stats: v })} />
+            <div style={{ fontSize: 11, marginBottom: 4, color: "var(--text-muted)" }}>Priorità statistiche</div>
+            <label className="f-mono" style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11.5, color: "var(--text-muted)", marginBottom: 8, cursor: "pointer" }}>
+              <input
+                type="checkbox"
+                checked={u.statsFlexible}
+                onChange={(e) => setUnit(i, { statsFlexible: e.target.checked, stats: "", statsMinText: "" })}
+              />
+              Usa il set che preferisci purché tu raggiunga le stat indicate
+            </label>
+            {u.statsFlexible ? (
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <span className="f-mono" style={{ color: "var(--gold)", fontWeight: 700 }}>+</span>
+                <input
+                  value={u.statsMinText}
+                  onChange={(e) => setUnit(i, { statsMinText: e.target.value })}
+                  placeholder="es. 250 SPD, 80% CR, 200% CD"
+                />
+              </div>
+            ) : (
+              <StatSelect value={u.stats} onChange={(v) => setUnit(i, { stats: v })} />
+            )}
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
             <div>

@@ -56,7 +56,7 @@ export default function MonsterCrest({ name, size = 40, lead = false }) {
         height: size,
         borderRadius: "9999px",
         border: `2px solid ${lead ? "var(--gold)" : "var(--border)"}`,
-        background: icon ? "var(--bg-soft)" : `hsl(${hue} 45% 22%)`,
+        background: icon ? "var(--bg-soft)" : `hsl(${hue} 55% 16%)`,
         overflow: "hidden",
         display: "flex",
         alignItems: "center",
@@ -68,7 +68,7 @@ export default function MonsterCrest({ name, size = 40, lead = false }) {
       {icon ? (
         <img src={icon} alt={name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
       ) : (
-        <span className="f-display" style={{ color: `hsl(${hue} 70% 82%)`, fontSize: size * 0.34, fontWeight: 700 }}>
+        <span className="f-display" style={{ color: "#ffffff", textShadow: "0 1px 2px rgba(0,0,0,.7)", fontSize: size * 0.34, fontWeight: 800 }}>
           {(name || "?").slice(0, 2).toUpperCase()}
         </span>
       )}
