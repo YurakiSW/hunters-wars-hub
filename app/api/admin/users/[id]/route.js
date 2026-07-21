@@ -65,12 +65,14 @@ export async function DELETE(request, { params }) {
   // La mail scherzosa di rifiuto parte solo se stavamo davvero rifiutando
   // una richiesta in attesa — rimuovere un membro già approvato non manda
   // nessuna notifica, non è un "rifiuto".
+  let emailResult = null;
   if (target.status === "pending" && target.email) {
-    sendRejectionEmail(target).catch(() => {});
+    emailResult = await sendRejectionEmail(target);
+    if (!emailResult.ok) console.error("Email di rifiuto non inviata:", emailResult.error);
   }
 
   await redis.del(key);
   if (target.email) await redis.del(`user:byEmail:${target.email.toLowerCase()}`);
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, emailResult });
 }

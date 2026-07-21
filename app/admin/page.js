@@ -141,9 +141,13 @@ function UsersTab() {
   }
 
   async function deleteUser(id) {
-    await fetch(`/api/admin/users/${id}`, { method: "DELETE" });
+    const res = await fetch(`/api/admin/users/${id}`, { method: "DELETE" });
+    const data = await res.json();
     setUsers((prev) => prev.filter((u) => u.id !== id));
     setConfirmDelete(null);
+    if (data.emailResult) {
+      setEmailMsg(data.emailResult.ok ? "✅ Email di rifiuto inviata." : `❌ Email NON inviata: ${data.emailResult.error}`);
+    }
   }
 
   return (
