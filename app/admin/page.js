@@ -483,20 +483,25 @@ function ContentTab() {
 
 function PendingApprovalsSection() {
   const [defs, setDefs] = useState([]);
+  const [expanded, setExpanded] = useState(new Set());
   const [editingDef, setEditingDef] = useState(null);
   const [editingCounter, setEditingCounter] = useState(null);
   const [confirmRejectDef, setConfirmRejectDef] = useState(null);
   const [confirmRejectCounter, setConfirmRejectCounter] = useState(null);
 
   function load() {
-    fetch("/api/defs").then((r) => r.json()).then((d) => setDefs(d.defs || []));
+    fetch("/api/defs").then((r) => r.json()).then((d) => {
+      setDefs(d.defs || []);
+      // Apre da sole le Difese che hanno qualcosa da approvare, così si
+      // vede subito il contenuto senza dover cliccare per espandere.
+      setExpanded(new Set((d.defs || []).filter((def) => def.status === "pending" || def.counters.some((c) => c.status === "pending")).map((def) => def.id)));
+    });
   }
   useEffect(load, []);
 
-  const pendingDefs = defs.filter((d) => d.status === "pending");
-  const pendingCounters = defs.flatMap((d) =>
-    d.counters.filter((c) => c.status === "pending").map((c) => ({ ...c, defId: d.id, defName: d.monsters.join(" / ") }))
-  );
+  function toggle(id) {
+    setExpanded((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  }
 
   async function approveDef(id) {
     await fetch(`/api/defs/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "approved" }) });
@@ -522,7 +527,7 @@ function PendingApprovalsSection() {
     await fetch(`/api/counters/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "approved" }) });
     load();
   }
-  async function rejectCounter(id) {
+  async function rejectCounter(defId, id) {
     await fetch(`/api/counters/${id}`, { method: "DELETE" });
     setConfirmRejectCounter(null);
     load();
@@ -538,55 +543,62 @@ function PendingApprovalsSection() {
     return {};
   }
 
-  const total = pendingDefs.length + pendingCounters.length;
+  const totalPending = defs.filter((d) => d.status === "pending").length + defs.reduce((sum, d) => sum + d.counters.filter((c) => c.status === "pending").length, 0);
 
   return (
     <div>
-      {total === 0 && <p style={{ color: "var(--text-faint)", fontSize: 13.5 }}>Niente in attesa — tutto approvato. 🎉</p>}
+      {totalPending === 0 && <p style={{ color: "var(--text-faint)", fontSize: 13.5 }}>Niente in attesa — tutto approvato. 🎉</p>}
 
-      {pendingDefs.length > 0 && (
-        <>
-          <div className="section-label">Difese in attesa ({pendingDefs.length})</div>
-          {pendingDefs.map((d) => (
-            <div key={d.id} className="card" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, flexWrap: "wrap", gap: 8 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                {d.monsters.map((m, i) => <MonsterCrest key={i} name={m} size={26} />)}
-                <span style={{ fontSize: 13.5 }}>{d.monsters.join(" / ")}</span>
-                <span className="f-mono" style={{ fontSize: 10.5, color: "var(--text-faint)" }}>proposta da {d.authorNickname}</span>
-              </div>
-              <div style={{ display: "flex", gap: 8 }}>
-                <button className="btn btn-ghost" onClick={() => setEditingDef(d)}>✎ Modifica</button>
-                <button className="btn btn-green" onClick={() => approveDef(d.id)}>✓ Approva</button>
-                <button className="btn btn-danger" onClick={() => setConfirmRejectDef(d)}>✕ Rifiuta</button>
-              </div>
+      {defs.map((d) => {
+        const pendingCounterCount = d.counters.filter((c) => c.status === "pending").length;
+        const needsAttention = d.status === "pending" || pendingCounterCount > 0;
+        if (!needsAttention && d.counters.length === 0) return null;
+        return (
+          <div key={d.id} style={{ borderBottom: "1px solid var(--border-soft)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", background: needsAttention ? "var(--ember-soft)" : "var(--bg-soft)" }}>
+              <button onClick={() => toggle(d.id)} style={{ background: "none", border: "none", color: "var(--text-faint)" }}>
+                {expanded.has(d.id) ? "▼" : "▶"}
+              </button>
+              {d.monsters.map((m, i) => <MonsterCrest key={i} name={m} size={26} />)}
+              <span style={{ flex: 1, fontSize: 13.5 }}>{d.monsters.join(" / ")}</span>
+              {d.status === "pending" && <span title="In attesa di approvazione" style={{ color: "var(--ember)", fontWeight: 700 }}>❗</span>}
+              {d.status === "pending" ? (
+                <div style={{ display: "flex", gap: 6 }}>
+                  <button className="btn btn-ghost" onClick={() => setEditingDef(d)}>✎</button>
+                  <button className="btn btn-green" onClick={() => approveDef(d.id)}>✓ Approva</button>
+                  <button className="btn btn-danger" onClick={() => setConfirmRejectDef(d)}>✕ Rifiuta</button>
+                </div>
+              ) : (
+                pendingCounterCount > 0 && <span className="badge badge-pending">{pendingCounterCount} counter in attesa</span>
+              )}
             </div>
-          ))}
-        </>
-      )}
 
-      {pendingCounters.length > 0 && (
-        <>
-          <div className="section-label" style={{ marginTop: pendingDefs.length ? 20 : 0 }}>Counter in attesa ({pendingCounters.length})</div>
-          {pendingCounters.map((c) => (
-            <div key={c.id} className="card" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, flexWrap: "wrap", gap: 8 }}>
-              <div>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  {c.offense.map((m, i) => <MonsterCrest key={i} name={m} size={26} />)}
-                  <span style={{ fontSize: 13.5 }}>{c.offense.join(" · ")}</span>
-                </div>
-                <div className="f-mono" style={{ fontSize: 10.5, color: "var(--text-faint)", marginTop: 4 }}>
-                  su {c.defName} — proposto da {c.authorNickname}
-                </div>
+            {expanded.has(d.id) && d.counters.map((c) => (
+              <div
+                key={c.id}
+                style={{
+                  display: "flex", alignItems: "center", gap: 8, padding: "8px 12px 8px 40px",
+                  background: c.status === "pending" ? "rgba(255,106,53,.06)" : "transparent",
+                }}
+              >
+                {c.offense.map((m, i) => <MonsterCrest key={i} name={m} size={20} />)}
+                <span style={{ flex: 1, fontSize: 12.5 }}>{c.offense.join(" · ")}</span>
+                <span className="f-mono" style={{ fontSize: 10, color: "var(--text-faint)" }}>{c.authorNickname}</span>
+                {c.status === "pending" && <span title="In attesa di approvazione" style={{ color: "var(--ember)", fontWeight: 700 }}>❗</span>}
+                {c.status === "pending" ? (
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <button className="btn btn-ghost" onClick={() => setEditingCounter(c)}>✎</button>
+                    <button className="btn btn-green" onClick={() => approveCounter(c.id)}>✓</button>
+                    <button className="btn btn-danger" onClick={() => setConfirmRejectCounter(c)}>✕</button>
+                  </div>
+                ) : (
+                  <span className="badge badge-approved">approvato</span>
+                )}
               </div>
-              <div style={{ display: "flex", gap: 8 }}>
-                <button className="btn btn-ghost" onClick={() => setEditingCounter(c)}>✎ Modifica</button>
-                <button className="btn btn-green" onClick={() => approveCounter(c.id)}>✓ Approva</button>
-                <button className="btn btn-danger" onClick={() => setConfirmRejectCounter(c)}>✕ Rifiuta</button>
-              </div>
-            </div>
-          ))}
-        </>
-      )}
+            ))}
+          </div>
+        );
+      })}
 
       {editingDef && (
         <Modal title={`Modifica difesa — ${editingDef.monsters.join(" / ")}`} onClose={() => setEditingDef(null)}>
@@ -610,7 +622,7 @@ function PendingApprovalsSection() {
         <ConfirmModal
           message={`Rifiutare (eliminare) il counter ${confirmRejectCounter.offense.join(" / ")}? Non si può annullare.`}
           confirmLabel="Rifiuta"
-          onConfirm={() => rejectCounter(confirmRejectCounter.id)}
+          onConfirm={() => rejectCounter(confirmRejectCounter.defId, confirmRejectCounter.id)}
           onCancel={() => setConfirmRejectCounter(null)}
         />
       )}
