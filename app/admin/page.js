@@ -7,7 +7,7 @@ import Modal from "../../components/Modal";
 import DefForm from "../../components/DefForm";
 import CounterForm from "../../components/CounterForm";
 import MonsterCrest from "../../components/MonsterCrest";
-import { gradeLabel, formatNickname } from "../../lib/textUtils";
+import { gradeLabel, formatNickname, displayAuthorName } from "../../lib/textUtils";
 
 export default function AdminPage() {
   const [user, setUser] = useState(null);
@@ -630,7 +630,7 @@ function PendingApprovalsSection() {
               >
                 {c.offense.map((m, i) => <MonsterCrest key={i} name={m} size={20} />)}
                 <span style={{ flex: 1, fontSize: 12.5 }}>{c.offense.join(" · ")}</span>
-                <span className="f-mono" style={{ fontSize: 10, color: "var(--text-faint)" }}>{formatNickname(c.authorNickname, managerNicknames.includes(c.authorNickname))}</span>
+                <span className="f-mono" style={{ fontSize: 10, color: "var(--text-faint)" }}>{formatNickname(displayAuthorName(c.authorNickname), managerNicknames.includes(c.authorNickname))}</span>
                 {c.status === "pending" && <span title="In attesa di approvazione" style={{ color: "var(--ember)", fontWeight: 700 }}>❗</span>}
                 {c.status === "pending" ? (
                   <div style={{ display: "flex", gap: 6 }}>
