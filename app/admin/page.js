@@ -7,6 +7,7 @@ import Modal from "../../components/Modal";
 import DefForm from "../../components/DefForm";
 import CounterForm from "../../components/CounterForm";
 import MonsterCrest from "../../components/MonsterCrest";
+import { gradeLabel, formatNickname } from "../../lib/textUtils";
 
 export default function AdminPage() {
   const [user, setUser] = useState(null);
@@ -120,7 +121,7 @@ function RosterTab() {
         <p style={{ color: "var(--text-faint)", fontSize: 11, marginTop: 8 }}>Vengono estratti solo nickname e grado — nessun altro dato dell'export viene salvato.</p>
       </div>
       <div className="section-label">Roster attuale ({roster.length})</div>
-      {roster.map((r, i) => <div key={i} style={{ fontSize: 13, padding: "4px 0", borderBottom: "1px solid var(--border-soft)" }}>{r.nickname} — grado {r.grade}</div>)}
+      {roster.map((r, i) => <div key={i} style={{ fontSize: 13, padding: "4px 0", borderBottom: "1px solid var(--border-soft)" }}>{r.nickname} — {gradeLabel(r.grade)}</div>)}
     </div>
   );
 }
@@ -167,8 +168,8 @@ function UsersTab() {
         <tbody>
           {users.map((u) => (
             <tr key={u.id} style={{ borderTop: "1px solid var(--border-soft)" }}>
-              <td style={{ padding: 8 }}>{u.nickname}</td>
-              <td style={{ padding: 8 }}>{u.grade ?? "—"}</td>
+              <td style={{ padding: 8 }}>{formatNickname(u.nickname, u.role === "admin" || u.role === "reviewer")}</td>
+              <td style={{ padding: 8 }}>{gradeLabel(u.grade)}</td>
               <td style={{ padding: 8 }}><span className={`badge ${u.status === "approved" ? "badge-approved" : "badge-pending"}`}>{u.status}</span></td>
               <td style={{ padding: 8 }}>
                 <select value={u.role} onChange={(e) => updateUser(u.id, { role: e.target.value })}>
@@ -521,11 +522,16 @@ function ContentTab() {
 
 function PendingApprovalsSection() {
   const [defs, setDefs] = useState([]);
+  const [managerNicknames, setManagerNicknames] = useState([]);
   const [expanded, setExpanded] = useState(new Set());
   const [editingDef, setEditingDef] = useState(null);
   const [editingCounter, setEditingCounter] = useState(null);
   const [confirmRejectDef, setConfirmRejectDef] = useState(null);
   const [confirmRejectCounter, setConfirmRejectCounter] = useState(null);
+
+  useEffect(() => {
+    fetch("/api/managers").then((r) => r.json()).then((d) => setManagerNicknames(d.nicknames || [])).catch(() => {});
+  }, []);
 
   function load() {
     fetch("/api/defs").then((r) => r.json()).then((d) => {
@@ -624,7 +630,7 @@ function PendingApprovalsSection() {
               >
                 {c.offense.map((m, i) => <MonsterCrest key={i} name={m} size={20} />)}
                 <span style={{ flex: 1, fontSize: 12.5 }}>{c.offense.join(" · ")}</span>
-                <span className="f-mono" style={{ fontSize: 10, color: "var(--text-faint)" }}>{c.authorNickname}</span>
+                <span className="f-mono" style={{ fontSize: 10, color: "var(--text-faint)" }}>{formatNickname(c.authorNickname, managerNicknames.includes(c.authorNickname))}</span>
                 {c.status === "pending" && <span title="In attesa di approvazione" style={{ color: "var(--ember)", fontWeight: 700 }}>❗</span>}
                 {c.status === "pending" ? (
                   <div style={{ display: "flex", gap: 6 }}>

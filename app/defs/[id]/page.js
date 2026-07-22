@@ -8,8 +8,10 @@ import CounterForm from "../../../components/CounterForm";
 import DefForm from "../../../components/DefForm";
 import MonsterCrest from "../../../components/MonsterCrest";
 import VideoPreview from "../../../components/VideoPreview";
+import { formatNickname } from "../../../lib/textUtils";
 
 export default function DefDetailPage({ params }) {
+  const [managerNicknames, setManagerNicknames] = useState([]);
   const [user, setUser] = useState(null);
   const [def, setDef] = useState(null);
   const [showForm, setShowForm] = useState(false);
@@ -31,6 +33,7 @@ export default function DefDetailPage({ params }) {
       if (d.user.status !== "approved") return router.push("/pending");
       setUser(d.user);
     });
+    fetch("/api/managers").then((r) => r.json()).then((d) => setManagerNicknames(d.nicknames || [])).catch(() => {});
     load();
   }, []);
 
@@ -179,7 +182,7 @@ function CounterCard({ counter: c, user, canManage, onEdit, onDelete, onApprove,
           </span>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <span className="f-mono" style={{ fontSize: 11, color: "var(--text-faint)" }}>proposto da {c.authorNickname}</span>
+          <span className="f-mono" style={{ fontSize: 11, color: "var(--text-faint)" }}>proposto da {formatNickname(c.authorNickname, managerNicknames.includes(c.authorNickname))}</span>
           {canEdit && <button className="btn btn-ghost" onClick={onEdit}>✎</button>}
           {canManage && <button className="btn btn-ghost" onClick={onDelete}>🗑</button>}
         </div>
