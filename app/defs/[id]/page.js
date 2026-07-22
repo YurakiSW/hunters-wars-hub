@@ -126,6 +126,7 @@ export default function DefDetailPage({ params }) {
             counter={c}
             user={user}
             canManage={canManage}
+            managerNicknames={managerNicknames}
             onEdit={() => setEditingCounter(c)}
             onDelete={() => setConfirmDeleteCounter(c)}
             onApprove={() => approveCounter(c.id, "approved")}
@@ -168,7 +169,7 @@ export default function DefDetailPage({ params }) {
   );
 }
 
-function CounterCard({ counter: c, user, canManage, onEdit, onDelete, onApprove, onReject }) {
+function CounterCard({ counter: c, user, canManage, managerNicknames, onEdit, onDelete, onApprove, onReject }) {
   const [open, setOpen] = useState(false);
   const canEdit = canManage || (c.authorId === user.id && c.status === "pending");
 
