@@ -24,11 +24,29 @@
 
 body {
   margin: 0;
-  background-color: var(--bg);
+  background-color: #030308;
   background-image:
-    radial-gradient(ellipse 800px 500px at 15% -5%, rgba(147,118,242,.16), transparent 60%),
-    radial-gradient(ellipse 700px 500px at 85% 10%, rgba(216,72,82,.10), transparent 55%),
-    radial-gradient(ellipse 900px 600px at 50% 100%, rgba(63,174,130,.08), transparent 60%);
+    radial-gradient(1.5px 1.5px at 8% 12%, #fff, transparent),
+    radial-gradient(1px 1px at 22% 35%, #fff, transparent),
+    radial-gradient(2px 2px at 40% 8%, #fff, transparent),
+    radial-gradient(1px 1px at 55% 25%, #fff, transparent),
+    radial-gradient(1.5px 1.5px at 68% 15%, #fff, transparent),
+    radial-gradient(1px 1px at 80% 40%, #fff, transparent),
+    radial-gradient(1.5px 1.5px at 92% 20%, #fff, transparent),
+    radial-gradient(1px 1px at 15% 60%, #fff, transparent),
+    radial-gradient(1px 1px at 30% 75%, #fff, transparent),
+    radial-gradient(2px 2px at 48% 55%, #fff, transparent),
+    radial-gradient(1px 1px at 62% 68%, #fff, transparent),
+    radial-gradient(1.5px 1.5px at 78% 80%, #fff, transparent),
+    radial-gradient(1px 1px at 88% 65%, #fff, transparent),
+    radial-gradient(1px 1px at 5% 90%, #fff, transparent),
+    radial-gradient(1.5px 1.5px at 35% 92%, #fff, transparent),
+    radial-gradient(1px 1px at 95% 88%, #fff, transparent),
+    radial-gradient(ellipse 1400px 500px at 50% 40%, rgba(140,125,175,.24), transparent 65%),
+    radial-gradient(ellipse 1000px 700px at 30% 70%, rgba(110,85,160,.18), transparent 60%),
+    radial-gradient(ellipse 700px 500px at 80% 25%, rgba(200,80,110,.10), transparent 55%);
+  background-repeat: no-repeat;
+  background-attachment: fixed;
   color: var(--text);
   font-family: 'Inter', sans-serif;
   min-height: 100vh;

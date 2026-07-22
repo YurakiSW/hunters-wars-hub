@@ -27,5 +27,9 @@ export async function middleware(request) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  // Esclude anche i file statici dentro /public (logo.jpg e futuri): senza
+  // questo, il middleware li trattava come pagine protette e rimandava al
+  // login chi provava a caricarli — compresa la pagina di login stessa,
+  // che ci mette dentro il logo!
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:jpg|jpeg|png|gif|svg|webp|ico|woff2?)$).*)"],
 };
