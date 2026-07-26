@@ -5,6 +5,7 @@ import Header from "../../../components/Header";
 import Modal from "../../../components/Modal";
 import ConfirmModal from "../../../components/ConfirmModal";
 import CounterForm from "../../../components/CounterForm";
+import CounterTemplatePicker from "../../../components/CounterTemplatePicker";
 import DefForm from "../../../components/DefForm";
 import MonsterCrest from "../../../components/MonsterCrest";
 import VideoPreview from "../../../components/VideoPreview";
@@ -15,6 +16,8 @@ export default function DefDetailPage({ params }) {
   const [user, setUser] = useState(null);
   const [def, setDef] = useState(null);
   const [showForm, setShowForm] = useState(false);
+  const [showTemplatePicker, setShowTemplatePicker] = useState(false);
+  const [template, setTemplate] = useState(null);
   const [editingCounter, setEditingCounter] = useState(null);
   const [editingDef, setEditingDef] = useState(false);
   const [confirmDeleteCounter, setConfirmDeleteCounter] = useState(null);
@@ -116,7 +119,8 @@ export default function DefDetailPage({ params }) {
         <div style={{ display: "flex", justifyContent: "space-between", margin: "22px 0 14px", flexWrap: "wrap", gap: 8 }}>
           <div className="section-label">Counter proposti ({def.counters.length})</div>
           <div style={{ display: "flex", gap: 8 }}>
-            <button className="btn btn-primary" onClick={() => setShowForm(true)}>+ Proponi counter</button>
+            <button className="btn btn-ghost" onClick={() => setShowTemplatePicker(true)}>📋 Parti da un counter esistente</button>
+            <button className="btn btn-primary" onClick={() => { setTemplate(null); setShowForm(true); }}>+ Proponi counter</button>
           </div>
         </div>
 
@@ -136,9 +140,32 @@ export default function DefDetailPage({ params }) {
         {def.counters.length === 0 && <p style={{ color: "var(--text-faint)" }}>Nessun counter ancora per questa difesa.</p>}
       </div>
 
+      {showTemplatePicker && (
+        <Modal title="Parti da un counter esistente" onClose={() => setShowTemplatePicker(false)} wide>
+          <CounterTemplatePicker
+            onClose={() => setShowTemplatePicker(false)}
+            onSelect={(sourceCounter) => {
+              // Copia tutto tranne id/stato/autore/focus: il Focus riguardava
+              // i bersagli DELL'ALTRA difesa, va sempre reimpostato per questa.
+              setTemplate({
+                units: sourceCounter.units.map((u) => ({ ...u })),
+                turnOrder: [...sourceCounter.turnOrder],
+                focus: [],
+                strategy: sourceCounter.strategy,
+                warning: sourceCounter.warning || "",
+                video: sourceCounter.video || "",
+                images: [],
+              });
+              setShowTemplatePicker(false);
+              setShowForm(true);
+            }}
+          />
+        </Modal>
+      )}
+
       {showForm && (
         <Modal title={`Nuovo counter — ${def.monsters.join(" / ")}`} onClose={() => setShowForm(false)} wide>
-          <CounterForm defMonsters={def.monsters} onSubmit={submitNewCounter} onCancel={() => setShowForm(false)} />
+          <CounterForm defMonsters={def.monsters} initial={template} onSubmit={submitNewCounter} onCancel={() => setShowForm(false)} />
         </Modal>
       )}
       {editingCounter && (
@@ -204,10 +231,10 @@ function CounterCard({ counter: c, user, canManage, managerNicknames, onEdit, on
                   <span className="f-display" style={{ fontSize: 14 }}>{u.name}</span>
                 </div>
                 <div className="f-mono" style={{ fontSize: 11.5, color: "var(--text-muted)", marginBottom: 2 }}>
-                  Rune: <span style={{ color: "var(--text)" }}>{u.runes || "—"}</span>
+                  Rune: <span style={{ color: "var(--text)" }}>{u.statsFlexible ? "Set libero" : (u.runes || "—")}</span>
                 </div>
                 <div className="f-mono" style={{ fontSize: 11.5, color: "var(--text-muted)", marginBottom: 8 }}>
-                  Stat: <span style={{ color: "var(--text)" }}>{u.stats || "—"}</span>
+                  Stat: <span style={{ color: "var(--text)" }}>{u.statsFlexible ? `+ ${u.statsMinText || "—"}` : (u.stats || "—")}</span>
                 </div>
                 {u.artifactLeft?.length > 0 && (
                   <div style={{ marginBottom: 6 }}>

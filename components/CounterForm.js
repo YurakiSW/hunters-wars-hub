@@ -163,17 +163,19 @@ export default function CounterForm({ defMonsters, initial, isEdit, onSubmit, on
             <div style={{ fontSize: 11, marginBottom: 4, color: "var(--text-muted)" }}>Nome mostro <span style={{ color: "var(--red)" }}>*</span></div>
             <MonsterPicker value={u.name} onChange={(v) => setUnit(i, { name: v })} placeholder="Nome mostro" />
           </div>
-          <div style={{ marginBottom: 10 }}>
-            <div style={{ fontSize: 11, marginBottom: 4, color: "var(--text-muted)" }}>Rune (fino a 3 set — es. 2+2+2 o 4+2) <span style={{ color: "var(--red)" }}>*</span></div>
-            <RunePicker value={u.runes} onChange={(v) => setUnit(i, { runes: v })} />
-          </div>
+          {!u.statsFlexible && (
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ fontSize: 11, marginBottom: 4, color: "var(--text-muted)" }}>Rune (fino a 3 set — es. 2+2+2 o 4+2) <span style={{ color: "var(--red)" }}>*</span></div>
+              <RunePicker value={u.runes} onChange={(v) => setUnit(i, { runes: v })} />
+            </div>
+          )}
           <div style={{ marginBottom: 10 }}>
             <div style={{ fontSize: 11, marginBottom: 4, color: "var(--text-muted)" }}>Priorità statistiche</div>
             <label className="f-mono" style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11.5, color: "var(--text-muted)", marginBottom: 8, cursor: "pointer" }}>
               <input
                 type="checkbox"
                 checked={u.statsFlexible}
-                onChange={(e) => setUnit(i, { statsFlexible: e.target.checked, stats: "", statsMinText: "" })}
+                onChange={(e) => setUnit(i, { statsFlexible: e.target.checked, stats: "", statsMinText: "", runes: "" })}
               />
               Usa il set che preferisci purché tu raggiunga le stat indicate
             </label>
@@ -219,11 +221,23 @@ export default function CounterForm({ defMonsters, initial, isEdit, onSubmit, on
           <select
             key={i}
             value={turnOrder[i] || ""}
-            onChange={(e) => setTurnOrder((prev) => { const n = [...prev]; n[i] = e.target.value; return n; })}
+            onChange={(e) => {
+              const val = e.target.value;
+              setTurnOrder((prev) => {
+                const n = [...prev];
+                // Se quel mostro era già in un altro turno, scambia le
+                // posizioni invece di bloccare la scelta — così si può
+                // sempre cambiare l'ordine, anche a scelte già fatte.
+                const otherIndex = n.findIndex((x, j) => x === val && j !== i);
+                if (otherIndex !== -1) n[otherIndex] = n[i] || "";
+                n[i] = val;
+                return n;
+              });
+            }}
             style={{ width: 140 }}
           >
             <option value="">Turno {i + 1}</option>
-            {unitNames.map((n) => <option key={n} value={n} disabled={turnOrder.includes(n) && turnOrder[i] !== n}>{n}</option>)}
+            {unitNames.map((n) => <option key={n} value={n}>{n}</option>)}
           </select>
         ))}
       </div>
@@ -234,11 +248,20 @@ export default function CounterForm({ defMonsters, initial, isEdit, onSubmit, on
           <select
             key={i}
             value={focus[i] || ""}
-            onChange={(e) => setFocus((prev) => { const n = [...prev]; n[i] = e.target.value; return n; })}
+            onChange={(e) => {
+              const val = e.target.value;
+              setFocus((prev) => {
+                const n = [...prev];
+                const otherIndex = n.findIndex((x, j) => x === val && j !== i);
+                if (otherIndex !== -1) n[otherIndex] = n[i] || "";
+                n[i] = val;
+                return n;
+              });
+            }}
             style={{ width: 140 }}
           >
             <option value="">Priorità {i + 1}</option>
-            {defMonsters.map((n) => <option key={n} value={n} disabled={focus.includes(n) && focus[i] !== n}>{n}</option>)}
+            {defMonsters.map((n) => <option key={n} value={n}>{n}</option>)}
           </select>
         ))}
       </div>

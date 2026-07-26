@@ -7,7 +7,7 @@ import Modal from "../../components/Modal";
 import DefForm from "../../components/DefForm";
 import CounterForm from "../../components/CounterForm";
 import MonsterCrest from "../../components/MonsterCrest";
-import { gradeLabel, formatNickname, displayAuthorName } from "../../lib/textUtils";
+import { gradeLabel, formatNickname, displayAuthorName, normalizeMonsterName } from "../../lib/textUtils";
 
 export default function AdminPage() {
   const [user, setUser] = useState(null);
@@ -507,15 +507,89 @@ function ImportTab() {
 }
 
 function ContentTab() {
-  const [subTab, setSubTab] = useState("pending"); // pending | all
+  const [subTab, setSubTab] = useState("pending"); // pending | duplicates | all
 
   return (
     <div>
       <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
         <button className={`btn ${subTab === "pending" ? "btn-primary" : "btn-ghost"}`} onClick={() => setSubTab("pending")}>In attesa di approvazione</button>
+        <button className={`btn ${subTab === "duplicates" ? "btn-primary" : "btn-ghost"}`} onClick={() => setSubTab("duplicates")}>Difese doppie</button>
         <button className={`btn ${subTab === "all" ? "btn-primary" : "btn-ghost"}`} onClick={() => setSubTab("all")}>Tutte / elimina in blocco</button>
       </div>
-      {subTab === "pending" ? <PendingApprovalsSection /> : <AllContentSection />}
+      {subTab === "pending" && <PendingApprovalsSection />}
+      {subTab === "duplicates" && <DuplicateDefsSection />}
+      {subTab === "all" && <AllContentSection />}
+    </div>
+  );
+}
+
+function DuplicateDefsSection() {
+  const [defs, setDefs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [merging, setMerging] = useState(null);
+
+  function load() {
+    setLoading(true);
+    fetch("/api/defs").then((r) => r.json()).then((d) => {
+      setDefs(d.defs || []);
+      setLoading(false);
+    });
+  }
+  useEffect(load, []);
+
+  // Stesso mostro conta uguale a prescindere da ordine/accenti/maiuscole —
+  // stessa logica usata per il roster e la ricerca mostri.
+  function keyFor(d) {
+    return d.monsters.map((m) => normalizeMonsterName(m)).sort().join("|");
+  }
+
+  const groups = {};
+  for (const d of defs) {
+    const k = keyFor(d);
+    (groups[k] ||= []).push(d);
+  }
+  const duplicateGroups = Object.values(groups).filter((g) => g.length > 1);
+
+  async function mergeGroup(group) {
+    // Tiene quella con più Counter (a parità, la prima creata).
+    const sorted = [...group].sort((a, b) => b.counters.length - a.counters.length || a.createdAt - b.createdAt);
+    const [keep, ...sources] = sorted;
+    setMerging(keep.id);
+    await fetch("/api/admin/merge-defs", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ keepId: keep.id, sourceIds: sources.map((s) => s.id) }),
+    });
+    setMerging(null);
+    load();
+  }
+
+  return (
+    <div>
+      <p style={{ color: "var(--text-faint)", fontSize: 12.5, marginBottom: 16 }}>
+        ⚠️ Consiglio: fai un <strong>Backup</strong> (tab apposita qui sopra) prima di unire — l'unione non si può
+        annullare.
+      </p>
+      {loading && <p style={{ color: "var(--text-faint)", fontSize: 13.5 }}>Controllo...</p>}
+      {!loading && duplicateGroups.length === 0 && (
+        <p style={{ color: "var(--text-faint)", fontSize: 13.5 }}>Nessuna Difesa doppia trovata. 🎉</p>
+      )}
+      {duplicateGroups.map((group, i) => (
+        <div key={i} className="card" style={{ marginBottom: 12 }}>
+          <div className="section-label" style={{ marginBottom: 8 }}>
+            {group.length} copie di questa Difesa ({group.reduce((s, d) => s + d.counters.length, 0)} counter in totale)
+          </div>
+          {group.map((d) => (
+            <div key={d.id} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+              {d.monsters.map((m, j) => <MonsterCrest key={j} name={m} size={24} />)}
+              <span style={{ fontSize: 13 }}>{d.monsters.join(" / ")}</span>
+              <span className="f-mono" style={{ fontSize: 10.5, color: "var(--text-faint)" }}>({d.counters.length} counter)</span>
+            </div>
+          ))}
+          <button className="btn btn-primary" disabled={merging} onClick={() => mergeGroup(group)} style={{ marginTop: 6 }}>
+            {merging ? "Unione in corso..." : "🔗 Unisci tutte in una"}
+          </button>
+        </div>
+      ))}
     </div>
   );
 }
