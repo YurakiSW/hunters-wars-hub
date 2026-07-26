@@ -11,7 +11,9 @@ export async function GET(request, { params }) {
   if (!def) return NextResponse.json({ error: "Non trovata." }, { status: 404 });
   // Una Difesa ancora in attesa non è visibile a chi non gestisce e non è
   // l'autore — stessa regola già usata per i Counter, prima mancava qui.
-  if (def.status !== "approved" && !canManage(user) && def.authorId !== user.id) {
+  // Una Difesa resta visibile se ha già almeno un Counter approvato dentro,
+  // anche se lo "scheletro" Difesa non è mai stato segnato approvato.
+  if (def.status !== "approved" && !def.counters.some((c) => c.status === "approved") && !canManage(user) && def.authorId !== user.id) {
     return NextResponse.json({ error: "Non trovata." }, { status: 404 });
   }
   def.counters = def.counters.filter((c) => c.status === "approved" || canManage(user) || c.authorId === user.id);

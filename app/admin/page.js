@@ -596,6 +596,7 @@ function DuplicateDefsSection() {
 
 function PendingApprovalsSection() {
   const [defs, setDefs] = useState([]);
+  const [query, setQuery] = useState("");
   const [managerNicknames, setManagerNicknames] = useState([]);
   const [expanded, setExpanded] = useState(new Set());
   const [editingDef, setEditingDef] = useState(null);
@@ -663,11 +664,22 @@ function PendingApprovalsSection() {
 
   const totalPending = defs.filter((d) => d.status === "pending").length + defs.reduce((sum, d) => sum + d.counters.filter((c) => c.status === "pending").length, 0);
 
+  const q = query.trim().toLowerCase();
+  const filteredDefs = q
+    ? defs.filter((d) => d.monsters.some((m) => m.toLowerCase().includes(q)) || d.counters.some((c) => c.offense.some((m) => m.toLowerCase().includes(q))))
+    : defs;
+
   return (
     <div>
+      <input
+        placeholder="Cerca per mostro (difesa o counter)..."
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        style={{ marginBottom: 14 }}
+      />
       {totalPending === 0 && <p style={{ color: "var(--text-faint)", fontSize: 13.5 }}>Niente in attesa — tutto approvato. 🎉</p>}
 
-      {defs.map((d) => {
+      {filteredDefs.map((d) => {
         const pendingCounterCount = d.counters.filter((c) => c.status === "pending").length;
         const needsAttention = d.status === "pending" || pendingCounterCount > 0;
         if (!needsAttention && d.counters.length === 0) return null;

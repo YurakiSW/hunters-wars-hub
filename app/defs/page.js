@@ -64,6 +64,14 @@ export default function DefsPage() {
     if (data.def) setDefs((prev) => prev.map((x) => (x.id === d.id ? { ...x, pinned: data.def.pinned } : x)));
   }
 
+  async function approveDef(d) {
+    const res = await fetch(`/api/defs/${d.id}`, {
+      method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "approved" }),
+    });
+    const data = await res.json();
+    if (data.def) setDefs((prev) => prev.map((x) => (x.id === d.id ? { ...x, status: data.def.status } : x)));
+  }
+
   return (
     <div>
       <Header user={user} />
@@ -93,6 +101,16 @@ export default function DefsPage() {
               >
               {canManage && (
                 <div style={{ position: "absolute", top: 10, right: 10, display: "flex", gap: 6, zIndex: 2 }}>
+                  {d.status === "pending" && (
+                    <button
+                      className="btn btn-green"
+                      style={{ padding: "3px 8px" }}
+                      title="Approva questa Difesa"
+                      onClick={(e) => { e.preventDefault(); approveDef(d); }}
+                    >
+                      ✓ Approva
+                    </button>
+                  )}
                   <button
                     className="btn btn-ghost"
                     style={{ padding: "3px 8px", color: d.pinned ? "var(--gold)" : undefined }}
