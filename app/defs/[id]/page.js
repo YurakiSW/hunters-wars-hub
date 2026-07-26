@@ -66,7 +66,8 @@ export default function DefDetailPage({ params }) {
   }
 
   async function approveCounter(id, status) {
-    await fetch(`/api/counters/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }) });
+    const patch = status === "pending" ? { status, approvedById: null, approvedByNickname: null } : { status };
+    await fetch(`/api/counters/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch) });
     load();
   }
 
@@ -135,6 +136,7 @@ export default function DefDetailPage({ params }) {
             onDelete={() => setConfirmDeleteCounter(c)}
             onApprove={() => approveCounter(c.id, "approved")}
             onReject={() => setConfirmDeleteCounter(c)}
+            onUnapprove={() => approveCounter(c.id, "pending")}
           />
         ))}
         {def.counters.length === 0 && <p style={{ color: "var(--text-faint)" }}>Nessun counter ancora per questa difesa.</p>}
@@ -196,7 +198,7 @@ export default function DefDetailPage({ params }) {
   );
 }
 
-function CounterCard({ counter: c, user, canManage, managerNicknames, onEdit, onDelete, onApprove, onReject }) {
+function CounterCard({ counter: c, user, canManage, managerNicknames, onEdit, onDelete, onApprove, onReject, onUnapprove }) {
   const [open, setOpen] = useState(false);
   const canEdit = canManage || (c.authorId === user.id && c.status === "pending");
 
@@ -217,6 +219,9 @@ function CounterCard({ counter: c, user, canManage, managerNicknames, onEdit, on
             </span>
           )}
           {canEdit && <button className="btn btn-ghost" onClick={onEdit}>✎</button>}
+          {canManage && c.status === "approved" && (
+            <button className="btn btn-ghost" title="Rimetti tra quelle da rivedere" onClick={onUnapprove}>↺ Da rivedere</button>
+          )}
           {canManage && <button className="btn btn-ghost" onClick={onDelete}>🗑</button>}
         </div>
       </div>
