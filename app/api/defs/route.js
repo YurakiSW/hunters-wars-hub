@@ -10,11 +10,14 @@ export async function GET() {
     return NextResponse.json({ error: "Non autorizzato." }, { status: 401 });
   }
   const defs = await listDefs();
-  // Filtra i counter "in attesa" a chi non gestisce e non è l'autore
-  const visible = defs.map((def) => ({
-    ...def,
-    counters: def.counters.filter((c) => c.status === "approved" || canManage(user) || c.authorId === user.id),
-  }));
+  // Nasconde le Difese INTERE ancora in attesa a chi non gestisce e non è
+  // l'autore — prima si vedevano da tutti, non solo i Counter.
+  const visible = defs
+    .filter((def) => def.status === "approved" || canManage(user) || def.authorId === user.id)
+    .map((def) => ({
+      ...def,
+      counters: def.counters.filter((c) => c.status === "approved" || canManage(user) || c.authorId === user.id),
+    }));
   return NextResponse.json({ defs: visible });
 }
 
