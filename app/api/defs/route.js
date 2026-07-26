@@ -10,18 +10,7 @@ export async function GET() {
     return NextResponse.json({ error: "Non autorizzato." }, { status: 401 });
   }
   const defs = await listDefs();
-  // Nasconde le Difese ancora in attesa a chi non gestisce e non è
-  // l'autore — MA una Difesa resta visibile se ha già almeno un Counter
-  // approvato dentro, anche se lo "scheletro" Difesa stesso non è mai
-  // stato segnato approvato (capita con vecchi dati importati in blocco):
-  // quei Counter sono già vagliati e vanno visti, non nascosti per errore.
-  const visible = defs
-    .filter((def) => def.status === "approved" || def.counters.some((c) => c.status === "approved") || canManage(user) || def.authorId === user.id)
-    .map((def) => ({
-      ...def,
-      counters: def.counters.filter((c) => c.status === "approved" || canManage(user) || c.authorId === user.id),
-    }));
-  return NextResponse.json({ defs: visible });
+  return NextResponse.json({ defs });
 }
 
 export async function POST(request) {

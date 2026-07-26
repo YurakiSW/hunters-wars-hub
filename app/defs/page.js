@@ -33,6 +33,11 @@ export default function DefsPage() {
   const canManage = user.role === "admin" || user.role === "reviewer";
   const sorted = [...defs].sort((a, b) => {
     if (Boolean(a.pinned) !== Boolean(b.pinned)) return a.pinned ? -1 : 1;
+    // Le Difese ancora da approvare vanno sempre in fondo, a prescindere
+    // dall'ordine alfabetico — non sono ancora "vere" fino all'approvazione.
+    const aPending = a.status === "pending";
+    const bPending = b.status === "pending";
+    if (aPending !== bPending) return aPending ? 1 : -1;
     return (a.monsters[0] || "").localeCompare(b.monsters[0] || "");
   });
   const filtered = query.trim()

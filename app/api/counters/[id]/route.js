@@ -26,6 +26,12 @@ export async function PATCH(request, { params }) {
   if (payload.status && !canManage(user)) {
     delete payload.status;
   }
+  // Registra CHI ha approvato, oltre a chi l'ha proposto — utile per
+  // sapere chi ha vagliato quel counter.
+  if (payload.status === "approved") {
+    payload.approvedById = user.id;
+    payload.approvedByNickname = user.nickname;
+  }
 
   if (payload.units) {
     const errors = validateCounterPayload(payload);

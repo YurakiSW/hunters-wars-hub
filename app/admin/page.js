@@ -723,6 +723,11 @@ function PendingApprovalsSection() {
                 {c.offense.map((m, i) => <MonsterCrest key={i} name={m} size={20} />)}
                 <span style={{ flex: 1, fontSize: 12.5 }}>{c.offense.join(" · ")}</span>
                 <span className="f-mono" style={{ fontSize: 10, color: "var(--text-faint)" }}>{formatNickname(displayAuthorName(c.authorNickname), managerNicknames.includes(c.authorNickname))}</span>
+                {c.status === "approved" && c.approvedByNickname && c.approvedByNickname !== c.authorNickname && (
+                  <span className="f-mono" style={{ fontSize: 10, color: "var(--green)" }}>
+                    · appr. da {formatNickname(displayAuthorName(c.approvedByNickname), managerNicknames.includes(c.approvedByNickname))}
+                  </span>
+                )}
                 {c.status === "pending" && <span title="In attesa di approvazione" style={{ color: "var(--ember)", fontWeight: 700 }}>❗</span>}
                 {c.status === "pending" ? (
                   <div style={{ display: "flex", gap: 6 }}>
