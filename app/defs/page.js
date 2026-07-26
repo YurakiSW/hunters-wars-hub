@@ -33,11 +33,12 @@ export default function DefsPage() {
   const canManage = user.role === "admin" || user.role === "reviewer";
   const sorted = [...defs].sort((a, b) => {
     if (Boolean(a.pinned) !== Boolean(b.pinned)) return a.pinned ? -1 : 1;
-    // Le Difese ancora da approvare vanno sempre in fondo, a prescindere
-    // dall'ordine alfabetico — non sono ancora "vere" fino all'approvazione.
-    const aPending = a.status === "pending";
-    const bPending = b.status === "pending";
-    if (aPending !== bPending) return aPending ? 1 : -1;
+    // "Da controllare" = la Difesa stessa è in attesa, O ha counter in
+    // attesa dentro (anche se la Difesa è già approvata) — tutte queste
+    // vanno sempre in fondo, mai mischiate con quelle davvero pulite.
+    const aNeeds = a.status === "pending" || a.counters.some((c) => c.status === "pending");
+    const bNeeds = b.status === "pending" || b.counters.some((c) => c.status === "pending");
+    if (aNeeds !== bNeeds) return aNeeds ? 1 : -1;
     return (a.monsters[0] || "").localeCompare(b.monsters[0] || "");
   });
   const filtered = query.trim()
