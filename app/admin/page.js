@@ -665,9 +665,15 @@ function PendingApprovalsSection() {
   const totalPending = defs.filter((d) => d.status === "pending").length + defs.reduce((sum, d) => sum + d.counters.filter((c) => c.status === "pending").length, 0);
 
   const q = query.trim().toLowerCase();
-  const filteredDefs = q
+  const filteredDefs = (q
     ? defs.filter((d) => d.monsters.some((m) => m.toLowerCase().includes(q)) || d.counters.some((c) => c.offense.some((m) => m.toLowerCase().includes(q))))
-    : defs;
+    : defs
+  ).slice().sort((a, b) => {
+    const aNeeds = a.status === "pending" || a.counters.some((c) => c.status === "pending");
+    const bNeeds = b.status === "pending" || b.counters.some((c) => c.status === "pending");
+    if (aNeeds !== bNeeds) return aNeeds ? -1 : 1; // chi ha bisogno di attenzione va prima
+    return (a.monsters[0] || "").localeCompare(b.monsters[0] || "");
+  });
 
   return (
     <div>
