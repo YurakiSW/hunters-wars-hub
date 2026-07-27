@@ -6,6 +6,7 @@ import ConfirmModal from "../../components/ConfirmModal";
 import Modal from "../../components/Modal";
 import DefForm from "../../components/DefForm";
 import CounterForm from "../../components/CounterForm";
+import CounterTemplatePicker from "../../components/CounterTemplatePicker";
 import MonsterCrest from "../../components/MonsterCrest";
 import { gradeLabel, formatNickname, displayAuthorName, normalizeMonsterName } from "../../lib/textUtils";
 
@@ -826,6 +827,8 @@ function PendingApprovalsSection() {
   const [editingDef, setEditingDef] = useState(null);
   const [editingCounter, setEditingCounter] = useState(null);
   const [addingCounterToDef, setAddingCounterToDef] = useState(null);
+  const [counterTemplate, setCounterTemplate] = useState(null);
+  const [showTemplatePicker, setShowTemplatePicker] = useState(false);
   const [confirmRejectDef, setConfirmRejectDef] = useState(null);
   const [confirmRejectCounter, setConfirmRejectCounter] = useState(null);
 
@@ -893,6 +896,7 @@ function PendingApprovalsSection() {
     const data = await res.json();
     if (!res.ok) return { error: data.error };
     setAddingCounterToDef(null);
+    setCounterTemplate(null);
     load();
     return {};
   }
@@ -943,6 +947,7 @@ function PendingApprovalsSection() {
                 <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                   <button className="btn btn-ghost" onClick={() => setEditingDef(d)}>✎</button>
                   <button className="btn btn-ghost" onClick={() => setAddingCounterToDef(d)}>+ Counter</button>
+                  <button className="btn btn-ghost" onClick={() => { setAddingCounterToDef(d); setShowTemplatePicker(true); }}>📋 Da esistente</button>
                   {pendingCounterCount > 0 && <span className="badge badge-pending">{pendingCounterCount} counter in attesa</span>}
                 </div>
               )}
@@ -994,9 +999,35 @@ function PendingApprovalsSection() {
           <CounterForm defMonsters={editingCounter.__defMonsters || editingCounter.offense} initial={editingCounter} isEdit onSubmit={submitEditCounter} onCancel={() => setEditingCounter(null)} />
         </Modal>
       )}
-      {addingCounterToDef && (
-        <Modal title={`Aggiungi counter — ${addingCounterToDef.monsters.join(" / ")}`} onClose={() => setAddingCounterToDef(null)} wide>
-          <CounterForm defMonsters={addingCounterToDef.monsters} onSubmit={submitAddCounter} onCancel={() => setAddingCounterToDef(null)} />
+      {addingCounterToDef && !showTemplatePicker && (
+        <Modal title={`Aggiungi counter — ${addingCounterToDef.monsters.join(" / ")}`} onClose={() => { setAddingCounterToDef(null); setCounterTemplate(null); }} wide>
+          <CounterForm
+            defMonsters={addingCounterToDef.monsters}
+            initial={counterTemplate}
+            onSubmit={submitAddCounter}
+            onCancel={() => { setAddingCounterToDef(null); setCounterTemplate(null); }}
+          />
+        </Modal>
+      )}
+      {showTemplatePicker && (
+        <Modal title="Parti da un counter esistente" onClose={() => { setShowTemplatePicker(false); setAddingCounterToDef(null); }} wide>
+          <CounterTemplatePicker
+            onClose={() => { setShowTemplatePicker(false); setAddingCounterToDef(null); }}
+            onSelect={(sourceCounter) => {
+              // Stessa logica della home: copia tutto tranne Focus (riguardava
+              // i bersagli dell'altra Difesa) e gli allegati.
+              setCounterTemplate({
+                units: sourceCounter.units.map((u) => ({ ...u })),
+                turnOrder: [...sourceCounter.turnOrder],
+                focus: [],
+                strategy: sourceCounter.strategy,
+                warning: sourceCounter.warning || "",
+                video: sourceCounter.video || "",
+                images: [],
+              });
+              setShowTemplatePicker(false);
+            }}
+          />
         </Modal>
       )}
       {confirmRejectDef && (
