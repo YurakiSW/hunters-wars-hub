@@ -26,8 +26,10 @@ export async function PATCH(request, { params }) {
       return NextResponse.json({ error: `"${m}" non è un mostro riconosciuto.` }, { status: 400 });
     }
   }
-  // La modifica rimanda la Difesa in coda "in attesa" per una nuova approvazione.
-  const def = await updateDef(params.id, { monsters, desc, status: "pending" });
+  // Questo endpoint richiede già canManage (solo Admin/Revisori) — non ha
+  // senso rimandarla "in attesa" per una nuova approvazione, dato che chi
+  // la modifica è già autorizzato ad approvarla. Lo stato resta invariato.
+  const def = await updateDef(params.id, { monsters, desc });
   if (!def) return NextResponse.json({ error: "Non trovata." }, { status: 404 });
   return NextResponse.json({ def });
 }

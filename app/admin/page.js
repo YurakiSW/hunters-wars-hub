@@ -940,6 +940,8 @@ function PendingApprovalsSection() {
               {d.status === "pending" ? (
                 <div style={{ display: "flex", gap: 6 }}>
                   <button className="btn btn-ghost" onClick={() => setEditingDef(d)}>✎</button>
+                  <button className="btn btn-ghost" onClick={() => setAddingCounterToDef(d)}>+ Counter</button>
+                  <button className="btn btn-ghost" onClick={() => { setAddingCounterToDef(d); setShowTemplatePicker(true); }}>📋 Da esistente</button>
                   <button className="btn btn-green" onClick={() => approveDef(d.id)}>✓ Approva</button>
                   <button className="btn btn-danger" onClick={() => setConfirmRejectDef(d)}>✕ Rifiuta</button>
                 </div>
