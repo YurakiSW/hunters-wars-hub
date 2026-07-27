@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import MonsterPicker from "./MonsterPicker";
-import { RUNE_SETS, SLOT2_OPTIONS, SLOT4_OPTIONS, SLOT6_OPTIONS, ARTIFACT_LEFT_OPTIONS, ARTIFACT_RIGHT_OPTIONS } from "../lib/gameData";
+import { RUNE_SETS, SLOT2_OPTIONS, SLOT4_OPTIONS, SLOT6_OPTIONS, ARTIFACT_LEFT_OPTIONS, ARTIFACT_RIGHT_OPTIONS, parseStatsString, serializeStatsSlots } from "../lib/gameData";
 
 import VideoPreview from "./VideoPreview";
 
@@ -60,25 +60,31 @@ function RunePicker({ value, onChange }) {
 }
 
 function StatSelect({ value, onChange }) {
-  const parts = (value || "").split("/").map((p) => p.trim());
-  const [s2, s4, s6] = [parts[0] || "", parts[1] || "", parts[2] || ""];
-  const set = (i, v) => {
-    const next = [s2, s4, s6];
-    next[i] = v;
-    onChange(next.filter(Boolean).length ? next.join(" / ") : "");
-  };
-  const rows = [
-    ["Slot 2", s2, SLOT2_OPTIONS],
-    ["Slot 4", s4, SLOT4_OPTIONS],
-    ["Slot 6", s6, SLOT6_OPTIONS],
+  const slots = parseStatsString(value);
+  function toggle(slotIdx, opt) {
+    const next = slots.map((arr) => [...arr]);
+    const pos = next[slotIdx].indexOf(opt);
+    if (pos >= 0) next[slotIdx].splice(pos, 1);
+    else next[slotIdx].push(opt);
+    onChange(serializeStatsSlots(next));
+  }
+  const cols = [
+    ["Slot 2", SLOT2_OPTIONS],
+    ["Slot 4", SLOT4_OPTIONS],
+    ["Slot 6", SLOT6_OPTIONS],
   ];
   return (
-    <div style={{ display: "flex", gap: 6 }}>
-      {rows.map(([label, val, opts], i) => (
-        <select key={label} value={val} onChange={(e) => set(i, e.target.value)}>
-          <option value="">{label}</option>
-          {opts.map((o) => <option key={o} value={o}>{o}</option>)}
-        </select>
+    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+      {cols.map(([label, opts], i) => (
+        <div key={label} style={{ background: "var(--bg-soft)", border: "1px solid var(--border-soft)", borderRadius: 8, padding: 8, minWidth: 128 }}>
+          <div style={{ fontSize: 11, color: "var(--text-faint)", marginBottom: 4 }}>{label} (min. 1)</div>
+          {opts.map((o) => (
+            <label key={o} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, padding: "2px 0", cursor: "pointer" }}>
+              <input type="checkbox" checked={slots[i].includes(o)} onChange={() => toggle(i, o)} />
+              {o}
+            </label>
+          ))}
+        </div>
       ))}
     </div>
   );

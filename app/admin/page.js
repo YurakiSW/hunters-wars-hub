@@ -825,6 +825,7 @@ function PendingApprovalsSection() {
   const [expanded, setExpanded] = useState(new Set());
   const [editingDef, setEditingDef] = useState(null);
   const [editingCounter, setEditingCounter] = useState(null);
+  const [addingCounterToDef, setAddingCounterToDef] = useState(null);
   const [confirmRejectDef, setConfirmRejectDef] = useState(null);
   const [confirmRejectCounter, setConfirmRejectCounter] = useState(null);
 
@@ -885,6 +886,16 @@ function PendingApprovalsSection() {
     load();
     return {};
   }
+  async function submitAddCounter(payload) {
+    const res = await fetch(`/api/defs/${addingCounterToDef.id}/counters`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) return { error: data.error };
+    setAddingCounterToDef(null);
+    load();
+    return {};
+  }
 
   const totalPending = defs.filter((d) => d.status === "pending").length + defs.reduce((sum, d) => sum + d.counters.filter((c) => c.status === "pending").length, 0);
 
@@ -931,6 +942,7 @@ function PendingApprovalsSection() {
               ) : (
                 <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                   <button className="btn btn-ghost" onClick={() => setEditingDef(d)}>✎</button>
+                  <button className="btn btn-ghost" onClick={() => setAddingCounterToDef(d)}>+ Counter</button>
                   {pendingCounterCount > 0 && <span className="badge badge-pending">{pendingCounterCount} counter in attesa</span>}
                 </div>
               )}
@@ -955,13 +967,14 @@ function PendingApprovalsSection() {
                 {c.status === "pending" && <span title="In attesa di approvazione" style={{ color: "var(--ember)", fontWeight: 700 }}>❗</span>}
                 {c.status === "pending" ? (
                   <div style={{ display: "flex", gap: 6 }}>
-                    <button className="btn btn-ghost" onClick={() => setEditingCounter(c)}>✎</button>
+                    <button className="btn btn-ghost" onClick={() => setEditingCounter({ ...c, __defMonsters: d.monsters })}>✎</button>
                     <button className="btn btn-green" onClick={() => approveCounter(c.id)}>✓</button>
                     <button className="btn btn-danger" onClick={() => setConfirmRejectCounter(c)}>✕</button>
                   </div>
                 ) : (
                   <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                    <button className="btn btn-ghost" onClick={() => setEditingCounter(c)}>✎</button>
+                    <button className="btn btn-ghost" onClick={() => setEditingCounter({ ...c, __defMonsters: d.monsters })}>✎</button>
+                    <button className="btn btn-danger" onClick={() => setConfirmRejectCounter(c)}>🗑</button>
                     <span className="badge badge-approved">approvato</span>
                   </div>
                 )}
@@ -978,7 +991,12 @@ function PendingApprovalsSection() {
       )}
       {editingCounter && (
         <Modal title="Modifica counter" onClose={() => setEditingCounter(null)} wide>
-          <CounterForm defMonsters={editingCounter.offense} initial={editingCounter} isEdit onSubmit={submitEditCounter} onCancel={() => setEditingCounter(null)} />
+          <CounterForm defMonsters={editingCounter.__defMonsters || editingCounter.offense} initial={editingCounter} isEdit onSubmit={submitEditCounter} onCancel={() => setEditingCounter(null)} />
+        </Modal>
+      )}
+      {addingCounterToDef && (
+        <Modal title={`Aggiungi counter — ${addingCounterToDef.monsters.join(" / ")}`} onClose={() => setAddingCounterToDef(null)} wide>
+          <CounterForm defMonsters={addingCounterToDef.monsters} onSubmit={submitAddCounter} onCancel={() => setAddingCounterToDef(null)} />
         </Modal>
       )}
       {confirmRejectDef && (
@@ -991,8 +1009,12 @@ function PendingApprovalsSection() {
       )}
       {confirmRejectCounter && (
         <ConfirmModal
-          message={`Rifiutare (eliminare) il counter ${confirmRejectCounter.offense.join(" / ")}? Non si può annullare.`}
-          confirmLabel="Rifiuta"
+          message={
+            confirmRejectCounter.status === "pending"
+              ? `Rifiutare (eliminare) il counter ${confirmRejectCounter.offense.join(" / ")}? Non si può annullare.`
+              : `Eliminare il counter già approvato ${confirmRejectCounter.offense.join(" / ")}? Non si può annullare.`
+          }
+          confirmLabel={confirmRejectCounter.status === "pending" ? "Rifiuta" : "Elimina"}
           onConfirm={() => rejectCounter(confirmRejectCounter.defId, confirmRejectCounter.id)}
           onCancel={() => setConfirmRejectCounter(null)}
         />
