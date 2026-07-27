@@ -17,13 +17,14 @@ function parseRaw(raw) {
   const name = raw.name;
   const element = raw.element;
   const imageFilename = raw.image_filename;
+  const com2usId = raw.com2us_id;
   if (!name || !imageFilename) return null;
   // Alcuni elementi del bestiario sono materiali di fusione (es. "Living
   // Armor") senza nome localizzato in inglese: swarfarm restituisce il nome
   // in coreano. Non sono mostri giocabili in una Difesa/Counter, li scartiamo.
   if (/[\u3131-\uD79D\u4E00-\u9FFF]/.test(name)) return null;
 
-  return { name, element, iconUrl: `${ICON_BASE}${imageFilename}` };
+  return { name, element, iconUrl: `${ICON_BASE}${imageFilename}`, com2usId };
 }
 
 export async function GET(request) {
@@ -64,10 +65,10 @@ export async function GET(request) {
     for (const [name, variants] of byBareName) {
       const uniqueElements = new Set(variants.map((v) => v.element));
       if (uniqueElements.size <= 1) {
-        finalList.push({ name, iconUrl: variants[0].iconUrl });
+        finalList.push({ name, iconUrl: variants[0].iconUrl, com2usId: variants[0].com2usId });
       } else {
         for (const v of variants) {
-          finalList.push({ name: `${v.element} ${name}`, iconUrl: v.iconUrl });
+          finalList.push({ name: `${v.element} ${name}`, iconUrl: v.iconUrl, com2usId: v.com2usId });
         }
       }
     }

@@ -1,0 +1,40 @@
+import { NextResponse } from "next/server";
+import { getCurrentUser, canManage } from "../../../../../lib/auth";
+import { listProposals, approveProposal, rejectProposal } from "../../../../../lib/siegeStats";
+import { safeJson } from "../../../../../lib/apiUtils";
+
+export async function GET(request) {
+  const user = await getCurrentUser();
+  if (!user || !canManage(user)) {
+    return NextResponse.json({ error: "Solo Admin e Revisori possono vedere le proposal." }, { status: 403 });
+  }
+  const { searchParams } = new URL(request.url);
+  const status = searchParams.get("status") || undefined; // pending | approved | rejected | update_available
+  const proposals = await listProposals(status);
+  return NextResponse.json({ ok: true, proposals });
+}
+
+export async function POST(request) {
+  const user = await getCurrentUser();
+  if (!user || !canManage(user)) {
+    return NextResponse.json({ error: "Solo Admin e Revisori possono approvare/rifiutare." }, { status: 403 });
+  }
+  const { data, error: parseError } = await safeJson(request);
+  if (parseError) return NextResponse.json({ error: parseError }, { status: 400 });
+  const { defK, counterK, action } = data;
+  if (!defK || !counterK || !["approve", "reject"].includes(action)) {
+    return NextResponse.json({ error: "Parametri mancanti o azione non valida." }, { status: 400 });
+  }
+
+  try {
+    if (action === "approve") {
+      const { def, counter } = await approveProposal(defK, counterK, { authorId: user.id, authorNickname: user.nickname });
+      return NextResponse.json({ ok: true, defId: def.id, counterId: counter.id });
+    } else {
+      await rejectProposal(defK, counterK);
+      return NextResponse.json({ ok: true });
+    }
+  } catch (err) {
+    return NextResponse.json({ error: String(err.message || err) }, { status: 400 });
+  }
+}

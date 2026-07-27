@@ -49,6 +49,7 @@ export default function AdminPage() {
             <button className={`btn ${tab === "content" ? "btn-primary" : "btn-ghost"}`} onClick={() => setTab("content")}>Gestione def/counter</button>
           )}
           {isAdmin && <button className={`btn ${tab === "import" ? "btn-primary" : "btn-ghost"}`} onClick={() => setTab("import")}>Importa dati</button>}
+          {canManageContent && <button className={`btn ${tab === "siegeStats" ? "btn-primary" : "btn-ghost"}`} onClick={() => setTab("siegeStats")}>Approvazioni Siege Log</button>}
           {isAdmin && <button className={`btn ${tab === "backup" ? "btn-primary" : "btn-ghost"}`} onClick={() => setTab("backup")}>Backup</button>}
           {isAdmin && <button className={`btn ${tab === "diagnostica" ? "btn-primary" : "btn-ghost"}`} onClick={() => setTab("diagnostica")}>Diagnostica</button>}
         </div>
@@ -57,7 +58,13 @@ export default function AdminPage() {
         {tab === "users" && isAdmin && <UsersTab />}
         {tab === "monsters" && <MonstersTab />}
         {tab === "content" && canManageContent && <ContentTab />}
-        {tab === "import" && isAdmin && <ImportTab />}
+        {tab === "import" && isAdmin && (
+          <div>
+            <ImportTab />
+            <div style={{ marginTop: 18 }}><SiegeLogImportSection /></div>
+          </div>
+        )}
+        {tab === "siegeStats" && canManageContent && <SiegeStatsProposalsTab isAdmin={isAdmin} />}
         {tab === "backup" && isAdmin && <BackupTab />}
         {tab === "diagnostica" && isAdmin && <DiagnosticaTab />}
       </div>
@@ -501,6 +508,223 @@ function ImportTab() {
             </details>
           )}
         </div>
+      )}
+    </div>
+  );
+}
+
+function SiegeLogImportSection() {
+  const [logText, setLogText] = useState("");
+  const [status, setStatus] = useState("idle"); // idle | loading | done | error
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState("");
+
+  function handleFile(file) {
+    const reader = new FileReader();
+    reader.onload = () => setLogText(reader.result);
+    reader.readAsText(file);
+  }
+
+  async function submit() {
+    if (!logText.trim()) return;
+    setStatus("loading");
+    setError("");
+    setResult(null);
+    try {
+      const res = await fetch("/api/admin/import-siege-log", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ logText }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Errore sconosciuto");
+      setResult(data);
+      setStatus("done");
+    } catch (e) {
+      setStatus("error");
+      setError(String(e.message || e));
+    }
+  }
+
+  return (
+    <div className="card">
+      <div className="section-label">Importa da log SWEX (Siege)</div>
+      <p style={{ color: "var(--text-faint)", fontSize: 12.5, marginBottom: 12 }}>
+        In gioco, apri il "Battle Log" di ogni player della gilda (un click a testa — non serve aprire ogni singolo
+        replay). Poi carica qui il log grezzo di SWEX/SWProxy (es. "full_log.txt"). Trova da solo le Difese incontrate
+        e le squadre offensive usate — <strong>solo quelle che hanno vinto con più del 50% di successo</strong> su
+        quella difesa. Entrano come bozze "in attesa", con rune/artefatti/strategia da completare a mano. Ogni
+        battaglia (vinta o persa) alimenta anche il database cross-player condiviso — nel tempo, se più persone
+        caricano qui i propri log, emergono i counter migliori a prescindere da chi li ha usati, visibili e
+        approvabili nel tab "Approvazioni Siege Log".
+      </p>
+      <label
+        style={{
+          display: "block", border: "1.5px dashed var(--border)", borderRadius: 8, padding: "14px 12px",
+          textAlign: "center", cursor: "pointer", color: "var(--text-muted)", fontSize: 12.5, background: "var(--bg-soft)",
+          marginBottom: 10,
+        }}
+      >
+        📎 Clicca per selezionare il file di log (.txt)
+        <input type="file" accept=".txt,text/plain" style={{ display: "none" }} onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])} />
+      </label>
+      <textarea
+        value={logText}
+        onChange={(e) => setLogText(e.target.value)}
+        placeholder="...oppure incolla qui il testo del log"
+        rows={4}
+        style={{ width: "100%", fontFamily: "monospace", fontSize: 11, marginBottom: 10 }}
+      />
+      <button className="btn btn-gold" onClick={submit} disabled={status === "loading" || !logText.trim()}>
+        {status === "loading" ? "Analisi in corso..." : "Importa dal log"}
+      </button>
+
+      {status === "error" && <p style={{ color: "var(--red)", fontSize: 13, marginTop: 10 }}>{error}</p>}
+      {status === "done" && result && (
+        <div style={{ marginTop: 10, fontSize: 13 }}>
+          <p style={{ color: "var(--green)" }}>
+            Trovati {result.entriesFound} attacchi, {result.matchupsFound} accoppiate diverse, {result.winningMatchups} con oltre il 50% di vittorie.
+          </p>
+          <p style={{ color: "var(--text-muted)" }}>
+            Create {result.createdDefs} nuove Difese e {result.createdCounters} nuovi Counter (in attesa di approvazione).
+          </p>
+          <p style={{ color: "var(--text-muted)" }}>
+            Database cross-player: {result.crossPlayerNewBattles} battaglie nuove ({result.crossPlayerTouchedPairs} coppie difesa/counter aggiornate).
+          </p>
+          {result.skipped?.length > 0 && (
+            <details style={{ marginTop: 6 }}>
+              <summary style={{ color: "var(--ember)", fontSize: 12, cursor: "pointer" }}>{result.skipped.length} già presenti, saltate</summary>
+              <ul style={{ fontSize: 11, color: "var(--text-faint)" }}>
+                {result.skipped.map((s, i) => <li key={i}>{s}</li>)}
+              </ul>
+            </details>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SiegeStatsProposalsTab({ isAdmin }) {
+  const [subTab, setSubTab] = useState("pending"); // pending | update_available | approved | rejected
+  const [proposals, setProposals] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [busyKey, setBusyKey] = useState(null);
+  const [seasonId, setSeasonId] = useState("");
+  const [confirmSeasonEnd, setConfirmSeasonEnd] = useState(false);
+  const [seasonMsg, setSeasonMsg] = useState("");
+
+  async function load() {
+    setLoading(true);
+    const res = await fetch(`/api/admin/siege-stats/proposals?status=${subTab}`);
+    const data = await res.json();
+    setProposals(data.proposals || []);
+    setLoading(false);
+  }
+
+  useEffect(() => { load(); }, [subTab]);
+
+  async function act(p, action) {
+    setBusyKey(`${p.defK}::${p.counterK}`);
+    await fetch("/api/admin/siege-stats/proposals", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ defK: p.defK, counterK: p.counterK, action }),
+    });
+    setBusyKey(null);
+    load();
+  }
+
+  function downloadBackup() {
+    window.location.href = "/api/admin/siege-stats/season";
+  }
+
+  async function doSeasonEnd() {
+    setConfirmSeasonEnd(false);
+    if (!seasonId.trim()) return;
+    const res = await fetch("/api/admin/siege-stats/season", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ seasonId }),
+    });
+    const data = await res.json();
+    setSeasonMsg(res.ok ? `Archiviate ${data.archivedProposals} proposal sotto "${seasonId}". Tabelle svuotate.` : data.error);
+    setSeasonId("");
+    load();
+  }
+
+  return (
+    <div>
+      <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
+        <button className={`btn ${subTab === "pending" ? "btn-primary" : "btn-ghost"}`} onClick={() => setSubTab("pending")}>In attesa</button>
+        <button className={`btn ${subTab === "update_available" ? "btn-primary" : "btn-ghost"}`} onClick={() => setSubTab("update_available")}>Aggiornamento disponibile</button>
+        <button className={`btn ${subTab === "approved" ? "btn-primary" : "btn-ghost"}`} onClick={() => setSubTab("approved")}>Approvate</button>
+        <button className={`btn ${subTab === "rejected" ? "btn-primary" : "btn-ghost"}`} onClick={() => setSubTab("rejected")}>Rifiutate</button>
+      </div>
+
+      {loading ? (
+        <p style={{ color: "var(--text-faint)" }}>Caricamento...</p>
+      ) : proposals.length === 0 ? (
+        <p style={{ color: "var(--text-faint)" }}>Nessuna proposal in questa categoria.</p>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {proposals.map((p) => (
+            <div key={`${p.defK}::${p.counterK}`} className="card">
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+                <div>
+                  <strong>{p.offenseNames?.join(" / ")}</strong>
+                  <span style={{ color: "var(--text-faint)" }}> contro </span>
+                  <strong>{p.defenseNames?.join(" / ")}</strong>
+                </div>
+                <div style={{ fontSize: 13, color: "var(--text-muted)" }}>
+                  {Math.round((p.currentWinRate || 0) * 100)}% vittorie attuali
+                  {p.status === "update_available" && (
+                    <span style={{ color: "var(--gold)" }}> (approvato a {Math.round((p.approvedWinRate || 0) * 100)}%)</span>
+                  )}
+                </div>
+              </div>
+              {p.bestVariant && (
+                <p style={{ fontSize: 11.5, color: "var(--text-faint)", marginTop: 6 }}>
+                  Variante migliore: {p.bestVariant.wins}/{p.bestVariant.total} vittorie con questa build specifica.
+                </p>
+              )}
+              {(subTab === "pending" || subTab === "update_available") && (
+                <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                  <button className="btn btn-gold" disabled={busyKey === `${p.defK}::${p.counterK}`} onClick={() => act(p, "approve")}>
+                    {subTab === "update_available" ? "Aggiorna approvazione" : "Approva"}
+                  </button>
+                  <button className="btn btn-ghost" disabled={busyKey === `${p.defK}::${p.counterK}`} onClick={() => act(p, "reject")}>Rifiuta</button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {isAdmin && (
+        <div className="card" style={{ marginTop: 24 }}>
+          <div className="section-label">Fine Season</div>
+          <p style={{ color: "var(--text-faint)", fontSize: 12.5, marginBottom: 12 }}>
+            Archivia tutte le statistiche cross-player (non le Difese/Counter già pubblicati, quelli restano) sotto
+            un nome stagione, poi svuota i contatori per ripartire puliti. Scarica prima un backup se vuoi una copia
+            extra oltre all'archivio automatico.
+          </p>
+          <button className="btn btn-ghost" style={{ marginBottom: 10 }} onClick={downloadBackup}>⬇ Scarica backup statistiche</button>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            <input
+              value={seasonId}
+              onChange={(e) => setSeasonId(e.target.value)}
+              placeholder='es. "2026S15"'
+              style={{ maxWidth: 200 }}
+            />
+            <button className="btn btn-gold" disabled={!seasonId.trim()} onClick={() => setConfirmSeasonEnd(true)}>Archivia e svuota</button>
+          </div>
+          {seasonMsg && <p style={{ fontSize: 13, color: "var(--green)", marginTop: 8 }}>{seasonMsg}</p>}
+        </div>
+      )}
+
+      {confirmSeasonEnd && (
+        <ConfirmModal
+          message={`Archiviare tutte le statistiche cross-player sotto "${seasonId}" e svuotare i contatori? Le Difese/Counter già pubblicati non vengono toccati. Non si può annullare.`}
+          confirmLabel="Archivia e svuota"
+          onConfirm={doSeasonEnd}
+          onCancel={() => setConfirmSeasonEnd(false)}
+        />
       )}
     </div>
   );
