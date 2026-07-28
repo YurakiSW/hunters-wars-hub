@@ -55,7 +55,7 @@ export default function AdminPage() {
           {isAdmin && <button className={`btn ${tab === "diagnostica" ? "btn-primary" : "btn-ghost"}`} onClick={() => setTab("diagnostica")}>Diagnostica</button>}
         </div>
 
-        {tab === "roster" && canSeeRoster && <RosterTab />}
+        {tab === "roster" && canSeeRoster && <RosterTab isAdmin={isAdmin} />}
         {tab === "users" && isAdmin && <UsersTab />}
         {tab === "monsters" && <MonstersTab />}
         {tab === "content" && canManageContent && <ContentTab />}
@@ -73,13 +73,23 @@ export default function AdminPage() {
   );
 }
 
-function RosterTab() {
+function RosterTab({ isAdmin }) {
   const [roster, setRoster] = useState([]);
+  const [notFound, setNotFound] = useState([]);
+  const [selected, setSelected] = useState(new Set());
+  const [confirmRemoval, setConfirmRemoval] = useState(false);
   const [error, setError] = useState("");
   const [msg, setMsg] = useState("");
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => { fetch("/api/admin/roster").then((r) => r.json()).then((d) => setRoster(d.roster || [])); }, []);
+  function reload() {
+    fetch("/api/admin/roster").then((r) => r.json()).then((d) => {
+      setRoster(d.roster || []);
+      setNotFound(d.notFound || []);
+      setSelected(new Set());
+    });
+  }
+  useEffect(reload, []);
 
   function handleFile(file) {
     setLoading(true);
@@ -105,10 +115,32 @@ function RosterTab() {
       const data = await res.json();
       setLoading(false);
       if (!res.ok) return setError(data.error);
-      setMsg(`Roster aggiornato: ${data.count} membri.${data.removed ? ` ${data.removed} account rimossi (usciti dalla gilda).` : ""}`);
-      fetch("/api/admin/roster").then((r) => r.json()).then((d) => setRoster(d.roster || []));
+      setMsg(
+        `Roster aggiornato: ${data.count} membri.` +
+        (data.notFound?.length ? ` ${data.notFound.length} account non combaciano più — nessuno eliminato in automatico, controlla la lista sotto.` : "")
+      );
+      reload();
     };
     reader.readAsText(file);
+  }
+
+  function toggle(id) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  async function confirmRemove() {
+    setConfirmRemoval(false);
+    const res = await fetch("/api/admin/roster/remove-members", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userIds: Array.from(selected) }),
+    });
+    const data = await res.json();
+    if (!res.ok) return setError(data.error);
+    setMsg(`${data.removed} account eliminati.`);
+    reload();
   }
 
   return (
@@ -128,8 +160,45 @@ function RosterTab() {
         {msg && <p style={{ color: "var(--green)", fontSize: 13, marginTop: 8 }}>{msg}</p>}
         <p style={{ color: "var(--text-faint)", fontSize: 11, marginTop: 8 }}>Vengono estratti solo nickname e grado — nessun altro dato dell'export viene salvato.</p>
       </div>
+
+      {notFound.length > 0 && (
+        <div className="card" style={{ marginBottom: 18, borderColor: "var(--gold)" }}>
+          <div className="section-label">⚠️ Account non trovati nell'ultimo roster ({notFound.length})</div>
+          <p style={{ color: "var(--text-faint)", fontSize: 12.5, marginBottom: 10 }}>
+            Questi nickname del sito non combaciano col roster appena caricato. Potrebbero aver lasciato la gilda,
+            oppure aver solo cambiato nickname in gioco — controlla prima di eliminare. Nessuno viene rimosso
+            automaticamente.
+          </p>
+          {notFound.map((c) => (
+            <label key={c.id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, padding: "5px 0", cursor: "pointer" }}>
+              <input type="checkbox" checked={selected.has(c.id)} onChange={() => toggle(c.id)} />
+              {c.nickname} — {gradeLabel(c.grade)} {c.email ? `(${c.email})` : ""}
+            </label>
+          ))}
+          {isAdmin && (
+            <button
+              className="btn btn-danger"
+              style={{ marginTop: 10 }}
+              disabled={selected.size === 0}
+              onClick={() => setConfirmRemoval(true)}
+            >
+              🗑 Elimina {selected.size || ""} selezionati
+            </button>
+          )}
+        </div>
+      )}
+
       <div className="section-label">Roster attuale ({roster.length})</div>
       {roster.map((r, i) => <div key={i} style={{ fontSize: 13, padding: "4px 0", borderBottom: "1px solid var(--border-soft)" }}>{r.nickname} — {gradeLabel(r.grade)}</div>)}
+
+      {confirmRemoval && (
+        <ConfirmModal
+          message={`Eliminare ${selected.size} account selezionati? Le Difese/Counter che hanno creato restano intatte, ma l'accesso al sito viene revocato. Non si può annullare.`}
+          confirmLabel="Elimina"
+          onConfirm={confirmRemove}
+          onCancel={() => setConfirmRemoval(false)}
+        />
+      )}
     </div>
   );
 }

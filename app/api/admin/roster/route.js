@@ -7,7 +7,8 @@ export async function GET() {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Non autorizzato." }, { status: 401 });
   const roster = await getRoster();
-  return NextResponse.json({ roster });
+  const notFound = (await redis.get("roster:removal_candidates")) || [];
+  return NextResponse.json({ roster, notFound });
 }
 
 export async function POST(request) {
@@ -39,22 +40,20 @@ export async function POST(request) {
     // servisse scalare molto di più, meglio mantenere un Set "user:ids" come
     // fatto per le Difese in lib/defs.js.
     const userIds = await redis.keys("user:user_*");
-    let removed = 0;
+    const notFound = [];
     for (const key of userIds) {
       const u = await redis.get(key);
       if (!u) continue;
       const match = entries.find((r) => normalizeNickname(r.nickname) === normalizeNickname(u.nickname));
 
       if (!match) {
-        // Non è più nel roster: ha lasciato la gilda. L'account viene
-        // rimosso (mai quello dell'Admin, per sicurezza — se un file caricato
-        // per sbaglio fosse incompleto, non si perde l'accesso al pannello).
-        // Le Difese/Counter che ha creato restano intatte: l'autore ci resta
-        // scritto sopra come testo, non dipende dall'account che esiste ancora.
+        // Non combacia col roster appena caricato — MA non significa per
+        // forza che abbia lasciato la gilda: può aver semplicemente
+        // cambiato nickname in gioco. Non si elimina più in automatico:
+        // finisce in una lista di revisione che l'Admin conferma a mano
+        // (vedi POST /api/admin/roster/remove-members).
         if (u.role !== "admin") {
-          await redis.del(key);
-          if (u.email) await redis.del(`user:byEmail:${u.email.toLowerCase()}`);
-          removed++;
+          notFound.push({ id: u.id, nickname: u.nickname, email: u.email || null, grade: u.grade, role: u.role });
         }
         continue;
       }
@@ -66,7 +65,12 @@ export async function POST(request) {
       await redis.set(key, { ...u, ...patch });
     }
 
-    return NextResponse.json({ ok: true, count: entries.length, removed });
+    // Sovrascrive la lista di revisione con quella appena calcolata (riflette
+    // sempre lo stato ATTUALE roster-vs-sito, non si accumula tra un upload
+    // e l'altro).
+    await redis.set("roster:removal_candidates", notFound);
+
+    return NextResponse.json({ ok: true, count: entries.length, notFound });
   } catch (err) {
     return NextResponse.json({ error: "Errore nell'aggiornamento del roster: " + String(err.message || err) }, { status: 500 });
   }
