@@ -587,9 +587,36 @@ function ImportTab() {
   );
 }
 
+// Limite FISSO di Vercel per le funzioni serverless: 4.5MB per richiesta,
+// non aggirabile via configurazione. Un log SWEX/SWProxy di una siege
+// intera può facilmente superarlo (visto anche 8+ MB). Soluzione: lo
+// spezziamo qui nel browser in pezzi via via più piccoli, SENZA MAI
+// tagliare a metà uno scambio "API Command: ... Response: ...", e li
+// mandiamo uno alla volta allo stesso endpoint.
+const MAX_CHUNK_BYTES = 3 * 1024 * 1024; // 3MB di margine sotto il limite reale
+
+function splitLogIntoChunks(logText) {
+  const blocks = logText.split(/(?=API Command:)/g).filter(Boolean);
+  if (blocks.length <= 1) return [logText];
+  const chunks = [];
+  let current = "";
+  for (const block of blocks) {
+    const candidate = current + block;
+    if (current && new Blob([candidate]).size > MAX_CHUNK_BYTES) {
+      chunks.push(current);
+      current = block;
+    } else {
+      current = candidate;
+    }
+  }
+  if (current) chunks.push(current);
+  return chunks;
+}
+
 function SiegeLogImportSection() {
   const [logText, setLogText] = useState("");
   const [status, setStatus] = useState("idle"); // idle | loading | done | error
+  const [progress, setProgress] = useState(null); // { part, total }
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
 
@@ -599,32 +626,53 @@ function SiegeLogImportSection() {
     reader.readAsText(file);
   }
 
+  async function sendChunk(chunk) {
+    const res = await fetch("/api/admin/import-siege-log", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ logText: chunk }),
+    });
+    const raw = await res.text();
+    let data;
+    try {
+      data = JSON.parse(raw);
+    } catch {
+      // La risposta non è JSON: quasi sempre un errore non gestito o (più
+      // raro ora che spezziamo il log) un timeout. Messaggio chiaro invece
+      // del generico errore del browser quando prova a interpretare come
+      // JSON qualcosa che non lo è.
+      throw new Error("Il server non ha risposto in tempo utile o è andato in errore imprevisto. Riprova tra poco.");
+    }
+    if (!res.ok) throw new Error(data.error || "Errore sconosciuto");
+    return data;
+  }
+
   async function submit() {
     if (!logText.trim()) return;
     setStatus("loading");
     setError("");
     setResult(null);
+    setProgress(null);
     try {
-      const res = await fetch("/api/admin/import-siege-log", {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ logText }),
-      });
-      const raw = await res.text();
-      let data;
-      try {
-        data = JSON.parse(raw);
-      } catch {
-        // La risposta non è JSON: quasi sempre un timeout del server (log
-        // troppo grande, ci ha messo troppo) o un errore non gestito, non un
-        // problema del file. Messaggio chiaro invece del generico errore del
-        // browser quando prova a interpretare come JSON qualcosa che non lo è.
-        throw new Error("Il server non ha risposto in tempo utile (probabile timeout, log troppo grande) o è andato in errore imprevisto. Prova con un log più piccolo, oppure riprova tra poco.");
+      const chunks = splitLogIntoChunks(logText);
+      const totals = { entriesFound: 0, matchupsFound: 0, winningMatchups: 0, createdDefs: 0, createdCounters: 0, skipped: [], crossPlayerNewBattles: 0, crossPlayerTouchedPairs: 0 };
+      for (let i = 0; i < chunks.length; i++) {
+        if (chunks.length > 1) setProgress({ part: i + 1, total: chunks.length });
+        const data = await sendChunk(chunks[i]);
+        totals.entriesFound += data.entriesFound || 0;
+        totals.matchupsFound += data.matchupsFound || 0;
+        totals.winningMatchups += data.winningMatchups || 0;
+        totals.createdDefs += data.createdDefs || 0;
+        totals.createdCounters += data.createdCounters || 0;
+        totals.crossPlayerNewBattles += data.crossPlayerNewBattles || 0;
+        totals.crossPlayerTouchedPairs += data.crossPlayerTouchedPairs || 0;
+        totals.skipped.push(...(data.skipped || []));
       }
-      if (!res.ok) throw new Error(data.error || "Errore sconosciuto");
-      setResult(data);
+      setResult(totals);
       setStatus("done");
     } catch (e) {
       setStatus("error");
       setError(String(e.message || e));
+    } finally {
+      setProgress(null);
     }
   }
 
@@ -660,11 +708,13 @@ function SiegeLogImportSection() {
       />
       <button className="btn btn-gold" onClick={submit} disabled={status === "loading" || !logText.trim()}>
         {status === "loading" && <Spinner />}
-        {status === "loading" ? "Analisi in corso..." : "Importa dal log"}
+        {status === "loading" ? (progress ? `Parte ${progress.part} di ${progress.total}...` : "Analisi in corso...") : "Importa dal log"}
       </button>
       {status === "loading" && (
         <p style={{ color: "var(--text-faint)", fontSize: 12, marginTop: 8 }}>
-          Con log grandi (centinaia di battaglie) può richiedere anche 30-40 secondi — non chiudere la pagina.
+          {progress
+            ? `Log grande, diviso in ${progress.total} parti per rispettare il limite di Vercel — non chiudere la pagina.`
+            : "Con log grandi (centinaia di battaglie) può richiedere anche 30-40 secondi — non chiudere la pagina."}
         </p>
       )}
 

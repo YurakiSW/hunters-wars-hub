@@ -158,9 +158,10 @@ button {
   display: inline-block;
   width: 14px;
   height: 14px;
-  border: 2px solid rgba(255,255,255,0.25);
-  border-top-color: var(--gold, #c9a24b);
+  border: 2px solid currentColor;
+  border-right-color: transparent;
   border-radius: 50%;
+  opacity: 0.75;
   animation: spin 0.7s linear infinite;
   vertical-align: middle;
   margin-right: 7px;
