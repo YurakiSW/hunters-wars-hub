@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser, canManage } from "../../../../../lib/auth";
-import { listProposals, approveProposal, rejectProposal, purgePendingBelowThreshold, dismissUnderperforming, unpublishProposal } from "../../../../../lib/siegeStats";
+import { listProposals, approveProposal, rejectProposal, purgePendingBelowThreshold, dismissUnderperforming, unpublishProposal, deleteProposal } from "../../../../../lib/siegeStats";
 import { safeJson } from "../../../../../lib/apiUtils";
 
 export async function GET(request) {
@@ -32,7 +32,7 @@ export async function POST(request) {
   }
 
   const { defK, counterK, action, override } = data;
-  if (!defK || !counterK || !["approve", "reject", "dismiss", "unpublish"].includes(action)) {
+  if (!defK || !counterK || !["approve", "reject", "dismiss", "unpublish", "delete_proposal"].includes(action)) {
     return NextResponse.json({ error: "Parametri mancanti o azione non valida." }, { status: 400 });
   }
 
@@ -46,8 +46,11 @@ export async function POST(request) {
     } else if (action === "dismiss") {
       await dismissUnderperforming(defK, counterK);
       return NextResponse.json({ ok: true });
-    } else {
+    } else if (action === "unpublish") {
       await unpublishProposal(defK, counterK);
+      return NextResponse.json({ ok: true });
+    } else {
+      await deleteProposal(defK, counterK);
       return NextResponse.json({ ok: true });
     }
   } catch (err) {

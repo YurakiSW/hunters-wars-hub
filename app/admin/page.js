@@ -961,6 +961,13 @@ function SiegeStatsProposalsTab({ isAdmin }) {
                   <button className="btn btn-danger" disabled={busyKey === `${p.defK}::${p.counterK}`} onClick={() => act(p, "unpublish")}>🗑 Rifiuta e rimuovi dal sito</button>
                 </div>
               )}
+              {subTab === "rejected" && (
+                <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                  <button className="btn btn-gold" disabled={busyKey === `${p.defK}::${p.counterK}`} onClick={() => act(p, "approve")}>Approva</button>
+                  <button className="btn btn-ghost" disabled={busyKey === `${p.defK}::${p.counterK}`} onClick={() => setEditingProposal(p)}>✎ Modifica e approva</button>
+                  <button className="btn btn-danger" disabled={busyKey === `${p.defK}::${p.counterK}`} onClick={() => act(p, "delete_proposal")}>🗑 Elimina definitivamente</button>
+                </div>
+              )}
             </div>
           ))}
         </div>
