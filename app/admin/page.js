@@ -825,6 +825,7 @@ function SiegeStatsProposalsTab({ isAdmin }) {
       <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
         <button className={`btn ${subTab === "pending" ? "btn-primary" : "btn-ghost"}`} onClick={() => setSubTab("pending")}>In attesa</button>
         <button className={`btn ${subTab === "update_available" ? "btn-primary" : "btn-ghost"}`} onClick={() => setSubTab("update_available")}>Aggiornamento disponibile</button>
+        <button className={`btn ${subTab === "underperforming" ? "btn-primary" : "btn-ghost"}`} onClick={() => setSubTab("underperforming")}>⚠️ Da rivedere</button>
         <button className={`btn ${subTab === "approved" ? "btn-primary" : "btn-ghost"}`} onClick={() => setSubTab("approved")}>Approvate</button>
         <button className={`btn ${subTab === "rejected" ? "btn-primary" : "btn-ghost"}`} onClick={() => setSubTab("rejected")}>Rifiutate</button>
       </div>
@@ -860,6 +861,9 @@ function SiegeStatsProposalsTab({ isAdmin }) {
                   {p.status === "update_available" && (
                     <span style={{ color: "var(--gold)" }}> (approvato a {Math.round((p.approvedWinRate || 0) * 100)}%)</span>
                   )}
+                  {p.status === "underperforming" && (
+                    <span style={{ color: "var(--red)" }}> (era stato approvato a {Math.round((p.approvedWinRate || 0) * 100)}%, ora sotto l'80%)</span>
+                  )}
                 </div>
               </div>
               {p.bestVariant && (
@@ -892,6 +896,15 @@ function SiegeStatsProposalsTab({ isAdmin }) {
                   </button>
                   <button className="btn btn-ghost" disabled={busyKey === `${p.defK}::${p.counterK}`} onClick={() => setEditingProposal(p)}>✎ Modifica e approva</button>
                   <button className="btn btn-danger" disabled={busyKey === `${p.defK}::${p.counterK}`} onClick={() => act(p, "reject")}>Rifiuta</button>
+                </div>
+              )}
+              {subTab === "underperforming" && (
+                <div style={{ display: "flex", gap: 8, marginTop: 10, alignItems: "center", flexWrap: "wrap" }}>
+                  {p.defId && (
+                    <a className="btn btn-ghost" href={`/defs/${p.defId}`} target="_blank" rel="noopener noreferrer">Vai alla Difesa</a>
+                  )}
+                  <button className="btn btn-ghost" disabled={busyKey === `${p.defK}::${p.counterK}`} onClick={() => act(p, "dismiss")}>Ignora (tienilo com'è)</button>
+                  <button className="btn btn-danger" disabled={busyKey === `${p.defK}::${p.counterK}`} onClick={() => act(p, "unpublish")}>🗑 Rifiuta e rimuovi dal sito</button>
                 </div>
               )}
             </div>
