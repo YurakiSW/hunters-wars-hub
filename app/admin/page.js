@@ -615,14 +615,17 @@ function splitLogIntoChunks(logText) {
 
 function SiegeLogImportSection() {
   const [logText, setLogText] = useState("");
-  const [status, setStatus] = useState("idle"); // idle | loading | done | error
+  const [status, setStatus] = useState("idle"); // idle | reading | loading | done | error
   const [progress, setProgress] = useState(null); // { part, total }
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
 
   function handleFile(file) {
+    setStatus("reading");
+    setError(""); setResult(null);
     const reader = new FileReader();
-    reader.onload = () => setLogText(reader.result);
+    reader.onload = () => { setLogText(reader.result); setStatus("idle"); };
+    reader.onerror = () => { setStatus("error"); setError("Non sono riuscito a leggere il file."); };
     reader.readAsText(file);
   }
 
@@ -691,19 +694,19 @@ function SiegeLogImportSection() {
       <label
         style={{
           display: "block", border: "1.5px dashed var(--border)", borderRadius: 8, padding: "14px 12px",
-          textAlign: "center", cursor: status === "loading" ? "default" : "pointer", color: "var(--text-muted)", fontSize: 12.5, background: "var(--bg-soft)",
-          marginBottom: 10, opacity: status === "loading" ? 0.6 : 1,
+          textAlign: "center", cursor: status === "loading" || status === "reading" ? "default" : "pointer", color: "var(--text-muted)", fontSize: 12.5, background: "var(--bg-soft)",
+          marginBottom: 10, opacity: status === "loading" || status === "reading" ? 0.6 : 1,
         }}
       >
-        📎 Clicca per selezionare il file di log (.txt)
-        <input type="file" accept=".txt,text/plain" disabled={status === "loading"} style={{ display: "none" }} onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])} />
+        {status === "reading" ? <><Spinner />Lettura del file in corso...</> : "📎 Clicca per selezionare il file di log (.txt)"}
+        <input type="file" accept=".txt,text/plain" disabled={status === "loading" || status === "reading"} style={{ display: "none" }} onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])} />
       </label>
       <textarea
         value={logText}
         onChange={(e) => setLogText(e.target.value)}
         placeholder="...oppure incolla qui il testo del log"
         rows={4}
-        disabled={status === "loading"}
+        disabled={status === "loading" || status === "reading"}
         style={{ width: "100%", fontFamily: "monospace", fontSize: 11, marginBottom: 10 }}
       />
       <button className="btn btn-gold" onClick={submit} disabled={status === "loading" || !logText.trim()}>
@@ -820,9 +823,27 @@ function SiegeStatsProposalsTab({ isAdmin }) {
                 </div>
               </div>
               {p.bestVariant && (
-                <p style={{ fontSize: 11.5, color: "var(--text-faint)", marginTop: 6 }}>
-                  Variante migliore: {p.bestVariant.wins}/{p.bestVariant.total} vittorie con questa build specifica.
-                </p>
+                <div style={{ marginTop: 8 }}>
+                  <p style={{ fontSize: 11.5, color: "var(--text-faint)" }}>
+                    Variante migliore: {p.bestVariant.wins}/{p.bestVariant.total} vittorie con questa build.
+                  </p>
+                  {p.bestVariant.units?.some((u) => u.runes || u.artifactLeft?.length || u.artifactRight?.length) ? (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 6 }}>
+                      {p.bestVariant.units.map((u, i) => (
+                        <div key={i} style={{ fontSize: 12, background: "var(--bg-soft)", borderRadius: 6, padding: "6px 8px" }}>
+                          <strong>{u.name}</strong>
+                          <span style={{ color: "var(--text-faint)" }}> — Rune: </span>{u.runes || "—"}
+                          {u.artifactLeft?.length > 0 && <span style={{ color: "var(--text-faint)" }}> · Attributo: {u.artifactLeft.join(", ")}</span>}
+                          {u.artifactRight?.length > 0 && <span style={{ color: "var(--text-faint)" }}> · Tipo: {u.artifactRight.join(", ")}</span>}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p style={{ fontSize: 11.5, color: "var(--text-faint)", fontStyle: "italic" }}>
+                      Nessuna build trovata (nessuno ha ancora aperto il replay completo di questa battaglia) — rune/artefatti da completare a mano dopo l'approvazione.
+                    </p>
+                  )}
+                </div>
               )}
               {(subTab === "pending" || subTab === "update_available") && (
                 <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
