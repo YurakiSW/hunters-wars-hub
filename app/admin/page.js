@@ -10,6 +10,10 @@ import CounterTemplatePicker from "../../components/CounterTemplatePicker";
 import MonsterCrest from "../../components/MonsterCrest";
 import { gradeLabel, formatNickname, displayAuthorName, normalizeMonsterName } from "../../lib/textUtils";
 
+function Spinner() {
+  return <span className="spinner" aria-hidden="true" />;
+}
+
 export default function AdminPage() {
   const [user, setUser] = useState(null);
   const [tab, setTab] = useState("content");
@@ -153,7 +157,7 @@ function RosterTab({ isAdmin }) {
             textAlign: "center", cursor: "pointer", color: "var(--text-muted)", fontSize: 12.5, background: "var(--bg-soft)",
           }}
         >
-          {loading ? "Caricamento..." : "📎 Clicca per selezionare il file .json"}
+          {loading ? <><Spinner />Caricamento...</> : "📎 Clicca per selezionare il file .json"}
           <input type="file" accept="application/json" style={{ display: "none" }} onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])} />
         </label>
         {error && <p style={{ color: "var(--red)", fontSize: 13, marginTop: 8 }}>{error}</p>}
@@ -366,7 +370,7 @@ function AliasUploadCard() {
         mostri veri — prendono così l'icona corretta ovunque vengano usati.
       </p>
       <label style={{ display: "block", border: "1.5px dashed var(--border)", borderRadius: 8, padding: "14px 12px", textAlign: "center", cursor: "pointer", color: "var(--text-muted)", fontSize: 12.5, background: "var(--bg-soft)" }}>
-        {status === "loading" ? "Caricamento..." : "📎 Clicca per selezionare il file .json"}
+        {status === "loading" ? <><Spinner />Caricamento...</> : "📎 Clicca per selezionare il file .json"}
         <input type="file" accept="application/json" style={{ display: "none" }} onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])} />
       </label>
       {msg && <p style={{ color: status === "error" ? "var(--red)" : "var(--green)", fontSize: 12.5, marginTop: 8 }}>{msg}</p>}
@@ -445,7 +449,7 @@ function BackupTab() {
             textAlign: "center", cursor: "pointer", color: "var(--text-muted)", fontSize: 12.5, background: "var(--bg-soft)",
           }}
         >
-          {status === "loading" ? "Ripristino in corso..." : "📎 Clicca per selezionare il file di backup"}
+          {status === "loading" ? <><Spinner />Ripristino in corso...</> : "📎 Clicca per selezionare il file di backup"}
           <input type="file" accept="application/json" style={{ display: "none" }} onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])} />
         </label>
         {status === "error" && <p style={{ color: "var(--red)", fontSize: 13, marginTop: 8 }}>{msg}</p>}
@@ -562,7 +566,7 @@ function ImportTab() {
         <input type="file" accept="application/json" style={{ display: "none" }} onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])} />
       </label>
 
-      {status === "loading" && <p style={{ color: "var(--text-muted)", fontSize: 13, marginTop: 10 }}>Importazione in corso...</p>}
+      {status === "loading" && <p style={{ color: "var(--text-muted)", fontSize: 13, marginTop: 10 }}><Spinner />Importazione in corso...</p>}
       {status === "error" && <p style={{ color: "var(--red)", fontSize: 13, marginTop: 10 }}>{error}</p>}
       {status === "done" && result && (
         <div style={{ marginTop: 10 }}>
@@ -639,23 +643,30 @@ function SiegeLogImportSection() {
       <label
         style={{
           display: "block", border: "1.5px dashed var(--border)", borderRadius: 8, padding: "14px 12px",
-          textAlign: "center", cursor: "pointer", color: "var(--text-muted)", fontSize: 12.5, background: "var(--bg-soft)",
-          marginBottom: 10,
+          textAlign: "center", cursor: status === "loading" ? "default" : "pointer", color: "var(--text-muted)", fontSize: 12.5, background: "var(--bg-soft)",
+          marginBottom: 10, opacity: status === "loading" ? 0.6 : 1,
         }}
       >
         📎 Clicca per selezionare il file di log (.txt)
-        <input type="file" accept=".txt,text/plain" style={{ display: "none" }} onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])} />
+        <input type="file" accept=".txt,text/plain" disabled={status === "loading"} style={{ display: "none" }} onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])} />
       </label>
       <textarea
         value={logText}
         onChange={(e) => setLogText(e.target.value)}
         placeholder="...oppure incolla qui il testo del log"
         rows={4}
+        disabled={status === "loading"}
         style={{ width: "100%", fontFamily: "monospace", fontSize: 11, marginBottom: 10 }}
       />
       <button className="btn btn-gold" onClick={submit} disabled={status === "loading" || !logText.trim()}>
+        {status === "loading" && <Spinner />}
         {status === "loading" ? "Analisi in corso..." : "Importa dal log"}
       </button>
+      {status === "loading" && (
+        <p style={{ color: "var(--text-faint)", fontSize: 12, marginTop: 8 }}>
+          Con log grandi (centinaia di battaglie) può richiedere anche 30-40 secondi — non chiudere la pagina.
+        </p>
+      )}
 
       {status === "error" && <p style={{ color: "var(--red)", fontSize: 13, marginTop: 10 }}>{error}</p>}
       {status === "done" && result && (

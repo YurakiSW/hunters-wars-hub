@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser, canManage } from "../../../../lib/auth";
 import { getFullMonsterList } from "../../../../lib/monsters";
-import { listDefs, createDef, createCounter } from "../../../../lib/defs";
+import { listDefs, bulkCreateDefsAndCounters, newId } from "../../../../lib/defs";
 import { normalizeMonsterName } from "../../../../lib/textUtils";
 import { extractBattleEntries, entriesToMatchups, aggregateMatchups, extractRichReplayDetails, idsKey, orderedTeamKey, defenseKey } from "../../../../lib/siegeLogParser";
 import { describeRuneSets } from "../../../../lib/runeSets";
@@ -79,6 +79,18 @@ export async function POST(request) {
   const existingDefs = await listDefs();
   const existingByKey = new Map(existingDefs.map((d) => [defKey(d.monsters), d]));
 
+  // Costruiamo tutto in memoria PRIMA di toccare Redis: con centinaia di
+  // counter vincenti in un log grande, crearli uno per uno (sequenziale)
+  // rischia il timeout della funzione. Una singola pipeline alla fine.
+  const newDefsToCreate = [];
+  const newCountersToCreate = [];
+  // Traccia gli offense già assegnati a ciascuna Difesa (esistenti + appena
+  // pianificati in questo stesso import) per non creare doppioni.
+  const plannedOffenseByDefKey = new Map(); // defKey -> Set(offenseKey)
+  for (const d of existingDefs) {
+    plannedOffenseByDefKey.set(defKey(d.monsters), new Set((d.counters || []).map((c) => defKey(c.offense))));
+  }
+
   let createdDefs = 0;
   let createdCounters = 0;
   const skipped = [];
@@ -87,24 +99,28 @@ export async function POST(request) {
     const key = defKey(m.defense);
     let def = existingByKey.get(key);
     if (!def) {
-      def = await createDef({
-        monsters: m.defense,
+      const id = newId("def");
+      def = { id, monsters: m.defense };
+      newDefsToCreate.push({
+        id, monsters: m.defense,
         desc: "Importata da log SWEX (Siege). Solo squadra offensiva verificata: rune/artefatti/strategia da completare.",
-        authorId: user.id,
-        authorNickname: `Import Log (${user.nickname})`,
-        autoApprove: false,
+        authorId: user.id, authorNickname: `Import Log (${user.nickname})`, autoApprove: false,
       });
       existingByKey.set(key, def);
+      plannedOffenseByDefKey.set(key, new Set());
       createdDefs++;
     }
 
     // Evita di ricreare lo stesso counter (stessa squadra offensiva) se il
-    // log viene ricaricato una seconda volta per sbaglio.
-    const alreadyThere = (def.counters || []).some((c) => defKey(c.offense) === defKey(m.offense));
-    if (alreadyThere) {
+    // log viene ricaricato una seconda volta per sbaglio, o se questo
+    // stesso import lo ha già pianificato un momento fa.
+    const offenseKey = defKey(m.offense);
+    const plannedSet = plannedOffenseByDefKey.get(key);
+    if (plannedSet.has(offenseKey)) {
       skipped.push(`${m.offense.join("/")} contro ${m.defense.join("/")} (già presente)`);
       continue;
     }
+    plannedSet.add(offenseKey);
 
     // Se questa esatta squadra contro questa esatta difesa è stata anche
     // "guardata per intero" (replay completo, non solo il Battle Log),
@@ -115,32 +131,33 @@ export async function POST(request) {
     const richKey = `${idsKey(offenseIdsForMatch)}::${idsKey(defenseIdsForMatch)}`;
     const rich = richByIdsKey.get(richKey);
 
-    await createCounter(
-      def.id,
-      {
-        offense: m.offense,
-        lead: m.offense[0],
-        turnOrder: m.offense,
-        units: m.offense.map((name, i) => {
-          const artifacts = rich ? describeUnitArtifacts(rich.offenseArtifacts[i]) : { artifactLeft: [], artifactRight: [] };
-          return {
-            name, lead: false,
-            runes: rich ? describeRuneSets(rich.offenseRunes[i]) : "",
-            stats: "", statsFlexible: false, statsMinText: "",
-            artifactLeft: artifacts.artifactLeft, artifactRight: artifacts.artifactRight,
-            notes: [""],
-          };
-        }),
-        focus: [],
-        strategy: `Importato da log SWEX: ${m.wins}/${m.total} vittorie (${Math.round(m.winRate * 100)}%) contro questa difesa. ${rich ? "Rune e artefatti trovati nel replay — controllali comunque, alcuni codici potrebbero non essere ancora tradotti." : "Rune/artefatti da completare."} Strategia da scrivere.`,
-        warning: "",
-        video: null,
-        images: [],
-      },
-      { authorId: user.id, authorNickname: `Import Log (${user.nickname})`, autoApprove: false }
-    );
+    newCountersToCreate.push({
+      id: newId("counter"),
+      defId: def.id,
+      offense: m.offense,
+      lead: m.offense[0],
+      turnOrder: m.offense,
+      units: m.offense.map((name, i) => {
+        const artifacts = rich ? describeUnitArtifacts(rich.offenseArtifacts[i]) : { artifactLeft: [], artifactRight: [] };
+        return {
+          name, lead: false,
+          runes: rich ? describeRuneSets(rich.offenseRunes[i]) : "",
+          stats: "", statsFlexible: false, statsMinText: "",
+          artifactLeft: artifacts.artifactLeft, artifactRight: artifacts.artifactRight,
+          notes: [""],
+        };
+      }),
+      focus: [],
+      strategy: `Importato da log SWEX: ${m.wins}/${m.total} vittorie (${Math.round(m.winRate * 100)}%) contro questa difesa. ${rich ? "Rune e artefatti trovati nel replay — controllali comunque, alcuni codici potrebbero non essere ancora tradotti." : "Rune/artefatti da completare."} Strategia da scrivere.`,
+      warning: "",
+      video: null,
+      images: [],
+      authorId: user.id, authorNickname: `Import Log (${user.nickname})`, autoApprove: false,
+    });
     createdCounters++;
   }
+
+  await bulkCreateDefsAndCounters(newDefsToCreate, newCountersToCreate);
 
   return NextResponse.json({
     ok: true,
