@@ -604,7 +604,17 @@ function SiegeLogImportSection() {
       const res = await fetch("/api/admin/import-siege-log", {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ logText }),
       });
-      const data = await res.json();
+      const raw = await res.text();
+      let data;
+      try {
+        data = JSON.parse(raw);
+      } catch {
+        // La risposta non è JSON: quasi sempre un timeout del server (log
+        // troppo grande, ci ha messo troppo) o un errore non gestito, non un
+        // problema del file. Messaggio chiaro invece del generico errore del
+        // browser quando prova a interpretare come JSON qualcosa che non lo è.
+        throw new Error("Il server non ha risposto in tempo utile (probabile timeout, log troppo grande) o è andato in errore imprevisto. Prova con un log più piccolo, oppure riprova tra poco.");
+      }
       if (!res.ok) throw new Error(data.error || "Errore sconosciuto");
       setResult(data);
       setStatus("done");
