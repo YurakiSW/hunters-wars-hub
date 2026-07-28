@@ -755,6 +755,22 @@ function SiegeStatsProposalsTab({ isAdmin }) {
   const [seasonId, setSeasonId] = useState("");
   const [confirmSeasonEnd, setConfirmSeasonEnd] = useState(false);
   const [seasonMsg, setSeasonMsg] = useState("");
+  const [purging, setPurging] = useState(false);
+  const [purgeMsg, setPurgeMsg] = useState("");
+  const [editingProposal, setEditingProposal] = useState(null);
+
+  async function purgeBelowThreshold() {
+    setPurging(true);
+    setPurgeMsg("");
+    const res = await fetch("/api/admin/siege-stats/proposals", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "purge_below_threshold" }),
+    });
+    const data = await res.json();
+    setPurging(false);
+    if (!res.ok) return setPurgeMsg(data.error);
+    setPurgeMsg(`${data.purged} proposal sotto l'80% spostate in "Rifiutate".`);
+    if (subTab === "pending") load();
+  }
 
   async function load() {
     setLoading(true);
@@ -774,6 +790,18 @@ function SiegeStatsProposalsTab({ isAdmin }) {
     });
     setBusyKey(null);
     load();
+  }
+
+  async function approveWithOverride(payload) {
+    const res = await fetch("/api/admin/siege-stats/proposals", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ defK: editingProposal.defK, counterK: editingProposal.counterK, action: "approve", override: payload }),
+    });
+    const data = await res.json();
+    if (!res.ok) return { error: data.error };
+    setEditingProposal(null);
+    load();
+    return {};
   }
 
   function downloadBackup() {
@@ -801,6 +829,16 @@ function SiegeStatsProposalsTab({ isAdmin }) {
         <button className={`btn ${subTab === "rejected" ? "btn-primary" : "btn-ghost"}`} onClick={() => setSubTab("rejected")}>Rifiutate</button>
       </div>
 
+      {subTab === "pending" && (
+        <div style={{ marginBottom: 14 }}>
+          <button className="btn btn-ghost" disabled={purging} onClick={purgeBelowThreshold}>
+            {purging && <Spinner />}
+            🧹 Pulisci proposal sotto l'80% (create con la soglia vecchia)
+          </button>
+          {purgeMsg && <p style={{ fontSize: 12.5, color: "var(--text-muted)", marginTop: 6 }}>{purgeMsg}</p>}
+        </div>
+      )}
+
       {loading ? (
         <p style={{ color: "var(--text-faint)" }}>Caricamento...</p>
       ) : proposals.length === 0 ? (
@@ -810,9 +848,11 @@ function SiegeStatsProposalsTab({ isAdmin }) {
           {proposals.map((p) => (
             <div key={`${p.defK}::${p.counterK}`} className="card">
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
-                <div>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                  {p.offenseNames?.map((m, i) => <MonsterCrest key={`o${i}`} name={m} size={22} />)}
                   <strong>{p.offenseNames?.join(" / ")}</strong>
-                  <span style={{ color: "var(--text-faint)" }}> contro </span>
+                  <span style={{ color: "var(--text-faint)" }}>contro</span>
+                  {p.defenseNames?.map((m, i) => <MonsterCrest key={`d${i}`} name={m} size={22} />)}
                   <strong>{p.defenseNames?.join(" / ")}</strong>
                 </div>
                 <div style={{ fontSize: 13, color: "var(--text-muted)" }}>
@@ -850,7 +890,8 @@ function SiegeStatsProposalsTab({ isAdmin }) {
                   <button className="btn btn-gold" disabled={busyKey === `${p.defK}::${p.counterK}`} onClick={() => act(p, "approve")}>
                     {subTab === "update_available" ? "Aggiorna approvazione" : "Approva"}
                   </button>
-                  <button className="btn btn-ghost" disabled={busyKey === `${p.defK}::${p.counterK}`} onClick={() => act(p, "reject")}>Rifiuta</button>
+                  <button className="btn btn-ghost" disabled={busyKey === `${p.defK}::${p.counterK}`} onClick={() => setEditingProposal(p)}>✎ Modifica e approva</button>
+                  <button className="btn btn-danger" disabled={busyKey === `${p.defK}::${p.counterK}`} onClick={() => act(p, "reject")}>Rifiuta</button>
                 </div>
               )}
             </div>
@@ -887,6 +928,29 @@ function SiegeStatsProposalsTab({ isAdmin }) {
           onConfirm={doSeasonEnd}
           onCancel={() => setConfirmSeasonEnd(false)}
         />
+      )}
+      {editingProposal && (
+        <Modal title={`Modifica e approva — ${editingProposal.offenseNames.join(" / ")} contro ${editingProposal.defenseNames.join(" / ")}`} onClose={() => setEditingProposal(null)} wide>
+          <CounterForm
+            defMonsters={editingProposal.defenseNames}
+            initial={{
+              offense: editingProposal.offenseNames,
+              lead: editingProposal.offenseNames[0],
+              turnOrder: editingProposal.offenseNames,
+              units: editingProposal.bestVariant?.units || editingProposal.offenseNames.map((name) => ({
+                name, lead: false, runes: "", stats: "", statsFlexible: false, statsMinText: "",
+                artifactLeft: [], artifactRight: [], notes: [""],
+              })),
+              focus: [],
+              strategy: `Proposto dal sistema Siege Log: ${Math.round((editingProposal.currentWinRate || 0) * 100)}% vittorie su tutte le sieges osservate. Controlla comunque rune/artefatti/strategia.`,
+              warning: "",
+              video: null,
+              images: [],
+            }}
+            onSubmit={approveWithOverride}
+            onCancel={() => setEditingProposal(null)}
+          />
+        </Modal>
       )}
     </div>
   );

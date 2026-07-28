@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser, canManage } from "../../../../../lib/auth";
-import { listProposals, approveProposal, rejectProposal } from "../../../../../lib/siegeStats";
+import { listProposals, approveProposal, rejectProposal, purgePendingBelowThreshold } from "../../../../../lib/siegeStats";
 import { safeJson } from "../../../../../lib/apiUtils";
 
 export async function GET(request) {
@@ -21,14 +21,24 @@ export async function POST(request) {
   }
   const { data, error: parseError } = await safeJson(request);
   if (parseError) return NextResponse.json({ error: parseError }, { status: 400 });
-  const { defK, counterK, action } = data;
+
+  if (data.action === "purge_below_threshold") {
+    try {
+      const result = await purgePendingBelowThreshold(0.8);
+      return NextResponse.json({ ok: true, ...result });
+    } catch (err) {
+      return NextResponse.json({ error: String(err.message || err) }, { status: 400 });
+    }
+  }
+
+  const { defK, counterK, action, override } = data;
   if (!defK || !counterK || !["approve", "reject"].includes(action)) {
     return NextResponse.json({ error: "Parametri mancanti o azione non valida." }, { status: 400 });
   }
 
   try {
     if (action === "approve") {
-      const { def, counter } = await approveProposal(defK, counterK, { authorId: user.id, authorNickname: user.nickname });
+      const { def, counter } = await approveProposal(defK, counterK, { authorId: user.id, authorNickname: user.nickname }, override);
       return NextResponse.json({ ok: true, defId: def.id, counterId: counter.id });
     } else {
       await rejectProposal(defK, counterK);
