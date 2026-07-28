@@ -58,16 +58,15 @@ export async function POST(request) {
     const defenseIds = m.defense.map((n) => comIdByName.get(n)).filter(Boolean);
     const rich = richByIdsKey.get(`${idsKey(offenseIds)}::${idsKey(defenseIds)}`);
     if (!rich) continue;
-    const units = m.offense.map((name, i) => {
-      const artifacts = describeUnitArtifacts(rich.offenseArtifacts[i]);
-      return {
-        name, lead: false,
-        runes: describeRuneSets(rich.offenseRunes[i]),
-        stats: "", statsFlexible: false, statsMinText: "",
-        artifactLeft: artifacts.artifactLeft, artifactRight: artifacts.artifactRight,
-        notes: [""],
-      };
-    });
+    // Salviamo i dati GREZZI (set_id delle rune, sec_effects degli
+    // artefatti), non il testo già tradotto: così se in futuro decodifichiamo
+    // altri codici, le proposal già in coda si aggiornano da sole quando le
+    // guardi — non serve ricaricare lo stesso log da capo.
+    const units = m.offense.map((name, i) => ({
+      name,
+      rawRunes: rich.offenseRunes[i],
+      rawArtifacts: rich.offenseArtifacts[i],
+    }));
     richUnitsByOffenseDefenseKey.set(`${orderedTeamKey(m.offense)}::${defenseKey(m.defense)}`, units);
   }
   const crossPlayerResult = await recordCrossPlayerBattles(matchups, richUnitsByOffenseDefenseKey);
