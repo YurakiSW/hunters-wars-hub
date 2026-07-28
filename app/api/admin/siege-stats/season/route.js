@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser, isAdmin } from "../../../../../lib/auth";
-import { archiveAndClearSeason, listSeasonArchives, listProposals } from "../../../../../lib/siegeStats";
+import { archiveAndClearSeason, listSeasonArchives, listProposals, deleteSeasonArchive } from "../../../../../lib/siegeStats";
 import { safeJson } from "../../../../../lib/apiUtils";
 
 // GET: scarica un backup (JSON) di tutte le proposal/statistiche vive,
@@ -41,4 +41,18 @@ export async function POST(request) {
   } catch (err) {
     return NextResponse.json({ error: String(err.message || err) }, { status: 400 });
   }
+}
+
+// DELETE: rimuove un'archiviazione (es. quelle create per test/prova).
+// Non tocca mai Difese/Counter pubblicati, solo lo snapshot archiviato.
+export async function DELETE(request) {
+  const user = await getCurrentUser();
+  if (!user || !isAdmin(user)) {
+    return NextResponse.json({ error: "Solo Admin." }, { status: 403 });
+  }
+  const { searchParams } = new URL(request.url);
+  const seasonId = searchParams.get("seasonId");
+  if (!seasonId) return NextResponse.json({ error: "Manca seasonId." }, { status: 400 });
+  await deleteSeasonArchive(seasonId);
+  return NextResponse.json({ ok: true });
 }

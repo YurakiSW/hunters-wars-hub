@@ -80,7 +80,10 @@ export default function AdminPage() {
 function RosterTab({ isAdmin }) {
   const [roster, setRoster] = useState([]);
   const [notFound, setNotFound] = useState([]);
+  const [unassigned, setUnassigned] = useState([]);
   const [selected, setSelected] = useState(new Set());
+  const [renameChoice, setRenameChoice] = useState({}); // id -> nickname scelto nel menu
+  const [renaming, setRenaming] = useState(null);
   const [confirmRemoval, setConfirmRemoval] = useState(false);
   const [error, setError] = useState("");
   const [msg, setMsg] = useState("");
@@ -90,10 +93,25 @@ function RosterTab({ isAdmin }) {
     fetch("/api/admin/roster").then((r) => r.json()).then((d) => {
       setRoster(d.roster || []);
       setNotFound(d.notFound || []);
+      setUnassigned(d.unassigned || []);
       setSelected(new Set());
     });
   }
   useEffect(reload, []);
+
+  async function rename(candidateId) {
+    const newNickname = renameChoice[candidateId];
+    if (!newNickname) return;
+    setRenaming(candidateId);
+    const res = await fetch("/api/admin/roster/rename-member", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId: candidateId, newNickname }),
+    });
+    const data = await res.json();
+    setRenaming(null);
+    if (!res.ok) return setError(data.error);
+    setMsg(`Account associato al nuovo nickname "${data.nickname}".`);
+    reload();
+  }
 
   function handleFile(file) {
     setLoading(true);
@@ -170,14 +188,32 @@ function RosterTab({ isAdmin }) {
           <div className="section-label">⚠️ Account non trovati nell'ultimo roster ({notFound.length})</div>
           <p style={{ color: "var(--text-faint)", fontSize: 12.5, marginBottom: 10 }}>
             Questi nickname del sito non combaciano col roster appena caricato. Potrebbero aver lasciato la gilda,
-            oppure aver solo cambiato nickname in gioco — controlla prima di eliminare. Nessuno viene rimosso
+            oppure aver solo cambiato nickname in gioco — se è così, associalo al nuovo nickname invece di eliminarlo
+            (mantiene ruolo, permessi, ed è ancora l'autore di Difese/Counter già creati). Nessuno viene rimosso
             automaticamente.
           </p>
           {notFound.map((c) => (
-            <label key={c.id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, padding: "5px 0", cursor: "pointer" }}>
-              <input type="checkbox" checked={selected.has(c.id)} onChange={() => toggle(c.id)} />
-              {c.nickname} — {gradeLabel(c.grade)} {c.email ? `(${c.email})` : ""}
-            </label>
+            <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, padding: "6px 0", flexWrap: "wrap" }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+                <input type="checkbox" checked={selected.has(c.id)} onChange={() => toggle(c.id)} />
+                {c.nickname} — {gradeLabel(c.grade)} {c.email ? `(${c.email})` : ""}
+              </label>
+              {isAdmin && unassigned.length > 0 && (
+                <>
+                  <select
+                    value={renameChoice[c.id] || ""}
+                    onChange={(e) => setRenameChoice((prev) => ({ ...prev, [c.id]: e.target.value }))}
+                    style={{ fontSize: 12.5 }}
+                  >
+                    <option value="">— associa a nuovo nickname —</option>
+                    {unassigned.map((n) => <option key={n} value={n}>{n}</option>)}
+                  </select>
+                  <button className="btn btn-gold" disabled={!renameChoice[c.id] || renaming === c.id} onClick={() => rename(c.id)}>
+                    {renaming === c.id && <Spinner />}Associa
+                  </button>
+                </>
+              )}
+            </div>
           ))}
           {isAdmin && (
             <button
@@ -685,7 +721,7 @@ function SiegeLogImportSection() {
       <p style={{ color: "var(--text-faint)", fontSize: 12.5, marginBottom: 12 }}>
         In gioco, apri il "Battle Log" di ogni player della gilda (un click a testa — non serve aprire ogni singolo
         replay). Poi carica qui il log grezzo di SWEX/SWProxy (es. "full_log.txt"). Trova da solo le Difese incontrate
-        e le squadre offensive usate — <strong>solo quelle che hanno vinto con più del 50% di successo</strong> su
+        e le squadre offensive usate — <strong>solo quelle che hanno vinto con più del 90% di successo</strong> su
         quella difesa. Entrano come bozze "in attesa", con rune/artefatti/strategia da completare a mano. Ogni
         battaglia (vinta o persa) alimenta anche il database cross-player condiviso — nel tempo, se più persone
         caricano qui i propri log, emergono i counter migliori a prescindere da chi li ha usati, visibili e
@@ -725,7 +761,7 @@ function SiegeLogImportSection() {
       {status === "done" && result && (
         <div style={{ marginTop: 10, fontSize: 13 }}>
           <p style={{ color: "var(--green)" }}>
-            Trovati {result.entriesFound} attacchi, {result.matchupsFound} accoppiate diverse, {result.winningMatchups} con oltre il 50% di vittorie.
+            Trovati {result.entriesFound} attacchi, {result.matchupsFound} accoppiate diverse, {result.winningMatchups} con oltre il 90% di vittorie.
           </p>
           <p style={{ color: "var(--text-muted)" }}>
             Create {result.createdDefs} nuove Difese e {result.createdCounters} nuovi Counter (in attesa di approvazione).
@@ -757,6 +793,8 @@ function SiegeStatsProposalsTab({ isAdmin }) {
   const [seasonMsg, setSeasonMsg] = useState("");
   const [purging, setPurging] = useState(false);
   const [purgeMsg, setPurgeMsg] = useState("");
+  const [archives, setArchives] = useState([]);
+  const [deletingArchive, setDeletingArchive] = useState(null);
   const [editingProposal, setEditingProposal] = useState(null);
 
   async function purgeBelowThreshold() {
@@ -768,7 +806,7 @@ function SiegeStatsProposalsTab({ isAdmin }) {
     const data = await res.json();
     setPurging(false);
     if (!res.ok) return setPurgeMsg(data.error);
-    setPurgeMsg(`${data.purged} proposal sotto l'80% spostate in "Rifiutate".`);
+    setPurgeMsg(`${data.purged} proposal sotto il 90% spostate in "Rifiutate".`);
     if (subTab === "pending") load();
   }
 
@@ -817,8 +855,24 @@ function SiegeStatsProposalsTab({ isAdmin }) {
     const data = await res.json();
     setSeasonMsg(res.ok ? `Archiviate ${data.archivedProposals} proposal sotto "${seasonId}". Tabelle svuotate.` : data.error);
     setSeasonId("");
+    loadArchives();
     load();
   }
+
+  async function loadArchives() {
+    const res = await fetch("/api/admin/siege-stats/season?archives=1");
+    const data = await res.json();
+    setArchives(data.archives || []);
+  }
+
+  async function deleteArchive(id) {
+    setDeletingArchive(id);
+    await fetch(`/api/admin/siege-stats/season?seasonId=${encodeURIComponent(id)}`, { method: "DELETE" });
+    setDeletingArchive(null);
+    loadArchives();
+  }
+
+  useEffect(() => { if (isAdmin) loadArchives(); }, [isAdmin]);
 
   return (
     <div>
@@ -834,7 +888,7 @@ function SiegeStatsProposalsTab({ isAdmin }) {
         <div style={{ marginBottom: 14 }}>
           <button className="btn btn-ghost" disabled={purging} onClick={purgeBelowThreshold}>
             {purging && <Spinner />}
-            🧹 Pulisci proposal sotto l'80% (create con la soglia vecchia)
+            🧹 Pulisci proposal sotto il 90% (create con la soglia vecchia)
           </button>
           {purgeMsg && <p style={{ fontSize: 12.5, color: "var(--text-muted)", marginTop: 6 }}>{purgeMsg}</p>}
         </div>
@@ -862,7 +916,7 @@ function SiegeStatsProposalsTab({ isAdmin }) {
                     <span style={{ color: "var(--gold)" }}> (approvato a {Math.round((p.approvedWinRate || 0) * 100)}%)</span>
                   )}
                   {p.status === "underperforming" && (
-                    <span style={{ color: "var(--red)" }}> (era stato approvato a {Math.round((p.approvedWinRate || 0) * 100)}%, ora sotto l'80%)</span>
+                    <span style={{ color: "var(--red)" }}> (era stato approvato a {Math.round((p.approvedWinRate || 0) * 100)}%, ora sotto il 90%)</span>
                   )}
                 </div>
               </div>
@@ -931,6 +985,20 @@ function SiegeStatsProposalsTab({ isAdmin }) {
             <button className="btn btn-gold" disabled={!seasonId.trim()} onClick={() => setConfirmSeasonEnd(true)}>Archivia e svuota</button>
           </div>
           {seasonMsg && <p style={{ fontSize: 13, color: "var(--green)", marginTop: 8 }}>{seasonMsg}</p>}
+
+          {archives.length > 0 && (
+            <div style={{ marginTop: 16 }}>
+              <div style={{ fontSize: 12, color: "var(--text-faint)", marginBottom: 6 }}>Archiviazioni esistenti (es. quelle di prova possono essere eliminate):</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {archives.map((a) => (
+                  <div key={a.seasonId} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13, background: "var(--bg-soft)", borderRadius: 6, padding: "6px 10px" }}>
+                    <span>{a.seasonId} — {a.proposals?.length ?? 0} proposal, {new Date(a.archivedAt).toLocaleString("it-IT")}</span>
+                    <button className="btn btn-ghost" disabled={deletingArchive === a.seasonId} onClick={() => deleteArchive(a.seasonId)}>🗑 Elimina</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

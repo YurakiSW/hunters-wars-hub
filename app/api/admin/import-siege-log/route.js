@@ -50,7 +50,7 @@ export async function POST(request) {
 
   // Alimenta anche il database cross-player (usato dal tab "Approvazioni
   // Siege Log"): OGNI battaglia di questo log, vinta o persa, si somma a
-  // quelle già viste da altri caricamenti — non solo quelle sopra il 50%
+  // quelle già viste da altri caricamenti — non solo quelle sopra il 90%
   // (serve il conteggio completo per calcolare il winRate reale).
   const richUnitsByOffenseDefenseKey = new Map();
   for (const m of matchups) {
@@ -71,9 +71,9 @@ export async function POST(request) {
   }
   const crossPlayerResult = await recordCrossPlayerBattles(matchups, richUnitsByOffenseDefenseKey);
 
-  // Solo attacchi vincenti E con più del 50% di successo su quella difesa
+  // Solo attacchi vincenti E con più del 90% di successo su quella difesa
   // esatta (utile se lo stesso attacco compare più volte nel log).
-  const winningMatchups = aggregated.filter((g) => g.wins > 0 && g.winRate > 0.5);
+  const winningMatchups = aggregated.filter((g) => g.wins > 0 && g.winRate > 0.9);
 
   const existingDefs = await listDefs();
   const existingByKey = new Map(existingDefs.map((d) => [defKey(d.monsters), d]));

@@ -8,7 +8,21 @@ export async function GET() {
   if (!user) return NextResponse.json({ error: "Non autorizzato." }, { status: 401 });
   const roster = await getRoster();
   const notFound = (await redis.get("roster:removal_candidates")) || [];
-  return NextResponse.json({ roster, notFound });
+
+  // Nickname del roster che non combaciano con NESSUN account esistente —
+  // probabili candidati per un "associa nuovo nickname" (cambio nome in
+  // gioco), da mostrare in un menu invece di dover eliminare l'account.
+  const userIds = await redis.keys("user:user_*");
+  const existingNicknames = new Set();
+  for (const key of userIds) {
+    const u = await redis.get(key);
+    if (u?.nickname) existingNicknames.add(normalizeNickname(u.nickname));
+  }
+  const unassigned = roster
+    .filter((r) => !existingNicknames.has(normalizeNickname(r.nickname)))
+    .map((r) => r.nickname);
+
+  return NextResponse.json({ roster, notFound, unassigned });
 }
 
 export async function POST(request) {
