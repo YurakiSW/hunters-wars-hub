@@ -507,6 +507,11 @@ function BackupTab() {
 function DiagnosticaTab() {
   const [checks, setChecks] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [dupInfo, setDupInfo] = useState(null);
+  const [renaming, setRenaming] = useState(false);
+  const [cleaning, setCleaning] = useState(false);
+  const [resyncing, setResyncing] = useState(false);
+  const [maintMsg, setMaintMsg] = useState("");
 
   function load() {
     setLoading(true);
@@ -516,7 +521,42 @@ function DiagnosticaTab() {
     });
   }
 
-  useEffect(() => { load(); }, []);
+  function loadDupInfo() {
+    fetch("/api/admin/maintenance").then((r) => r.json()).then((d) => setDupInfo(d));
+  }
+
+  useEffect(() => { load(); loadDupInfo(); }, []);
+
+  async function renameAuthors() {
+    setRenaming(true);
+    const res = await fetch("/api/admin/maintenance", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "rename_siege_log_authors" }),
+    });
+    const data = await res.json();
+    setRenaming(false);
+    setMaintMsg(res.ok ? `${data.renamed} autori rinominati in "Siege Log".` : data.error);
+  }
+
+  async function cleanupDuplicates() {
+    setCleaning(true);
+    const res = await fetch("/api/admin/maintenance", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "cleanup_duplicates" }),
+    });
+    const data = await res.json();
+    setCleaning(false);
+    setMaintMsg(res.ok ? `${data.removed} counter doppi eliminati (${data.groupsFound} gruppi trovati).` : data.error);
+    loadDupInfo();
+  }
+
+  async function resyncFromVariants() {
+    setResyncing(true);
+    const res = await fetch("/api/admin/maintenance", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "resync_from_variants" }),
+    });
+    const data = await res.json();
+    setResyncing(false);
+    setMaintMsg(res.ok ? `${data.updated} counter aggiornati su ${data.checked} controllati (stat rune / artefatti ora tradotti, dove i dati grezzi erano ancora disponibili).` : data.error);
+  }
 
   return (
     <div>
@@ -534,6 +574,40 @@ function DiagnosticaTab() {
           <span className="f-mono" style={{ fontSize: 11.5, color: c.ok ? "var(--green)" : "var(--red)" }}>{c.detail}</span>
         </div>
       ))}
+
+      <div className="section-label" style={{ marginTop: 24 }}>Manutenzione contenuti</div>
+      <p style={{ color: "var(--text-faint)", fontSize: 12.5, marginBottom: 14 }}>
+        Sistema una tantum: prima del 29/07/2026 il log Siege creava counter da due percorsi diversi (uno restava
+        "Import Log", l'altro diventava "Siege Log" solo dopo approvazione), a volte duplicando lo stesso counter.
+        Ora è unificato — questi due pulsanti sistemano quello creato prima.
+      </p>
+      <div className="card" style={{ marginBottom: 10 }}>
+        <button className="btn btn-ghost" disabled={renaming} onClick={renameAuthors}>
+          {renaming && <Spinner />}✎ Rinomina vecchi autori "Import Log"/"Siege Log Stats" → "Siege Log"
+        </button>
+        {maintMsg.includes("autori") && <p style={{ fontSize: 12.5, color: "var(--green)", marginTop: 8 }}>{maintMsg}</p>}
+      </div>
+      <div className="card">
+        <button className="btn btn-danger" disabled={cleaning} onClick={cleanupDuplicates}>
+          {cleaning && <Spinner />}🧹 Pulisci counter doppi ({dupInfo ? `${dupInfo.duplicateGroups} gruppi trovati` : "..."})
+        </button>
+        <p style={{ fontSize: 11.5, color: "var(--text-faint)", marginTop: 8 }}>
+          Stesso leader e stessi 2 mostri (ordine ignorato) sulla stessa Difesa → tiene quello con più informazioni
+          (rune/artefatti), a parità quello con autore "Siege Log", elimina gli altri.
+        </p>
+        {maintMsg.includes("doppi") && <p style={{ fontSize: 12.5, color: "var(--green)", marginTop: 8 }}>{maintMsg}</p>}
+      </div>
+      <div className="card" style={{ marginTop: 10, borderColor: "var(--gold)" }}>
+        <button className="btn btn-gold" disabled={resyncing} onClick={resyncFromVariants}>
+          {resyncing && <Spinner />}🔄 Recupera stat rune/artefatti nei counter già approvati
+        </button>
+        <p style={{ fontSize: 11.5, color: "var(--red)", marginTop: 8 }}>
+          ⚠️ Finestra di tempo limitata: funziona solo finché non fai "Fine Season" (che cancella i dati grezzi da
+          cui recuperare). Usalo ORA se hai counter approvati prima di stasera con rune/artefatti mancanti o
+          "sconosciuti" — dopo Fine Season non sarà più possibile.
+        </p>
+        {maintMsg.includes("controllati") && <p style={{ fontSize: 12.5, color: "var(--green)", marginTop: 8 }}>{maintMsg}</p>}
+      </div>
     </div>
   );
 }
@@ -692,18 +766,15 @@ function SiegeLogImportSection() {
     setProgress(null);
     try {
       const chunks = splitLogIntoChunks(logText);
-      const totals = { entriesFound: 0, matchupsFound: 0, winningMatchups: 0, createdDefs: 0, createdCounters: 0, skipped: [], crossPlayerNewBattles: 0, crossPlayerTouchedPairs: 0 };
+      const totals = { entriesFound: 0, matchupsFound: 0, winningMatchups: 0, crossPlayerNewBattles: 0, crossPlayerTouchedPairs: 0 };
       for (let i = 0; i < chunks.length; i++) {
         if (chunks.length > 1) setProgress({ part: i + 1, total: chunks.length });
         const data = await sendChunk(chunks[i]);
         totals.entriesFound += data.entriesFound || 0;
         totals.matchupsFound += data.matchupsFound || 0;
         totals.winningMatchups += data.winningMatchups || 0;
-        totals.createdDefs += data.createdDefs || 0;
-        totals.createdCounters += data.createdCounters || 0;
         totals.crossPlayerNewBattles += data.crossPlayerNewBattles || 0;
         totals.crossPlayerTouchedPairs += data.crossPlayerTouchedPairs || 0;
-        totals.skipped.push(...(data.skipped || []));
       }
       setResult(totals);
       setStatus("done");
@@ -720,12 +791,10 @@ function SiegeLogImportSection() {
       <div className="section-label">Importa da log SWEX (Siege)</div>
       <p style={{ color: "var(--text-faint)", fontSize: 12.5, marginBottom: 12 }}>
         In gioco, apri il "Battle Log" di ogni player della gilda (un click a testa — non serve aprire ogni singolo
-        replay). Poi carica qui il log grezzo di SWEX/SWProxy (es. "full_log.txt"). Trova da solo le Difese incontrate
-        e le squadre offensive usate — <strong>solo quelle che hanno vinto con più del 90% di successo</strong> su
-        quella difesa. Entrano come bozze "in attesa", con rune/artefatti/strategia da completare a mano. Ogni
-        battaglia (vinta o persa) alimenta anche il database cross-player condiviso — nel tempo, se più persone
-        caricano qui i propri log, emergono i counter migliori a prescindere da chi li ha usati, visibili e
-        approvabili nel tab "Approvazioni Siege Log".
+        replay). Poi carica qui il log grezzo di SWEX/SWProxy (es. "full_log.txt"). Ogni battaglia (vinta o persa)
+        alimenta il database cross-player condiviso — nel tempo, se più persone caricano qui i propri log, emergono i
+        counter migliori a prescindere da chi li ha usati (soglia 90% di vittorie), visibili e approvabili nel tab
+        "Approvazioni Siege Log" (anche in blocco, con "Approva selezionati").
       </p>
       <label
         style={{
@@ -764,19 +833,8 @@ function SiegeLogImportSection() {
             Trovati {result.entriesFound} attacchi, {result.matchupsFound} accoppiate diverse, {result.winningMatchups} con oltre il 90% di vittorie.
           </p>
           <p style={{ color: "var(--text-muted)" }}>
-            Create {result.createdDefs} nuove Difese e {result.createdCounters} nuovi Counter (in attesa di approvazione).
+            Database cross-player: {result.crossPlayerNewBattles} battaglie nuove ({result.crossPlayerTouchedPairs} coppie difesa/counter aggiornate) — vai su "Approvazioni Siege Log" per approvarle.
           </p>
-          <p style={{ color: "var(--text-muted)" }}>
-            Database cross-player: {result.crossPlayerNewBattles} battaglie nuove ({result.crossPlayerTouchedPairs} coppie difesa/counter aggiornate).
-          </p>
-          {result.skipped?.length > 0 && (
-            <details style={{ marginTop: 6 }}>
-              <summary style={{ color: "var(--ember)", fontSize: 12, cursor: "pointer" }}>{result.skipped.length} già presenti, saltate</summary>
-              <ul style={{ fontSize: 11, color: "var(--text-faint)" }}>
-                {result.skipped.map((s, i) => <li key={i}>{s}</li>)}
-              </ul>
-            </details>
-          )}
         </div>
       )}
     </div>
