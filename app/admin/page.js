@@ -796,6 +796,8 @@ function SiegeStatsProposalsTab({ isAdmin }) {
   const [archives, setArchives] = useState([]);
   const [deletingArchive, setDeletingArchive] = useState(null);
   const [editingProposal, setEditingProposal] = useState(null);
+  const [selectedProposals, setSelectedProposals] = useState(new Set());
+  const [bulkApproving, setBulkApproving] = useState(false);
 
   async function purgeBelowThreshold() {
     setPurging(true);
@@ -818,7 +820,29 @@ function SiegeStatsProposalsTab({ isAdmin }) {
     setLoading(false);
   }
 
-  useEffect(() => { load(); }, [subTab]);
+  useEffect(() => { load(); setSelectedProposals(new Set()); }, [subTab]);
+
+  function toggleProposal(key) {
+    setSelectedProposals((prev) => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return next;
+    });
+  }
+
+  async function bulkApproveProposals() {
+    setBulkApproving(true);
+    await Promise.all([...selectedProposals].map((key) => {
+      const [defK, counterK] = key.split("::");
+      return fetch("/api/admin/siege-stats/proposals", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ defK, counterK, action: "approve" }),
+      });
+    }));
+    setBulkApproving(false);
+    setSelectedProposals(new Set());
+    load();
+  }
 
   async function act(p, action) {
     setBusyKey(`${p.defK}::${p.counterK}`);
@@ -884,15 +908,20 @@ function SiegeStatsProposalsTab({ isAdmin }) {
         <button className={`btn ${subTab === "rejected" ? "btn-primary" : "btn-ghost"}`} onClick={() => setSubTab("rejected")}>Rifiutate</button>
       </div>
 
-      {subTab === "pending" && (
-        <div style={{ marginBottom: 14 }}>
-          <button className="btn btn-ghost" disabled={purging} onClick={purgeBelowThreshold}>
-            {purging && <Spinner />}
-            🧹 Pulisci proposal sotto il 90% (create con la soglia vecchia)
+      {(subTab === "pending" || subTab === "update_available") && (
+        <div style={{ marginBottom: 14, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          {subTab === "pending" && (
+            <button className="btn btn-ghost" disabled={purging} onClick={purgeBelowThreshold}>
+              {purging && <Spinner />}
+              🧹 Pulisci proposal sotto il 90% (create con la soglia vecchia)
+            </button>
+          )}
+          <button className="btn btn-green" disabled={selectedProposals.size === 0 || bulkApproving} onClick={bulkApproveProposals}>
+            {bulkApproving && <Spinner />}✓ Approva selezionati ({selectedProposals.size})
           </button>
-          {purgeMsg && <p style={{ fontSize: 12.5, color: "var(--text-muted)", marginTop: 6 }}>{purgeMsg}</p>}
         </div>
       )}
+      {purgeMsg && subTab === "pending" && <p style={{ fontSize: 12.5, color: "var(--text-muted)", marginBottom: 10 }}>{purgeMsg}</p>}
 
       {loading ? (
         <p style={{ color: "var(--text-faint)" }}>Caricamento...</p>
@@ -904,6 +933,14 @@ function SiegeStatsProposalsTab({ isAdmin }) {
             <div key={`${p.defK}::${p.counterK}`} className="card">
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                  {(subTab === "pending" || subTab === "update_available") && (
+                    <input
+                      type="checkbox"
+                      checked={selectedProposals.has(`${p.defK}::${p.counterK}`)}
+                      onChange={() => toggleProposal(`${p.defK}::${p.counterK}`)}
+                      style={{ marginRight: 4 }}
+                    />
+                  )}
                   {p.offenseNames?.map((m, i) => <MonsterCrest key={`o${i}`} name={m} size={22} />)}
                   <strong>{p.offenseNames?.join(" / ")}</strong>
                   <span style={{ color: "var(--text-faint)" }}>contro</span>
@@ -1278,6 +1315,9 @@ function PendingApprovalsSection() {
               >
                 {c.offense.map((m, i) => <MonsterCrest key={i} name={m} size={20} />)}
                 <span style={{ flex: 1, fontSize: 12.5 }}>{c.offense.join(" · ")}</span>
+                {!c.units?.some((u) => u.runes || u.artifactLeft?.length || u.artifactRight?.length) && (
+                  <span className="badge" style={{ color: "var(--gold)", border: "1px solid var(--gold)" }}>⚠️ Rune mancanti</span>
+                )}
                 <span className="f-mono" style={{ fontSize: 10, color: "var(--text-faint)" }}>{formatNickname(displayAuthorName(c.authorNickname), managerNicknames.includes(c.authorNickname))}</span>
                 {c.status === "approved" && c.approvedByNickname && c.approvedByNickname !== c.authorNickname && (
                   <span className="f-mono" style={{ fontSize: 10, color: "var(--green)" }}>
@@ -1400,6 +1440,19 @@ function AllContentSection() {
     fetch("/api/defs").then((r) => r.json()).then((d) => setDefs(d.defs || []));
   }
 
+  async function bulkApprove() {
+    const counterIds = [...selectedCounters].map((key) => key.split("::")[1]);
+    await Promise.all(counterIds.map((id) =>
+      fetch(`/api/counters/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "approved" }) })
+    ));
+    setSelectedCounters(new Set());
+    fetch("/api/defs").then((r) => r.json()).then((d) => setDefs(d.defs || []));
+  }
+
+  function missingBuild(c) {
+    return !c.units?.some((u) => u.runes || u.artifactLeft?.length || u.artifactRight?.length);
+  }
+
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 14, flexWrap: "wrap", gap: 8 }}>
@@ -1408,6 +1461,7 @@ function AllContentSection() {
           <button className="btn btn-ghost" onClick={toggleSelectAll} disabled={defs.length === 0}>
             {allSelected ? "Deseleziona tutto" : "Seleziona tutte le Difese"}
           </button>
+          <button className="btn btn-green" disabled={selectedCounters.size === 0} onClick={bulkApprove}>✓ Approva selezionati ({selectedCounters.size})</button>
           <button className="btn btn-danger" disabled={total === 0} onClick={() => setConfirmOpen(true)}>🗑 Elimina selezionati ({total})</button>
         </div>
       </div>
@@ -1427,6 +1481,7 @@ function AllContentSection() {
               <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 12px 7px 40px" }}>
                 <input type="checkbox" checked={selectedCounters.has(key)} disabled={selectedDefs.has(d.id)} onChange={() => toggleSet(setSelectedCounters, key)} />
                 <span style={{ flex: 1, fontSize: 12.5 }}>{c.offense.join(" · ")}</span>
+                {missingBuild(c) && <span className="badge" style={{ background: "var(--gold-soft, transparent)", color: "var(--gold)", border: "1px solid var(--gold)" }}>⚠️ Rune mancanti</span>}
                 <span className={`badge ${c.status === "approved" ? "badge-approved" : "badge-pending"}`}>{c.status}</span>
               </div>
             );
