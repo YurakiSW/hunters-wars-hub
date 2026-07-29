@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Header from "../../components/Header";
 import ConfirmModal from "../../components/ConfirmModal";
@@ -14,7 +14,19 @@ function Spinner() {
   return <span className="spinner" aria-hidden="true" />;
 }
 
+// useSearchParams() (usato più sotto, dentro PendingApprovalsSection) vuole
+// un confine <Suspense> attorno, altrimenti la build fallisce in fase di
+// generazione statica — per questo il contenuto vero è in un componente
+// separato, avvolto qui sotto.
 export default function AdminPage() {
+  return (
+    <Suspense fallback={null}>
+      <AdminPageContent />
+    </Suspense>
+  );
+}
+
+function AdminPageContent() {
   const [user, setUser] = useState(null);
   const [tab, setTab] = useState("content");
   const router = useRouter();

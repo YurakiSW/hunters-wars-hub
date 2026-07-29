@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Header from "../../components/Header";
 import MonsterCrest from "../../components/MonsterCrest";
@@ -7,7 +7,19 @@ import Modal from "../../components/Modal";
 import ConfirmModal from "../../components/ConfirmModal";
 import DefForm from "../../components/DefForm";
 
+// useSearchParams() richiede un confine <Suspense> attorno, altrimenti la
+// build fallisce in fase di generazione statica ("should be wrapped in a
+// suspense boundary") — per questo il contenuto vero è in un componente
+// separato, avvolto qui sotto.
 export default function DefsPage() {
+  return (
+    <Suspense fallback={null}>
+      <DefsPageContent />
+    </Suspense>
+  );
+}
+
+function DefsPageContent() {
   const [user, setUser] = useState(null);
   const [defs, setDefs] = useState([]);
   const router = useRouter();
