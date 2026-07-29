@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Header from "../../components/Header";
 import ConfirmModal from "../../components/ConfirmModal";
 import Modal from "../../components/Modal";
@@ -509,6 +509,7 @@ function DiagnosticaTab() {
   const [loading, setLoading] = useState(true);
   const [dupInfo, setDupInfo] = useState(null);
   const [renaming, setRenaming] = useState(false);
+  const [simplifying, setSimplifying] = useState(false);
   const [cleaning, setCleaning] = useState(false);
   const [resyncing, setResyncing] = useState(false);
   const [resyncExamples, setResyncExamples] = useState([]);
@@ -536,6 +537,16 @@ function DiagnosticaTab() {
     const data = await res.json();
     setRenaming(false);
     setMaintMsg(res.ok ? `${data.renamed} autori rinominati in "Siege Log".` : data.error);
+  }
+
+  async function simplifyDescriptions() {
+    setSimplifying(true);
+    const res = await fetch("/api/admin/maintenance", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "simplify_descriptions" }),
+    });
+    const data = await res.json();
+    setSimplifying(false);
+    setMaintMsg(res.ok ? `${data.updated} descrizioni semplificate.` : data.error);
   }
 
   async function cleanupDuplicates() {
@@ -589,6 +600,16 @@ function DiagnosticaTab() {
           {renaming && <Spinner />}✎ Rinomina vecchi autori "Import Log"/"Siege Log Stats" → "Siege Log"
         </button>
         {maintMsg.includes("autori") && <p style={{ fontSize: 12.5, color: "var(--green)", marginTop: 8 }}>{maintMsg}</p>}
+      </div>
+      <div className="card" style={{ marginBottom: 10 }}>
+        <button className="btn btn-ghost" disabled={simplifying} onClick={simplifyDescriptions}>
+          {simplifying && <Spinner />}📝 Semplifica descrizioni Difese "Siege Log" (una tantum)
+        </button>
+        <p style={{ fontSize: 11.5, color: "var(--text-faint)", marginTop: 8 }}>
+          Sostituisce il testo lungo con "Importata da Log Siege. Segnalare eventuali problemi." — solo sulle Difese
+          con autore "Siege Log" (usa prima "Rinomina vecchi autori" se non l'hai già fatto), mai su una scritta a mano.
+        </p>
+        {maintMsg.includes("descrizioni") && <p style={{ fontSize: 12.5, color: "var(--green)", marginTop: 8 }}>{maintMsg}</p>}
       </div>
       <div className="card">
         <button className="btn btn-danger" disabled={cleaning} onClick={cleanupDuplicates}>
@@ -1246,7 +1267,18 @@ function DuplicateDefsSection() {
 
 function PendingApprovalsSection() {
   const [defs, setDefs] = useState([]);
-  const [query, setQuery] = useState("");
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  // La ricerca vive nell'URL (?q=...), non solo in memoria — così tornando
+  // indietro o ricaricando la pagina si ritrova la ricerca fatta.
+  const [query, setQuery] = useState(searchParams.get("q") || "");
+  useEffect(() => { setQuery(searchParams.get("q") || ""); }, [searchParams]);
+  function updateQuery(v) {
+    setQuery(v);
+    const params = new URLSearchParams(searchParams.toString());
+    if (v) params.set("q", v); else params.delete("q");
+    router.replace(`/admin${params.toString() ? `?${params}` : ""}`, { scroll: false });
+  }
   const [managerNicknames, setManagerNicknames] = useState([]);
   const [expanded, setExpanded] = useState(new Set());
   const [editingDef, setEditingDef] = useState(null);
@@ -1328,9 +1360,15 @@ function PendingApprovalsSection() {
 
   const totalPending = defs.filter((d) => d.status === "pending").length + defs.reduce((sum, d) => sum + d.counters.filter((c) => c.status === "pending").length, 0);
 
-  const q = query.trim().toLowerCase();
-  const filteredDefs = (q
-    ? defs.filter((d) => d.monsters.some((m) => m.toLowerCase().includes(q)) || d.counters.some((c) => c.offense.some((m) => m.toLowerCase().includes(q))))
+  const qTokens = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  // Ogni "parola" cercata (anche più di una — 1, 2 o tutti e 3 i mostri di
+  // una squadra) deve trovarsi in ALMENO uno dei nomi, non serve scriverli
+  // nell'ordine esatto né tutti insieme.
+  function teamMatchesQuery(names) {
+    return qTokens.every((t) => names.some((m) => m.toLowerCase().includes(t)));
+  }
+  const filteredDefs = (qTokens.length
+    ? defs.filter((d) => teamMatchesQuery(d.monsters) || d.counters.some((c) => teamMatchesQuery(c.offense)))
     : defs
   ).slice().sort((a, b) => {
     const aNeeds = a.status === "pending" || a.counters.some((c) => c.status === "pending");
@@ -1344,7 +1382,7 @@ function PendingApprovalsSection() {
       <input
         placeholder="Cerca per mostro (difesa o counter)..."
         value={query}
-        onChange={(e) => setQuery(e.target.value)}
+        onChange={(e) => updateQuery(e.target.value)}
         style={{ marginBottom: 14 }}
       />
       {totalPending === 0 && <p style={{ color: "var(--text-faint)", fontSize: 13.5 }}>Niente in attesa — tutto approvato. 🎉</p>}

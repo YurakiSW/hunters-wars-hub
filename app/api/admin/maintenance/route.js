@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser, isAdmin } from "../../../../lib/auth";
-import { renameSiegeLogAuthors, findDuplicateCounters, cleanupDuplicateCounters } from "../../../../lib/defs";
+import { renameSiegeLogAuthors, findDuplicateCounters, cleanupDuplicateCounters, simplifySiegeLogDescriptions } from "../../../../lib/defs";
 import { resyncApprovedCounters } from "../../../../lib/siegeStats";
 import { safeJson } from "../../../../lib/apiUtils";
 
@@ -37,6 +37,10 @@ export async function POST(request) {
   }
   if (data.action === "resync_from_variants") {
     const result = await resyncApprovedCounters();
+    return NextResponse.json({ ok: true, ...result });
+  }
+  if (data.action === "simplify_descriptions") {
+    const result = await simplifySiegeLogDescriptions();
     return NextResponse.json({ ok: true, ...result });
   }
   return NextResponse.json({ error: "Azione non valida." }, { status: 400 });

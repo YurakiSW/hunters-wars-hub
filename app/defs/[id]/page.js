@@ -261,8 +261,8 @@ function CounterCard({ counter: c, user, canManage, managerNicknames, onEdit, on
             </span>
           )}
           {canEdit && <button className="btn btn-ghost" onClick={onEdit}>✎</button>}
-          {canManage && c.status === "approved" && (
-            <button className="btn btn-ghost" title="Rimetti tra quelle da rivedere" onClick={onUnapprove}>↺ Da rivedere</button>
+          {c.status === "approved" && (
+            <button className="btn btn-ghost" title="Segnala un problema — la rimanda in coda per un ricontrollo" onClick={onUnapprove}>↺ Da rivedere</button>
           )}
           {canManage && <button className="btn btn-ghost" onClick={onDelete}>🗑</button>}
         </div>

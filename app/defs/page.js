@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Header from "../../components/Header";
 import MonsterCrest from "../../components/MonsterCrest";
 import Modal from "../../components/Modal";
@@ -10,11 +10,24 @@ import DefForm from "../../components/DefForm";
 export default function DefsPage() {
   const [user, setUser] = useState(null);
   const [defs, setDefs] = useState([]);
-  const [query, setQuery] = useState("");
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  // La ricerca vive nell'URL (?q=...), non solo in memoria — così tornando
+  // indietro dopo aver aperto una Difesa si ritrova la ricerca fatta,
+  // invece di ripartire da capo con tutte le Difese.
+  const [query, setQuery] = useState(searchParams.get("q") || "");
+  useEffect(() => {
+    setQuery(searchParams.get("q") || "");
+  }, [searchParams]);
+  function updateQuery(v) {
+    setQuery(v);
+    const params = new URLSearchParams(searchParams.toString());
+    if (v) params.set("q", v); else params.delete("q");
+    router.replace(`/defs${params.toString() ? `?${params}` : ""}`, { scroll: false });
+  }
   const [showNewDef, setShowNewDef] = useState(false);
   const [editingDef, setEditingDef] = useState(null);
   const [confirmDeleteDef, setConfirmDeleteDef] = useState(null);
-  const router = useRouter();
 
   function reload() {
     fetch("/api/defs").then((r) => r.json()).then((d) => setDefs(d.defs || []));
@@ -41,8 +54,9 @@ export default function DefsPage() {
     if (aNeeds !== bNeeds) return aNeeds ? 1 : -1;
     return (a.monsters[0] || "").localeCompare(b.monsters[0] || "");
   });
-  const filtered = query.trim()
-    ? sorted.filter((d) => d.monsters.some((m) => m.toLowerCase().includes(query.toLowerCase())))
+  const qTokens = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const filtered = qTokens.length
+    ? sorted.filter((d) => qTokens.every((t) => d.monsters.some((m) => m.toLowerCase().includes(t))))
     : sorted;
 
   async function submitEditDef({ m1, m2, m3, desc }) {
@@ -83,7 +97,7 @@ export default function DefsPage() {
       <Header user={user} />
       <div style={{ maxWidth: 1040, margin: "0 auto", padding: "24px 20px 60px" }}>
         <div style={{ display: "flex", gap: 12, marginBottom: 22, flexWrap: "wrap" }}>
-          <input placeholder="Cerca per mostro..." value={query} onChange={(e) => setQuery(e.target.value)} style={{ maxWidth: 320 }} />
+          <input placeholder="Cerca per mostro..." value={query} onChange={(e) => updateQuery(e.target.value)} style={{ maxWidth: 320 }} />
           <div style={{ flex: 1 }} />
           {canManage && <button className="btn btn-gold" onClick={() => setShowNewDef(true)}>+ Nuova difesa</button>}
         </div>

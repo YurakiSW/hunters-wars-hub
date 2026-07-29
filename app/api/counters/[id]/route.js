@@ -10,16 +10,34 @@ function canEdit(user, counter) {
   return counter.authorId === user.id && counter.status === "pending";
 }
 
+// "Segnala problema": qualsiasi membro approvato può rimettere un counter
+// GIÀ approvato in coda "in attesa" per farlo ricontrollare — non è una
+// modifica vera, serve solo ad aiutare i gestori a intercettare i
+// problemi più in fretta. Modifiche vere restano riservate (canEdit sopra).
+function canFlagForReview(user, counter) {
+  return user.status === "approved" && counter.status === "approved";
+}
+
 export async function PATCH(request, { params }) {
   const user = await getCurrentUser();
   if (!user || user.status !== "approved") return NextResponse.json({ error: "Non autorizzato." }, { status: 401 });
 
   const counter = await getCounter(params.id);
   if (!counter) return NextResponse.json({ error: "Non trovato." }, { status: 404 });
-  if (!canEdit(user, counter)) return NextResponse.json({ error: "Non puoi modificare questo counter." }, { status: 403 });
 
   const { data: payload, error: parseError } = await safeJson(request);
   if (parseError) return NextResponse.json({ error: parseError }, { status: 400 });
+
+  const isJustFlagging = payload.status === "pending" && !payload.units;
+  if (isJustFlagging) {
+    if (!canFlagForReview(user, counter)) {
+      return NextResponse.json({ error: "Non puoi segnalare questo counter." }, { status: 403 });
+    }
+    const updated = await updateCounter(params.id, { status: "pending", approvedById: null, approvedByNickname: null });
+    return NextResponse.json({ counter: updated });
+  }
+
+  if (!canEdit(user, counter)) return NextResponse.json({ error: "Non puoi modificare questo counter." }, { status: 403 });
 
   // Solo Admin/Revisore possono cambiare lo stato (approva/rifiuta) tramite questo campo;
   // qualsiasi altra modifica riporta comunque il counter in "pending".
