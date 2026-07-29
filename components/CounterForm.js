@@ -209,7 +209,7 @@ export default function CounterForm({ defMonsters, initial, isEdit, onSubmit, on
             </div>
           </div>
           <div>
-            <div style={{ fontSize: 11, marginBottom: 4, color: "var(--text-muted)" }}>Note <span style={{ color: "var(--red)" }}>*</span></div>
+            <div style={{ fontSize: 11, marginBottom: 4, color: "var(--text-muted)" }}>Note</div>
             <textarea rows={2} value={u.notes[0] || ""} onChange={(e) => setUnit(i, { notes: [e.target.value] })} />
           </div>
         </div>
@@ -248,7 +248,7 @@ export default function CounterForm({ defMonsters, initial, isEdit, onSubmit, on
         ))}
       </div>
 
-      <div className="section-label">Focus priority (bersagli sulla difesa) <span style={{ color: "var(--red)" }}>*</span></div>
+      <div className="section-label">Focus priority (bersagli sulla difesa)</div>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
         {defMonsters.map((_, i) => (
           <select
@@ -273,7 +273,7 @@ export default function CounterForm({ defMonsters, initial, isEdit, onSubmit, on
       </div>
 
       <label style={{ display: "block", marginBottom: 12 }}>
-        <div style={{ fontSize: 12.5, marginBottom: 5, fontWeight: 600 }}>Strategia <span style={{ color: "var(--red)" }}>*</span></div>
+        <div style={{ fontSize: 12.5, marginBottom: 5, fontWeight: 600 }}>Strategia</div>
         <textarea rows={4} value={strategy} onChange={(e) => setStrategy(e.target.value)} />
       </label>
       <label style={{ display: "block", marginBottom: 12 }}>

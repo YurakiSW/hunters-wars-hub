@@ -65,6 +65,7 @@ export async function POST(request) {
       name,
       rawRunes: rich.offenseRunes[i],
       rawArtifacts: rich.offenseArtifacts[i],
+      rawSpd: rich.offenseSpd?.[i] ?? null,
     }));
     richUnitsByOffenseDefenseKey.set(`${orderedTeamKey(m.offense)}::${defenseKey(m.defense)}`, units);
   }
