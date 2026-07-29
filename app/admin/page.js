@@ -938,13 +938,23 @@ function SiegeStatsProposalsTab({ isAdmin }) {
     });
   }
 
-  async function bulkApproveProposals() {
+  function toggleSelectAllProposals() {
+    setSelectedProposals((prev) => {
+      const allKeys = proposals.map((p) => `${p.defK}::${p.counterK}`);
+      return prev.size === allKeys.length ? new Set() : new Set(allKeys);
+    });
+  }
+
+  // Generico: funziona per qualunque azione sulle proposal selezionate
+  // (approve/dismiss/unpublish/reject/delete_proposal) — un solo posto per
+  // tutti i pulsanti "in blocco" del tab.
+  async function bulkAct(action) {
     setBulkApproving(true);
     await Promise.all([...selectedProposals].map((key) => {
       const [defK, counterK] = key.split("::");
       return fetch("/api/admin/siege-stats/proposals", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ defK, counterK, action: "approve" }),
+        body: JSON.stringify({ defK, counterK, action }),
       });
     }));
     setBulkApproving(false);
@@ -1016,7 +1026,7 @@ function SiegeStatsProposalsTab({ isAdmin }) {
         <button className={`btn ${subTab === "rejected" ? "btn-primary" : "btn-ghost"}`} onClick={() => setSubTab("rejected")}>Rifiutate</button>
       </div>
 
-      {(subTab === "pending" || subTab === "update_available") && (
+      {(subTab === "pending" || subTab === "update_available" || subTab === "underperforming" || subTab === "rejected") && (
         <div style={{ marginBottom: 14, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           {subTab === "pending" && (
             <button className="btn btn-ghost" disabled={purging} onClick={purgeBelowThreshold}>
@@ -1024,9 +1034,29 @@ function SiegeStatsProposalsTab({ isAdmin }) {
               🧹 Pulisci proposal sotto il 90% (create con la soglia vecchia)
             </button>
           )}
-          <button className="btn btn-green" disabled={selectedProposals.size === 0 || bulkApproving} onClick={bulkApproveProposals}>
-            {bulkApproving && <Spinner />}✓ Approva selezionati ({selectedProposals.size})
+          <button className="btn btn-ghost" disabled={proposals.length === 0} onClick={toggleSelectAllProposals}>
+            {selectedProposals.size === proposals.length && proposals.length > 0 ? "Deseleziona tutto" : "Seleziona tutto"}
           </button>
+          {(subTab === "pending" || subTab === "update_available" || subTab === "rejected") && (
+            <button className="btn btn-green" disabled={selectedProposals.size === 0 || bulkApproving} onClick={() => bulkAct("approve")}>
+              {bulkApproving && <Spinner />}✓ Approva selezionati ({selectedProposals.size})
+            </button>
+          )}
+          {subTab === "underperforming" && (
+            <>
+              <button className="btn btn-ghost" disabled={selectedProposals.size === 0 || bulkApproving} onClick={() => bulkAct("dismiss")}>
+                {bulkApproving && <Spinner />}Ignora selezionati ({selectedProposals.size})
+              </button>
+              <button className="btn btn-danger" disabled={selectedProposals.size === 0 || bulkApproving} onClick={() => bulkAct("unpublish")}>
+                🗑 Rifiuta e rimuovi selezionati ({selectedProposals.size})
+              </button>
+            </>
+          )}
+          {subTab === "rejected" && (
+            <button className="btn btn-danger" disabled={selectedProposals.size === 0 || bulkApproving} onClick={() => bulkAct("delete_proposal")}>
+              🗑 Elimina definitivamente selezionati ({selectedProposals.size})
+            </button>
+          )}
         </div>
       )}
       {purgeMsg && subTab === "pending" && <p style={{ fontSize: 12.5, color: "var(--text-muted)", marginBottom: 10 }}>{purgeMsg}</p>}
@@ -1041,7 +1071,7 @@ function SiegeStatsProposalsTab({ isAdmin }) {
             <div key={`${p.defK}::${p.counterK}`} className="card">
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                  {(subTab === "pending" || subTab === "update_available") && (
+                  {(subTab === "pending" || subTab === "update_available" || subTab === "underperforming" || subTab === "rejected") && (
                     <input
                       type="checkbox"
                       checked={selectedProposals.has(`${p.defK}::${p.counterK}`)}
@@ -1579,13 +1609,36 @@ function AllContentSection() {
     return !c.units?.some((u) => u.runes || u.artifactLeft?.length || u.artifactRight?.length);
   }
 
+  const pendingCounterKeys = defs.flatMap((d) => (d.counters || []).filter((c) => c.status === "pending").map((c) => `${d.id}::${c.id}`));
+  const allPendingCountersSelected = pendingCounterKeys.length > 0 && pendingCounterKeys.every((k) => selectedCounters.has(k));
+
+  function toggleSelectAllPendingCounters() {
+    if (allPendingCountersSelected) {
+      setSelectedCounters(new Set());
+      return;
+    }
+    setSelectedCounters(new Set(pendingCounterKeys));
+    // Espande automaticamente le Difese coinvolte, altrimenti la selezione
+    // non si vede da nessuna parte finché non apri tu ogni singola card.
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      for (const d of defs) {
+        if ((d.counters || []).some((c) => c.status === "pending")) next.add(d.id);
+      }
+      return next;
+    });
+  }
+
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 14, flexWrap: "wrap", gap: 8 }}>
         <div className="section-label">Difese e Counter ({defs.length} difese)</div>
-        <div style={{ display: "flex", gap: 8 }}>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <button className="btn btn-ghost" onClick={toggleSelectAll} disabled={defs.length === 0}>
             {allSelected ? "Deseleziona tutto" : "Seleziona tutte le Difese"}
+          </button>
+          <button className="btn btn-ghost" onClick={toggleSelectAllPendingCounters} disabled={pendingCounterKeys.length === 0}>
+            {allPendingCountersSelected ? "Deseleziona counter in attesa" : `Seleziona tutti i counter in attesa (${pendingCounterKeys.length})`}
           </button>
           <button className="btn btn-green" disabled={selectedCounters.size === 0} onClick={bulkApprove}>✓ Approva selezionati ({selectedCounters.size})</button>
           <button className="btn btn-danger" disabled={total === 0} onClick={() => setConfirmOpen(true)}>🗑 Elimina selezionati ({total})</button>
