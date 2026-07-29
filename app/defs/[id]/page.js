@@ -79,7 +79,7 @@ export default function DefDetailPage({ params }) {
 
   async function deleteDef() {
     await fetch(`/api/defs/${def.id}`, { method: "DELETE" });
-    router.push("/defs");
+    router.back();
   }
 
   async function submitEditDef({ m1, m2, m3, desc }) {
@@ -97,7 +97,7 @@ export default function DefDetailPage({ params }) {
     <div>
       <Header user={user} />
       <div style={{ maxWidth: 1040, margin: "0 auto", padding: "24px 20px 60px" }}>
-        <a href="/defs" style={{ color: "var(--text-muted)", fontSize: 13 }}>← Torna alle Difese</a>
+        <button onClick={() => router.back()} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", color: "var(--text-muted)", fontSize: 13 }}>← Torna alle Difese</button>
 
         <div style={{ display: "flex", marginTop: 14, marginBottom: 4 }}>
           {def.monsters.map((m, i) => (

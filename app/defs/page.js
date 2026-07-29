@@ -116,8 +116,12 @@ function DefsPageContent() {
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 14 }}>
           {filtered.map((d) => {
-            const hasPending = d.counters.some((c) => c.status === "pending");
-            const accent = d.pinned ? "var(--gold)" : hasPending ? "var(--red)" : "var(--violet)";
+            const pendingCounters = d.counters.filter((c) => c.status === "pending").length;
+            // Stesso identico criterio usato per l'ordinamento qui sopra
+            // (aNeeds) — se non combaciano, un colore mostra una cosa e
+            // l'ordine ne applica un'altra, e le card sembrano mescolate.
+            const needsAttention = d.status === "pending" || pendingCounters > 0;
+            const accent = d.pinned ? "var(--gold)" : needsAttention ? "var(--red)" : "var(--violet)";
             return (
               <div
                 key={d.id}
@@ -180,8 +184,9 @@ function DefsPageContent() {
                 </div>
                 {d.desc && <p style={{ color: "var(--text-muted)", fontSize: 12.5, margin: "0 0 10px" }}>{d.desc}</p>}
                 <span className="badge badge-approved">{d.counters.filter((c) => c.status === "approved").length} counter</span>{" "}
-                {hasPending && (
-                  <span className="badge badge-pending">{d.counters.filter((c) => c.status === "pending").length} in coda</span>
+                {d.status === "pending" && <span className="badge badge-pending">Difesa da approvare</span>}{" "}
+                {pendingCounters > 0 && (
+                  <span className="badge badge-pending">{pendingCounters} in coda</span>
                 )}
               </a>
               </div>
