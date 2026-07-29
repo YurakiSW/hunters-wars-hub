@@ -511,6 +511,7 @@ function DiagnosticaTab() {
   const [renaming, setRenaming] = useState(false);
   const [cleaning, setCleaning] = useState(false);
   const [resyncing, setResyncing] = useState(false);
+  const [resyncExamples, setResyncExamples] = useState([]);
   const [maintMsg, setMaintMsg] = useState("");
 
   function load() {
@@ -555,7 +556,9 @@ function DiagnosticaTab() {
     });
     const data = await res.json();
     setResyncing(false);
-    setMaintMsg(res.ok ? `${data.updated} counter aggiornati su ${data.checked} controllati (stat rune / artefatti ora tradotti, dove i dati grezzi erano ancora disponibili).` : data.error);
+    if (!res.ok) return setMaintMsg(data.error);
+    setMaintMsg(`${data.updated} counter aggiornati su ${data.checked} controllati (${data.foundData} avevano dati grezzi disponibili).`);
+    setResyncExamples(data.examples || []);
   }
 
   return (
@@ -606,7 +609,21 @@ function DiagnosticaTab() {
           cui recuperare). Usalo ORA se hai counter approvati prima di stasera con rune/artefatti mancanti o
           "sconosciuti" — dopo Fine Season non sarà più possibile.
         </p>
-        {maintMsg.includes("controllati") && <p style={{ fontSize: 12.5, color: "var(--green)", marginTop: 8 }}>{maintMsg}</p>}
+        {maintMsg.includes("controllati") && (
+          <div style={{ marginTop: 8 }}>
+            <p style={{ fontSize: 12.5, color: "var(--green)" }}>{maintMsg}</p>
+            {resyncExamples.length > 0 && (
+              <div style={{ marginTop: 6, fontSize: 11.5, color: "var(--text-faint)" }}>
+                <div>Esempi di cosa è successo (max 5):</div>
+                {resyncExamples.map((ex, i) => (
+                  <div key={i} style={{ marginTop: 4, padding: "4px 8px", background: "var(--bg-soft)", borderRadius: 4 }}>
+                    {ex.offense?.join("/")} contro {ex.defense?.join("/")} — {ex.reason}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
