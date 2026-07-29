@@ -69,14 +69,6 @@ export default function MonsterCrest({ name, size = 40, lead = false }) {
           {(name || "?").slice(0, 2).toUpperCase()}
         </span>
       )}
-      {lead && (
-        <span
-          className="f-mono"
-          style={{ position: "absolute", bottom: -2, right: -2, background: "var(--gold)", color: "#1a1408", fontSize: 8, fontWeight: 700, borderRadius: 4, padding: "0 3px" }}
-        >
-          L
-        </span>
-      )}
     </div>
   );
 }

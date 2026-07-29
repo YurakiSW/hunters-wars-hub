@@ -1079,7 +1079,7 @@ function SiegeStatsProposalsTab({ isAdmin }) {
                       style={{ marginRight: 4 }}
                     />
                   )}
-                  {p.offenseNames?.map((m, i) => <MonsterCrest key={`o${i}`} name={m} size={22} />)}
+                  {p.offenseNames?.map((m, i) => <MonsterCrest key={`o${i}`} name={m} size={22} lead={i === 0} />)}
                   <strong>{p.offenseNames?.join(" / ")}</strong>
                   <span style={{ color: "var(--text-faint)" }}>contro</span>
                   {p.defenseNames?.map((m, i) => <MonsterCrest key={`d${i}`} name={m} size={22} />)}
@@ -1469,7 +1469,7 @@ function PendingApprovalsSection() {
                   background: c.status === "pending" ? "rgba(255,106,53,.06)" : "transparent",
                 }}
               >
-                {c.offense.map((m, i) => <MonsterCrest key={i} name={m} size={20} />)}
+                {(c.lead ? [c.lead, ...c.offense.filter((m) => m !== c.lead)] : c.offense).map((m, i) => <MonsterCrest key={i} name={m} size={20} lead={m === c.lead} />)}
                 {c.units?.[3] && <MonsterCrest name={c.units[3].name} size={20} />}
                 <span style={{ flex: 1, fontSize: 12.5 }}>{c.offense.join(" · ")}{c.units?.[3] && ` / ${c.units[3].name}`}</span>
                 {!c.units?.some((u) => u.runes || u.artifactLeft?.length || u.artifactRight?.length) && (
