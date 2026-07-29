@@ -1132,6 +1132,7 @@ function SiegeStatsProposalsTab({ isAdmin }) {
                   {p.defId && (
                     <a className="btn btn-ghost" href={`/defs/${p.defId}`} target="_blank" rel="noopener noreferrer">Vai alla Difesa</a>
                   )}
+                  <button className="btn btn-gold" disabled={busyKey === `${p.defK}::${p.counterK}`} onClick={() => setEditingProposal(p)}>✎ Modifica e approva</button>
                   <button className="btn btn-ghost" disabled={busyKey === `${p.defK}::${p.counterK}`} onClick={() => act(p, "dismiss")}>Ignora (tienilo com'è)</button>
                   <button className="btn btn-danger" disabled={busyKey === `${p.defK}::${p.counterK}`} onClick={() => act(p, "unpublish")}>🗑 Rifiuta e rimuovi dal sito</button>
                 </div>

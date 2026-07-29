@@ -128,6 +128,13 @@ export default function CounterForm({ defMonsters, initial, isEdit, onSubmit, on
   function setUnit(i, patch) {
     setUnits((prev) => prev.map((u, idx) => (idx === i ? { ...u, ...patch } : u)));
   }
+  // Il leader è uno solo per definizione — impostarne uno nuovo toglie
+  // sempre la spunta agli altri (era un checkbox indipendente prima, e si
+  // poteva finire con 2 "lead" contemporaneamente: il sito prendeva sempre
+  // il primo trovato, ignorando quello appena scelto).
+  function setLead(i) {
+    setUnits((prev) => prev.map((u, idx) => ({ ...u, lead: idx === i })));
+  }
   function addVariant() {
     if (units.length < 4) setUnits((prev) => [...prev, emptyUnit()]);
   }
@@ -163,7 +170,7 @@ export default function CounterForm({ defMonsters, initial, isEdit, onSubmit, on
             <span className="f-display" style={{ fontSize: 13.5 }}>{i === 3 ? "Alternativa al Mostro 3" : `Mostro ${i + 1}`}</span>
             {i < 3 ? (
               <label className="f-mono" style={{ fontSize: 11, display: "flex", gap: 4, alignItems: "center" }}>
-                <input type="checkbox" checked={u.lead} onChange={(e) => setUnit(i, { lead: e.target.checked })} /> Lead
+                <input type="checkbox" checked={u.lead} onChange={() => setLead(i)} /> Lead
               </label>
             ) : (
               <button className="btn btn-ghost" style={{ fontSize: 11, padding: "2px 8px" }} onClick={() => setUnits((prev) => prev.slice(0, 3))}>✕ Rimuovi alternativa</button>
