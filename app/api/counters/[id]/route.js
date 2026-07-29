@@ -49,8 +49,8 @@ export async function PATCH(request, { params }) {
         return NextResponse.json({ error: `"${targetName}" non è tra i mostri di questa Difesa.` }, { status: 400 });
       }
     }
-    payload.offense = payload.units.map((u) => u.name);
-    payload.lead = payload.units.find((u) => u.lead)?.name || payload.units[0].name;
+    payload.offense = payload.units.slice(0, 3).map((u) => u.name);
+    payload.lead = payload.units.slice(0, 3).find((u) => u.lead)?.name || payload.units[0].name;
     if (!payload.status) payload.status = "pending";
   }
 

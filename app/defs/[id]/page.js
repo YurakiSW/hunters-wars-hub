@@ -198,6 +198,45 @@ export default function DefDetailPage({ params }) {
   );
 }
 
+// Rune/Stat/Artefatti/Note di UN mostro — estratto a parte perché ora si
+// usa due volte nella stessa card quando c'è un'alternativa al 3° mostro.
+function UnitBuildDetails({ u }) {
+  return (
+    <>
+      <div className="f-mono" style={{ fontSize: 11.5, color: "var(--text-muted)", marginBottom: 2 }}>
+        Rune: <span style={{ color: "var(--text)" }}>{u.statsFlexible ? "Set libero" : (u.runes || "—")}</span>
+      </div>
+      <div className="f-mono" style={{ fontSize: 11.5, color: "var(--text-muted)", marginBottom: 8 }}>
+        Stat: <span style={{ color: "var(--text)" }}>{u.statsFlexible ? `+ ${u.statsMinText || "—"}` : (u.stats || "—")}</span>
+      </div>
+      {u.artifactLeft?.length > 0 && (
+        <div style={{ marginBottom: 6 }}>
+          <div className="f-mono" style={{ fontSize: 10, color: "var(--text-faint)", textTransform: "uppercase" }}>Art. Attributo</div>
+          <ol style={{ margin: "2px 0", paddingLeft: 16, fontSize: 11.5 }}>
+            {u.artifactLeft.map((a, i) => <li key={i}>{a}</li>)}
+          </ol>
+        </div>
+      )}
+      {u.artifactRight?.length > 0 && (
+        <div style={{ marginBottom: 6 }}>
+          <div className="f-mono" style={{ fontSize: 10, color: "var(--text-faint)", textTransform: "uppercase" }}>Art. Tipo</div>
+          <ol style={{ margin: "2px 0", paddingLeft: 16, fontSize: 11.5 }}>
+            {u.artifactRight.map((a, i) => <li key={i}>{a}</li>)}
+          </ol>
+        </div>
+      )}
+      {u.notes?.filter(Boolean).length > 0 && (
+        <div>
+          <div className="f-mono" style={{ fontSize: 10, color: "var(--text-faint)", textTransform: "uppercase" }}>Note</div>
+          <ul style={{ margin: "2px 0", paddingLeft: 16, fontSize: 11.5, color: "var(--text-muted)" }}>
+            {u.notes.filter(Boolean).map((n, i) => <li key={i}>{n}</li>)}
+          </ul>
+        </div>
+      )}
+    </>
+  );
+}
+
 function CounterCard({ counter: c, user, canManage, managerNicknames, onEdit, onDelete, onApprove, onReject, onUnapprove }) {
   const [open, setOpen] = useState(false);
   const canEdit = canManage || (c.authorId === user.id && c.status === "pending");
@@ -206,7 +245,10 @@ function CounterCard({ counter: c, user, canManage, managerNicknames, onEdit, on
     <div className="card" style={{ marginBottom: 14 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, flexWrap: "wrap", gap: 8 }}>
         <div>
-          <span className="f-display" style={{ fontSize: 16 }}>{c.offense.join(" · ")}</span>{" "}
+          <span className="f-display" style={{ fontSize: 16 }}>
+            {c.offense.join(" · ")}
+            {c.units?.[3] && <> / {c.units[3].name}</>}
+          </span>{" "}
           <span className={`badge ${c.status === "approved" ? "badge-approved" : "badge-pending"}`}>
             {c.status === "approved" ? "Approvato" : "In attesa"}
           </span>
@@ -234,44 +276,35 @@ function CounterCard({ counter: c, user, canManage, managerNicknames, onEdit, on
         <div style={{ marginTop: 14 }}>
           <div className="section-label">Squadra</div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 10, marginBottom: 14 }}>
-            {[...c.units].sort((a, b) => (b.lead ? 1 : 0) - (a.lead ? 1 : 0)).map((u) => (
-              <div key={u.name} style={{ background: "var(--bg-soft)", border: "1px solid var(--border-soft)", borderRadius: 10, padding: 12 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-                  <MonsterCrest name={u.name} size={28} lead={u.lead} />
-                  <span className="f-display" style={{ fontSize: 14 }}>{u.name}</span>
-                </div>
-                <div className="f-mono" style={{ fontSize: 11.5, color: "var(--text-muted)", marginBottom: 2 }}>
-                  Rune: <span style={{ color: "var(--text)" }}>{u.statsFlexible ? "Set libero" : (u.runes || "—")}</span>
-                </div>
-                <div className="f-mono" style={{ fontSize: 11.5, color: "var(--text-muted)", marginBottom: 8 }}>
-                  Stat: <span style={{ color: "var(--text)" }}>{u.statsFlexible ? `+ ${u.statsMinText || "—"}` : (u.stats || "—")}</span>
-                </div>
-                {u.artifactLeft?.length > 0 && (
-                  <div style={{ marginBottom: 6 }}>
-                    <div className="f-mono" style={{ fontSize: 10, color: "var(--text-faint)", textTransform: "uppercase" }}>Art. Attributo</div>
-                    <ol style={{ margin: "2px 0", paddingLeft: 16, fontSize: 11.5 }}>
-                      {u.artifactLeft.map((a, i) => <li key={i}>{a}</li>)}
-                    </ol>
+            {[...c.units.slice(0, 3)].sort((a, b) => (b.lead ? 1 : 0) - (a.lead ? 1 : 0)).map((u, sortedIdx) => {
+              // L'alternativa (c.units[3], se c'è) è sempre legata al 3° mostro
+              // inserito (c.units[2]) — a prescindere da dove finisce dopo aver
+              // ordinato per lead, non conta come 4° mostro a sé.
+              const isThirdSlot = c.units[2] && u.name === c.units[2].name;
+              const alt = isThirdSlot ? c.units[3] : null;
+              return (
+                <div key={u.name + sortedIdx} style={{ background: "var(--bg-soft)", border: "1px solid var(--border-soft)", borderRadius: 10, padding: 12 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                    <MonsterCrest name={u.name} size={28} lead={u.lead} />
+                    <span className="f-display" style={{ fontSize: 14 }}>{u.name}</span>
+                    {alt && (
+                      <>
+                        <span style={{ color: "var(--text-faint)" }}>/</span>
+                        <MonsterCrest name={alt.name} size={28} />
+                        <span className="f-display" style={{ fontSize: 14 }}>{alt.name}</span>
+                      </>
+                    )}
                   </div>
-                )}
-                {u.artifactRight?.length > 0 && (
-                  <div style={{ marginBottom: 6 }}>
-                    <div className="f-mono" style={{ fontSize: 10, color: "var(--text-faint)", textTransform: "uppercase" }}>Art. Tipo</div>
-                    <ol style={{ margin: "2px 0", paddingLeft: 16, fontSize: 11.5 }}>
-                      {u.artifactRight.map((a, i) => <li key={i}>{a}</li>)}
-                    </ol>
-                  </div>
-                )}
-                {u.notes?.filter(Boolean).length > 0 && (
-                  <div>
-                    <div className="f-mono" style={{ fontSize: 10, color: "var(--text-faint)", textTransform: "uppercase" }}>Note</div>
-                    <ul style={{ margin: "2px 0", paddingLeft: 16, fontSize: 11.5, color: "var(--text-muted)" }}>
-                      {u.notes.filter(Boolean).map((n, i) => <li key={i}>{n}</li>)}
-                    </ul>
-                  </div>
-                )}
-              </div>
-            ))}
+                  <UnitBuildDetails u={u} />
+                  {alt && (
+                    <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px dashed var(--border-soft)" }}>
+                      <div className="f-mono" style={{ fontSize: 10, color: "var(--gold)", textTransform: "uppercase", marginBottom: 6 }}>In alternativa: {alt.name}</div>
+                      <UnitBuildDetails u={alt} />
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
 
           <div className="section-label">Speed Tuning</div>

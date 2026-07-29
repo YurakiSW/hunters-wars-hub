@@ -1389,7 +1389,8 @@ function PendingApprovalsSection() {
                 }}
               >
                 {c.offense.map((m, i) => <MonsterCrest key={i} name={m} size={20} />)}
-                <span style={{ flex: 1, fontSize: 12.5 }}>{c.offense.join(" · ")}</span>
+                {c.units?.[3] && <MonsterCrest name={c.units[3].name} size={20} />}
+                <span style={{ flex: 1, fontSize: 12.5 }}>{c.offense.join(" · ")}{c.units?.[3] && ` / ${c.units[3].name}`}</span>
                 {!c.units?.some((u) => u.runes || u.artifactLeft?.length || u.artifactRight?.length) && (
                   <span className="badge" style={{ color: "var(--gold)", border: "1px solid var(--gold)" }}>⚠️ Rune mancanti</span>
                 )}
@@ -1555,7 +1556,7 @@ function AllContentSection() {
             return (
               <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 12px 7px 40px" }}>
                 <input type="checkbox" checked={selectedCounters.has(key)} disabled={selectedDefs.has(d.id)} onChange={() => toggleSet(setSelectedCounters, key)} />
-                <span style={{ flex: 1, fontSize: 12.5 }}>{c.offense.join(" · ")}</span>
+                <span style={{ flex: 1, fontSize: 12.5 }}>{c.offense.join(" · ")}{c.units?.[3] && ` / ${c.units[3].name}`}</span>
                 {missingBuild(c) && <span className="badge" style={{ background: "var(--gold-soft, transparent)", color: "var(--gold)", border: "1px solid var(--gold)" }}>⚠️ Rune mancanti</span>}
                 <span className={`badge ${c.status === "approved" ? "badge-approved" : "badge-pending"}`}>{c.status}</span>
               </div>

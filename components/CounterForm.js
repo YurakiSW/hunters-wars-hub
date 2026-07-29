@@ -123,7 +123,7 @@ export default function CounterForm({ defMonsters, initial, isEdit, onSubmit, on
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const unitNames = units.map((u) => u.name.trim()).filter(Boolean);
+  const unitNames = units.slice(0, 3).map((u) => u.name.trim()).filter(Boolean);
 
   function setUnit(i, patch) {
     setUnits((prev) => prev.map((u, idx) => (idx === i ? { ...u, ...patch } : u)));
@@ -158,13 +158,22 @@ export default function CounterForm({ defMonsters, initial, isEdit, onSubmit, on
 
       <div className="section-label">Squadra</div>
       {units.map((u, i) => (
-        <div key={i} style={{ background: "var(--bg-soft)", border: "1px solid var(--border-soft)", borderRadius: 10, padding: 12, marginBottom: 10 }}>
+        <div key={i} style={{ background: "var(--bg-soft)", border: i === 3 ? "1px dashed var(--gold)" : "1px solid var(--border-soft)", borderRadius: 10, padding: 12, marginBottom: 10 }}>
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-            <span className="f-display" style={{ fontSize: 13.5 }}>Mostro {i + 1}</span>
-            <label className="f-mono" style={{ fontSize: 11, display: "flex", gap: 4, alignItems: "center" }}>
-              <input type="checkbox" checked={u.lead} onChange={(e) => setUnit(i, { lead: e.target.checked })} /> Lead
-            </label>
+            <span className="f-display" style={{ fontSize: 13.5 }}>{i === 3 ? "Alternativa al Mostro 3" : `Mostro ${i + 1}`}</span>
+            {i < 3 ? (
+              <label className="f-mono" style={{ fontSize: 11, display: "flex", gap: 4, alignItems: "center" }}>
+                <input type="checkbox" checked={u.lead} onChange={(e) => setUnit(i, { lead: e.target.checked })} /> Lead
+              </label>
+            ) : (
+              <button className="btn btn-ghost" style={{ fontSize: 11, padding: "2px 8px" }} onClick={() => setUnits((prev) => prev.slice(0, 3))}>✕ Rimuovi alternativa</button>
+            )}
           </div>
+          {i === 3 && (
+            <p style={{ color: "var(--text-faint)", fontSize: 11, marginTop: -4, marginBottom: 10 }}>
+              Stesso ruolo del Mostro 3, ma con la sua build — non conta come 4° mostro, resta lo stesso counter.
+            </p>
+          )}
           <div style={{ marginBottom: 10 }}>
             <div style={{ fontSize: 11, marginBottom: 4, color: "var(--text-muted)" }}>Nome mostro <span style={{ color: "var(--red)" }}>*</span></div>
             <MonsterPicker value={u.name} onChange={(v) => setUnit(i, { name: v })} placeholder="Nome mostro" />

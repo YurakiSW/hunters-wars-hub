@@ -36,8 +36,8 @@ export async function POST(request, { params }) {
   const counter = await createCounter(
     def.id,
     {
-      offense: payload.units.map((u) => u.name),
-      lead: payload.units.find((u) => u.lead)?.name || payload.units[0].name,
+      offense: payload.units.slice(0, 3).map((u) => u.name),
+      lead: payload.units.slice(0, 3).find((u) => u.lead)?.name || payload.units[0].name,
       turnOrder: payload.turnOrder,
       units: payload.units,
       focus: payload.focus,
