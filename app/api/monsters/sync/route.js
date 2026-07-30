@@ -18,13 +18,21 @@ function parseRaw(raw) {
   const element = raw.element;
   const imageFilename = raw.image_filename;
   const com2usId = raw.com2us_id;
+  // Accuracy BASE della specie: è l'UNICA stat base che il replay di Siege
+  // non contiene mai (con/atk/def/spd/resist ci sono tutte, verificato:
+  // es. Nobara resist 15 e Gandalf 40, entrambi corretti). Quasi tutti i
+  // mostri hanno 0, ma alcuni no (es. Wind Nobara Kugisaki ha 25%) — senza
+  // questo dato la Accuracy mostrata era sbagliata proprio per quei mostri.
+  // Nomi di campo difensivi: se swarfarm cambia schema, resta null e il
+  // calcolo si comporta come prima (base 0) invece di rompersi.
+  const baseAccuracy = raw.accuracy ?? raw.base_accuracy ?? null;
   if (!name || !imageFilename) return null;
   // Alcuni elementi del bestiario sono materiali di fusione (es. "Living
   // Armor") senza nome localizzato in inglese: swarfarm restituisce il nome
   // in coreano. Non sono mostri giocabili in una Difesa/Counter, li scartiamo.
   if (/[\u3131-\uD79D\u4E00-\u9FFF]/.test(name)) return null;
 
-  return { name, element, iconUrl: `${ICON_BASE}${imageFilename}`, com2usId };
+  return { name, element, iconUrl: `${ICON_BASE}${imageFilename}`, com2usId, baseAccuracy };
 }
 
 export async function GET(request) {
@@ -65,10 +73,10 @@ export async function GET(request) {
     for (const [name, variants] of byBareName) {
       const uniqueElements = new Set(variants.map((v) => v.element));
       if (uniqueElements.size <= 1) {
-        finalList.push({ name, iconUrl: variants[0].iconUrl, com2usId: variants[0].com2usId });
+        finalList.push({ name, iconUrl: variants[0].iconUrl, com2usId: variants[0].com2usId, baseAccuracy: variants[0].baseAccuracy });
       } else {
         for (const v of variants) {
-          finalList.push({ name: `${v.element} ${name}`, iconUrl: v.iconUrl, com2usId: v.com2usId });
+          finalList.push({ name: `${v.element} ${name}`, iconUrl: v.iconUrl, com2usId: v.com2usId, baseAccuracy: v.baseAccuracy });
         }
       }
     }

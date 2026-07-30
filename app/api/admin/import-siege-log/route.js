@@ -57,17 +57,11 @@ export async function POST(request) {
     const defenseIds = m.defense.map((n) => comIdByName.get(n)).filter(Boolean);
     const rich = richByIdsKey.get(`${idsKey(offenseIds)}::${idsKey(defenseIds)}`);
     if (!rich) continue;
-    // BUG CORRETTO IL 30/07/2026: idsKey() ordina gli ID per trovare la
-    // coppia giusta (giusto, l'ordine non deve contare per il MATCH) — ma
-    // l'ordine dei mostri nel replay vero (rich.offenseIds) può essere
-    // DIVERSO dall'ordine della squadra "semplice" (m.offense, da
-    // view_battle_deck_info/unit_list). Prendere rich.offenseRunes[i] per
-    // POSIZIONE (invece che per ID) attaccava le rune/artefatti/relic al
-    // mostro sbagliato ogni volta che i due ordini non combaciavano —
-    // scoperto con un caso vero (Water Gandalf con artefatti che in game
-    // erano DEF+DEF, mostrati come ATK: erano quelli di un compagno di
-    // squadra scambiato di posizione). Ora si cerca l'indice giusto
-    // guardando l'unit_master_id di ciascun mostro, mai la posizione.
+    // L'abbinamento dei dati grezzi va fatto per unit_master_id, MAI per
+    // posizione: idsKey() ordina gli ID per trovare la coppia giusta, ma
+    // l'ordine dei mostri nel replay può differire da quello della squadra
+    // "semplice" (m.offense). Con l'indice posizionale, rune/artefatti/
+    // relic finivano sul mostro sbagliato (~1 caso su 8 in un log reale).
     const richIndexByUnitId = new Map();
     rich.offenseIds.forEach((id, idx) => { if (!richIndexByUnitId.has(id)) richIndexByUnitId.set(id, idx); });
     // Salviamo i dati GREZZI (set_id delle rune, sec_effects degli

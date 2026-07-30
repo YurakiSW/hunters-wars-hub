@@ -639,8 +639,8 @@ function DiagnosticaTab() {
         </button>
         <p style={{ fontSize: 11.5, color: "var(--red)", marginTop: 8 }}>
           ⚠️ Finestra di tempo limitata: funziona solo finché non fai "Fine Season" (che cancella i dati grezzi da
-          cui recuperare). Usalo ORA se hai counter approvati prima di stasera con rune/artefatti mancanti o
-          "sconosciuti" — dopo Fine Season non sarà più possibile.
+          cui recuperare). Usalo dopo ogni aggiornamento del sito per riportare i counter già approvati
+          alle stat più aggiornate — dopo Fine Season non sarà più possibile.
         </p>
         {maintMsg.includes("controllati") && (
           <div style={{ marginTop: 8 }}>
