@@ -211,7 +211,9 @@ function UnitBuildDetails({ u }) {
       </div>
       {u.artifactLeft?.length > 0 && (
         <div style={{ marginBottom: 6 }}>
-          <div className="f-mono" style={{ fontSize: 10, color: "var(--text-faint)", textTransform: "uppercase" }}>Art. Attributo</div>
+          <div className="f-mono" style={{ fontSize: 10, color: "var(--text-faint)", textTransform: "uppercase" }}>
+            Art. Attributo{u.artifactLeftMainStat ? ` (${u.artifactLeftMainStat})` : ""}
+          </div>
           <ol style={{ margin: "2px 0", paddingLeft: 16, fontSize: 11.5 }}>
             {u.artifactLeft.map((a, i) => <li key={i}>{a}</li>)}
           </ol>
@@ -219,7 +221,9 @@ function UnitBuildDetails({ u }) {
       )}
       {u.artifactRight?.length > 0 && (
         <div style={{ marginBottom: 6 }}>
-          <div className="f-mono" style={{ fontSize: 10, color: "var(--text-faint)", textTransform: "uppercase" }}>Art. Tipo</div>
+          <div className="f-mono" style={{ fontSize: 10, color: "var(--text-faint)", textTransform: "uppercase" }}>
+            Art. Tipo{u.artifactRightMainStat ? ` (${u.artifactRightMainStat})` : ""}
+          </div>
           <ol style={{ margin: "2px 0", paddingLeft: 16, fontSize: 11.5 }}>
             {u.artifactRight.map((a, i) => <li key={i}>{a}</li>)}
           </ol>
