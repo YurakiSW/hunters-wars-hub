@@ -65,6 +65,7 @@ export async function POST(request) {
       name,
       rawRunes: rich.offenseRunes[i],
       rawArtifacts: rich.offenseArtifacts[i],
+      rawRelics: rich.offenseRelics?.[i] ?? null,
       rawSpd: rich.offenseSpd?.[i] ?? null,
       rawCombatBase: rich.offenseCombatBase?.[i] ?? null,
     }));

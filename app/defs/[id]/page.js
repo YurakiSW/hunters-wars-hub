@@ -225,6 +225,11 @@ function UnitBuildDetails({ u }) {
           </ol>
         </div>
       )}
+      {u.relicMainStat && (
+        <div className="f-mono" style={{ fontSize: 11.5, color: "var(--text-muted)", marginBottom: 6 }}>
+          Relic: <span style={{ color: "var(--text)" }}>{u.relicMainStat}</span>
+        </div>
+      )}
       {u.combatStats && Object.values(u.combatStats).some((v) => v != null) && (
         <div style={{ marginBottom: 6 }}>
           <div className="f-mono" style={{ fontSize: 10, color: "var(--text-faint)", textTransform: "uppercase", marginBottom: 3 }}>Combat Stats</div>

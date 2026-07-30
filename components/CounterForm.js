@@ -1,13 +1,13 @@
 "use client";
 import { useState } from "react";
 import MonsterPicker from "./MonsterPicker";
-import { RUNE_SETS, SLOT2_OPTIONS, SLOT4_OPTIONS, SLOT6_OPTIONS, ARTIFACT_LEFT_OPTIONS, ARTIFACT_RIGHT_OPTIONS, parseStatsString, serializeStatsSlots } from "../lib/gameData";
+import { RUNE_SETS, SLOT2_OPTIONS, SLOT4_OPTIONS, SLOT6_OPTIONS, ARTIFACT_LEFT_OPTIONS, ARTIFACT_RIGHT_OPTIONS, RELIC_MAIN_STAT_OPTIONS, parseStatsString, serializeStatsSlots } from "../lib/gameData";
 
 import VideoPreview from "./VideoPreview";
 
 function emptyUnit() {
   return {
-    name: "", lead: false, runes: "", stats: "", statsFlexible: false, statsMinText: "", artifactLeft: [], artifactRight: [], notes: [""],
+    name: "", lead: false, runes: "", stats: "", statsFlexible: false, statsMinText: "", artifactLeft: [], artifactRight: [], relicMainStat: "", notes: [""],
     combatStats: { hp: "", atk: "", def: "", spd: "", critRate: "", critDmg: "", resistance: "", accuracy: "" },
   };
 }
@@ -238,6 +238,17 @@ export default function CounterForm({ defMonsters, initial, isEdit, onSubmit, on
               <div style={{ fontSize: 11, marginBottom: 4, color: "var(--text-muted)" }}>Artefatto Tipo (dx) <span style={{ color: "var(--red)" }}>*</span></div>
               <ArtifactPicker value={u.artifactRight} onChange={(v) => setUnit(i, { artifactRight: v })} options={ARTIFACT_RIGHT_OPTIONS} />
             </div>
+          </div>
+          <div style={{ marginBottom: 10 }}>
+            <div style={{ fontSize: 11, marginBottom: 4, color: "var(--text-muted)" }}>Relic — main stat (facoltativo)</div>
+            <select
+              value={u.relicMainStat || ""}
+              onChange={(e) => setUnit(i, { relicMainStat: e.target.value })}
+              style={{ width: 140 }}
+            >
+              <option value="">Nessuna / sconosciuta</option>
+              {RELIC_MAIN_STAT_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
           </div>
           <div style={{ marginBottom: 10 }}>
             <div style={{ fontSize: 11, marginBottom: 4, color: "var(--text-muted)" }}>Combat Stats (facoltativo)</div>
