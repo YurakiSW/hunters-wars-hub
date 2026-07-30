@@ -6,7 +6,10 @@ import { RUNE_SETS, SLOT2_OPTIONS, SLOT4_OPTIONS, SLOT6_OPTIONS, ARTIFACT_LEFT_O
 import VideoPreview from "./VideoPreview";
 
 function emptyUnit() {
-  return { name: "", lead: false, runes: "", stats: "", statsFlexible: false, statsMinText: "", artifactLeft: [], artifactRight: [], notes: [""] };
+  return {
+    name: "", lead: false, runes: "", stats: "", statsFlexible: false, statsMinText: "", artifactLeft: [], artifactRight: [], notes: [""],
+    combatStats: { hp: "", atk: "", def: "", spd: "", critRate: "", critDmg: "", resistance: "", accuracy: "" },
+  };
 }
 
 // Ridimensiona a un lato massimo di 1600px e ricomprime in JPEG 75%,
@@ -151,7 +154,19 @@ export default function CounterForm({ defMonsters, initial, isEdit, onSubmit, on
   async function submit() {
     setLoading(true);
     setError("");
-    const payload = { units, turnOrder, focus, strategy, warning, video, images };
+    const cleanedUnits = units.map((u) => {
+      if (!u.combatStats) return u;
+      const cs = {};
+      let anyFilled = false;
+      for (const key of ["hp", "atk", "def", "spd", "critRate", "critDmg", "resistance", "accuracy"]) {
+        const raw = u.combatStats[key];
+        if (raw === "" || raw === null || raw === undefined) { cs[key] = null; continue; }
+        cs[key] = Number(raw);
+        anyFilled = true;
+      }
+      return { ...u, combatStats: anyFilled ? cs : null };
+    });
+    const payload = { units: cleanedUnits, turnOrder, focus, strategy, warning, video, images };
     const res = await onSubmit(payload);
     setLoading(false);
     if (res?.error) setError(res.error);
@@ -222,6 +237,25 @@ export default function CounterForm({ defMonsters, initial, isEdit, onSubmit, on
             <div>
               <div style={{ fontSize: 11, marginBottom: 4, color: "var(--text-muted)" }}>Artefatto Tipo (dx) <span style={{ color: "var(--red)" }}>*</span></div>
               <ArtifactPicker value={u.artifactRight} onChange={(v) => setUnit(i, { artifactRight: v })} options={ARTIFACT_RIGHT_OPTIONS} />
+            </div>
+          </div>
+          <div style={{ marginBottom: 10 }}>
+            <div style={{ fontSize: 11, marginBottom: 4, color: "var(--text-muted)" }}>Combat Stats (facoltativo)</div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 }}>
+              {[
+                ["hp", "HP"], ["atk", "ATK"], ["def", "DEF"], ["spd", "SPD"],
+                ["critRate", "CRI Rate"], ["critDmg", "CRI Dmg"], ["resistance", "Resistance"], ["accuracy", "Accuracy"],
+              ].map(([key, label]) => (
+                <div key={key}>
+                  <div className="f-mono" style={{ fontSize: 10, color: "var(--text-faint)", marginBottom: 2 }}>{label}</div>
+                  <input
+                    type="number"
+                    value={u.combatStats?.[key] ?? ""}
+                    onChange={(e) => setUnit(i, { combatStats: { ...(u.combatStats || {}), [key]: e.target.value } })}
+                    style={{ width: "100%" }}
+                  />
+                </div>
+              ))}
             </div>
           </div>
           <div>

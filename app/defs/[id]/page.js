@@ -225,6 +225,24 @@ function UnitBuildDetails({ u }) {
           </ol>
         </div>
       )}
+      {u.combatStats && Object.values(u.combatStats).some((v) => v != null) && (
+        <div style={{ marginBottom: 6 }}>
+          <div className="f-mono" style={{ fontSize: 10, color: "var(--text-faint)", textTransform: "uppercase", marginBottom: 3 }}>Combat Stats</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1px 12px", fontSize: 11.5 }}>
+            {[
+              ["HP", u.combatStats.hp], ["ATK", u.combatStats.atk], ["DEF", u.combatStats.def], ["SPD", u.combatStats.spd],
+              ["CRI Rate", u.combatStats.critRate != null ? `${u.combatStats.critRate}%` : null],
+              ["CRI Dmg", u.combatStats.critDmg != null ? `${u.combatStats.critDmg}%` : null],
+              ["Resistance", u.combatStats.resistance != null ? `${u.combatStats.resistance}%` : null],
+              ["Accuracy", u.combatStats.accuracy != null ? `${u.combatStats.accuracy}%` : null],
+            ].map(([label, val]) => val != null && (
+              <div key={label} style={{ display: "flex", justifyContent: "space-between", color: "var(--text-muted)" }}>
+                <span>{label}</span><span style={{ color: "var(--text)" }}>{val}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       {u.notes?.filter(Boolean).length > 0 && (
         <div>
           <div className="f-mono" style={{ fontSize: 10, color: "var(--text-faint)", textTransform: "uppercase" }}>Note</div>
