@@ -57,18 +57,37 @@ export async function POST(request) {
     const defenseIds = m.defense.map((n) => comIdByName.get(n)).filter(Boolean);
     const rich = richByIdsKey.get(`${idsKey(offenseIds)}::${idsKey(defenseIds)}`);
     if (!rich) continue;
+    // BUG CORRETTO IL 30/07/2026: idsKey() ordina gli ID per trovare la
+    // coppia giusta (giusto, l'ordine non deve contare per il MATCH) — ma
+    // l'ordine dei mostri nel replay vero (rich.offenseIds) può essere
+    // DIVERSO dall'ordine della squadra "semplice" (m.offense, da
+    // view_battle_deck_info/unit_list). Prendere rich.offenseRunes[i] per
+    // POSIZIONE (invece che per ID) attaccava le rune/artefatti/relic al
+    // mostro sbagliato ogni volta che i due ordini non combaciavano —
+    // scoperto con un caso vero (Water Gandalf con artefatti che in game
+    // erano DEF+DEF, mostrati come ATK: erano quelli di un compagno di
+    // squadra scambiato di posizione). Ora si cerca l'indice giusto
+    // guardando l'unit_master_id di ciascun mostro, mai la posizione.
+    const richIndexByUnitId = new Map();
+    rich.offenseIds.forEach((id, idx) => { if (!richIndexByUnitId.has(id)) richIndexByUnitId.set(id, idx); });
     // Salviamo i dati GREZZI (set_id delle rune, sec_effects degli
     // artefatti), non il testo gia' tradotto: cosi' se in futuro
     // decodifichiamo altri codici, le proposal gia' in coda si aggiornano
     // da sole quando le guardi -- non serve ricaricare lo stesso log da capo.
-    const units = m.offense.map((name, i) => ({
-      name,
-      rawRunes: rich.offenseRunes[i],
-      rawArtifacts: rich.offenseArtifacts[i],
-      rawRelics: rich.offenseRelics?.[i] ?? null,
-      rawSpd: rich.offenseSpd?.[i] ?? null,
-      rawCombatBase: rich.offenseCombatBase?.[i] ?? null,
-    }));
+    const units = m.offense.map((name, i) => {
+      const richIdx = richIndexByUnitId.get(offenseIds[i]);
+      if (richIdx == null) {
+        return { name, rawRunes: null, rawArtifacts: null, rawRelics: null, rawSpd: null, rawCombatBase: null };
+      }
+      return {
+        name,
+        rawRunes: rich.offenseRunes[richIdx],
+        rawArtifacts: rich.offenseArtifacts[richIdx],
+        rawRelics: rich.offenseRelics?.[richIdx] ?? null,
+        rawSpd: rich.offenseSpd?.[richIdx] ?? null,
+        rawCombatBase: rich.offenseCombatBase?.[richIdx] ?? null,
+      };
+    });
     richUnitsByOffenseDefenseKey.set(`${orderedTeamKey(m.offense)}::${defenseKey(m.defense)}`, units);
   }
   const crossPlayerResult = await recordCrossPlayerBattles(matchups, richUnitsByOffenseDefenseKey);
