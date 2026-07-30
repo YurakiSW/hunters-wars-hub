@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser, isAdmin } from "../../../../lib/auth";
 import { renameSiegeLogAuthors, findDuplicateCounters, cleanupDuplicateCounters, simplifySiegeLogDescriptions } from "../../../../lib/defs";
-import { resyncApprovedCounters } from "../../../../lib/siegeStats";
+import { resyncApprovedCounters, backfillLogOwnerNicknames } from "../../../../lib/siegeStats";
 import { safeJson } from "../../../../lib/apiUtils";
 
 // GET: mostra quanti doppioni ci sono ora, senza cancellare nulla — utile
@@ -37,6 +37,10 @@ export async function POST(request) {
   }
   if (data.action === "resync_from_variants") {
     const result = await resyncApprovedCounters();
+    return NextResponse.json({ ok: true, ...result });
+  }
+  if (data.action === "backfill_log_nicknames") {
+    const result = await backfillLogOwnerNicknames();
     return NextResponse.json({ ok: true, ...result });
   }
   if (data.action === "simplify_descriptions") {

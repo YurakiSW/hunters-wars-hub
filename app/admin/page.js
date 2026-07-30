@@ -1,5 +1,5 @@
 "use client";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Header from "../../components/Header";
 import ConfirmModal from "../../components/ConfirmModal";
@@ -8,7 +8,7 @@ import DefForm from "../../components/DefForm";
 import CounterForm from "../../components/CounterForm";
 import CounterTemplatePicker from "../../components/CounterTemplatePicker";
 import MonsterCrest from "../../components/MonsterCrest";
-import { gradeLabel, formatNickname, displayAuthorName, normalizeMonsterName } from "../../lib/textUtils";
+import { gradeLabel, formatNickname, displayAuthorName, counterAuthorLabel, normalizeMonsterName } from "../../lib/textUtils";
 
 function Spinner() {
   return <span className="spinner" aria-hidden="true" />;
@@ -524,6 +524,7 @@ function DiagnosticaTab() {
   const [simplifying, setSimplifying] = useState(false);
   const [cleaning, setCleaning] = useState(false);
   const [resyncing, setResyncing] = useState(false);
+  const [backfilling, setBackfilling] = useState(false);
   const [resyncExamples, setResyncExamples] = useState([]);
   const [maintMsg, setMaintMsg] = useState("");
 
@@ -570,6 +571,17 @@ function DiagnosticaTab() {
     setCleaning(false);
     setMaintMsg(res.ok ? `${data.removed} counter doppi eliminati (${data.groupsFound} gruppi trovati).` : data.error);
     loadDupInfo();
+  }
+
+  async function backfillNicknames() {
+    setBackfilling(true);
+    const res = await fetch("/api/admin/maintenance", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "backfill_log_nicknames" }),
+    });
+    const data = await res.json();
+    setBackfilling(false);
+    if (!res.ok) return setMaintMsg(data.error);
+    setMaintMsg(`${data.updated} counter aggiornati col nick del proprietario su ${data.checked} da Siege Log (${data.noData} senza dato disponibile: serve reimportare il log).`);
   }
 
   async function resyncFromVariants() {
@@ -636,6 +648,9 @@ function DiagnosticaTab() {
       <div className="card" style={{ marginTop: 10, borderColor: "var(--gold)" }}>
         <button className="btn btn-gold" disabled={resyncing} onClick={resyncFromVariants}>
           {resyncing && <Spinner />}🔄 Recupera stat rune/artefatti nei counter già approvati
+        </button>
+        <button className="btn btn-gold" disabled={backfilling} onClick={backfillNicknames} style={{ marginTop: 8 }}>
+          {backfilling && <Spinner />}👤 Aggiungi il nick del proprietario ai counter da Siege Log
         </button>
         <p style={{ fontSize: 11.5, color: "var(--red)", marginTop: 8 }}>
           ⚠️ Finestra di tempo limitata: funziona solo finché non fai "Fine Season" (che cancella i dati grezzi da
@@ -920,10 +935,20 @@ function SiegeStatsProposalsTab({ isAdmin }) {
     if (subTab === "pending") load();
   }
 
+  // Contatore di richiesta: se cambi tab mentre una richiesta è ancora in
+  // volo, la risposta vecchia deve essere SCARTATA. Senza questo, la
+  // risposta più lenta (di solito "Approvate", che ha molti più elementi)
+  // arrivava dopo e sovrascriveva la lista di un'altra tab — si finiva a
+  // vedere i counter approvati sotto l'etichetta "Da rivedere", col rischio
+  // concreto di premere "Rifiuta e rimuovi selezionati" su counter sani.
+  const loadReqId = useRef(0);
+
   async function load() {
+    const reqId = ++loadReqId.current;
     setLoading(true);
     const res = await fetch(`/api/admin/siege-stats/proposals?status=${subTab}`);
     const data = await res.json();
+    if (reqId !== loadReqId.current) return; // risposta superata, ignorala
     setProposals(data.proposals || []);
     setLoading(false);
   }
@@ -1475,10 +1500,10 @@ function PendingApprovalsSection() {
                 {!c.units?.some((u) => u.runes || u.artifactLeft?.length || u.artifactRight?.length) && (
                   <span className="badge" style={{ color: "var(--gold)", border: "1px solid var(--gold)" }}>⚠️ Rune mancanti</span>
                 )}
-                <span className="f-mono" style={{ fontSize: 10, color: "var(--text-faint)" }}>{formatNickname(displayAuthorName(c.authorNickname), managerNicknames.includes(c.authorNickname))}</span>
+                <span className="f-mono" style={{ fontSize: 10, color: "var(--text-faint)" }}>{formatNickname(counterAuthorLabel(c), managerNicknames.includes(c.authorNickname))}</span>
                 {c.status === "approved" && c.approvedByNickname && c.approvedByNickname !== c.authorNickname && (
                   <span className="f-mono" style={{ fontSize: 10, color: "var(--green)" }}>
-                    · appr. da {formatNickname(displayAuthorName(c.approvedByNickname), managerNicknames.includes(c.approvedByNickname))}
+                    · Appr. da {formatNickname(displayAuthorName(c.approvedByNickname), managerNicknames.includes(c.approvedByNickname))}
                   </span>
                 )}
                 {c.status === "pending" && <span title="In attesa di approvazione" style={{ color: "var(--ember)", fontWeight: 700 }}>❗</span>}

@@ -9,7 +9,7 @@ import CounterTemplatePicker from "../../../components/CounterTemplatePicker";
 import DefForm from "../../../components/DefForm";
 import MonsterCrest from "../../../components/MonsterCrest";
 import VideoPreview from "../../../components/VideoPreview";
-import { formatNickname, displayAuthorName } from "../../../lib/textUtils";
+import { formatNickname, displayAuthorName, counterAuthorLabel } from "../../../lib/textUtils";
 
 export default function DefDetailPage({ params }) {
   const [managerNicknames, setManagerNicknames] = useState([]);
@@ -281,10 +281,10 @@ function CounterCard({ counter: c, user, canManage, managerNicknames, onEdit, on
           </span>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-          <span className="f-mono" style={{ fontSize: 11, color: "var(--text-faint)" }}>proposto da {formatNickname(displayAuthorName(c.authorNickname), managerNicknames.includes(c.authorNickname))}</span>
+          <span className="f-mono" style={{ fontSize: 11, color: "var(--text-faint)" }}>{formatNickname(counterAuthorLabel(c), managerNicknames.includes(c.authorNickname))}</span>
           {c.status === "approved" && c.approvedByNickname && c.approvedByNickname !== c.authorNickname && (
             <span className="f-mono" style={{ fontSize: 11, color: "var(--green)" }}>
-              · approvato da {formatNickname(displayAuthorName(c.approvedByNickname), managerNicknames.includes(c.approvedByNickname))}
+              · Appr. da {formatNickname(displayAuthorName(c.approvedByNickname), managerNicknames.includes(c.approvedByNickname))}
             </span>
           )}
           {canEdit && <button className="btn btn-ghost" onClick={onEdit}>✎</button>}

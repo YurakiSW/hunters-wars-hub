@@ -82,7 +82,10 @@ export async function POST(request) {
         rawCombatBase: rich.offenseCombatBase?.[richIdx] ?? null,
       };
     });
-    richUnitsByOffenseDefenseKey.set(`${orderedTeamKey(m.offense)}::${defenseKey(m.defense)}`, units);
+    richUnitsByOffenseDefenseKey.set(`${orderedTeamKey(m.offense)}::${defenseKey(m.defense)}`, {
+      units,
+      ownerNick: rich.offenseWizardName || null,
+    });
   }
   const crossPlayerResult = await recordCrossPlayerBattles(matchups, richUnitsByOffenseDefenseKey);
 
