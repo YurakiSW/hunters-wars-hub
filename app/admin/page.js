@@ -1196,6 +1196,10 @@ function SiegeStatsProposalsTab({ isAdmin }) {
   const [editingProposal, setEditingProposal] = useState(null);
   const [selectedProposals, setSelectedProposals] = useState(new Set());
   const [bulkApproving, setBulkApproving] = useState(false);
+  // Azione distruttiva in blocco in attesa di conferma ("reject" | "unpublish"
+  // | "delete_proposal"): niente parte senza che l'utente veda quanti e quali
+  // counter sta per toccare.
+  const [confirmBulk, setConfirmBulk] = useState(null);
 
   async function purgeBelowThreshold() {
     setPurging(true);
@@ -1248,6 +1252,12 @@ function SiegeStatsProposalsTab({ isAdmin }) {
   // Generico: funziona per qualunque azione sulle proposal selezionate
   // (approve/dismiss/unpublish/reject/delete_proposal) — un solo posto per
   // tutti i pulsanti "in blocco" del tab.
+  // Etichette leggibili dei counter selezionati, per la conferma: senza
+  // queste si conferma "12 counter" alla cieca.
+  const selectedProposalLabels = proposals
+    .filter((p) => selectedProposals.has(`${p.defK}::${p.counterK}`))
+    .map((p) => `• ${p.offenseNames?.join(" / ")} contro ${p.defenseNames?.join(" / ")}`);
+
   async function bulkAct(action) {
     setBulkApproving(true);
     await Promise.all([...selectedProposals].map((key) => {
@@ -1342,22 +1352,46 @@ function SiegeStatsProposalsTab({ isAdmin }) {
               {bulkApproving && <Spinner />}✓ Approva selezionati ({selectedProposals.size})
             </button>
           )}
+          {(subTab === "pending" || subTab === "update_available") && (
+            <button
+              className="btn btn-danger"
+              disabled={selectedProposals.size === 0 || bulkApproving}
+              onClick={() => setConfirmBulk("reject")}
+            >
+              ✕ Rifiuta selezionati ({selectedProposals.size})
+            </button>
+          )}
           {subTab === "underperforming" && (
             <>
               <button className="btn btn-ghost" disabled={selectedProposals.size === 0 || bulkApproving} onClick={() => bulkAct("dismiss")}>
                 {bulkApproving && <Spinner />}Ignora selezionati ({selectedProposals.size})
               </button>
-              <button className="btn btn-danger" disabled={selectedProposals.size === 0 || bulkApproving} onClick={() => bulkAct("unpublish")}>
+              <button className="btn btn-danger" disabled={selectedProposals.size === 0 || bulkApproving} onClick={() => setConfirmBulk("unpublish")}>
                 🗑 Rifiuta e rimuovi selezionati ({selectedProposals.size})
               </button>
             </>
           )}
           {subTab === "rejected" && (
-            <button className="btn btn-danger" disabled={selectedProposals.size === 0 || bulkApproving} onClick={() => bulkAct("delete_proposal")}>
+            <button className="btn btn-danger" disabled={selectedProposals.size === 0 || bulkApproving} onClick={() => setConfirmBulk("delete_proposal")}>
               🗑 Elimina definitivamente selezionati ({selectedProposals.size})
             </button>
           )}
         </div>
+      )}
+      {confirmBulk && (
+        <ConfirmModal
+          message={
+            (confirmBulk === "reject"
+              ? `Rifiutare ${selectedProposals.size} counter selezionati?`
+              : confirmBulk === "unpublish"
+              ? `Rifiutare e RIMUOVERE DAL SITO ${selectedProposals.size} counter selezionati?`
+              : `Eliminare definitivamente ${selectedProposals.size} proposal selezionate?`) +
+            "\n\n" + selectedProposalLabels.slice(0, 8).join("\n") +
+            (selectedProposalLabels.length > 8 ? `\n…e altri ${selectedProposalLabels.length - 8}` : "")
+          }
+          onConfirm={() => { const a = confirmBulk; setConfirmBulk(null); bulkAct(a); }}
+          onCancel={() => setConfirmBulk(null)}
+        />
       )}
       {purgeMsg && subTab === "pending" && <p style={{ fontSize: 12.5, color: "var(--text-muted)", marginBottom: 10 }}>{purgeMsg}</p>}
 
@@ -1399,6 +1433,12 @@ function SiegeStatsProposalsTab({ isAdmin }) {
                 <div style={{ marginTop: 8 }}>
                   <p style={{ fontSize: 11.5, color: "var(--text-faint)" }}>
                     Variante migliore: {p.bestVariant.wins}/{p.bestVariant.total} vittorie con questa build.
+                    {p.bestVariant.ownerNick && (
+                      <>
+                        {" · giocata da "}
+                        <span className="f-mono" style={{ color: "var(--text-muted)" }}>{p.bestVariant.ownerNick}</span>
+                      </>
+                    )}
                   </p>
                   {p.bestVariant.units?.some((u) => u.runes || u.artifactLeft?.length || u.artifactRight?.length) ? (
                     <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 6 }}>
