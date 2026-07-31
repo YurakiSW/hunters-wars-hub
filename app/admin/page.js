@@ -16,6 +16,16 @@ import { gradeLabel, formatNickname, displayAuthorName, counterAuthorLabel, norm
 // che così si ripopola da sola con i mostri appena scaricati.
 const MONSTERS_SYNCED_EVENT = "hwhub:monsters-synced";
 
+// Separa "Water Gandalf" in { element: "Water", base: "Gandalf" }. L'ordine
+// è quello usato in game (Fuoco, Acqua, Vento, Luce, Buio), così le varianti
+// di uno stesso mostro si leggono nella sequenza a cui si è abituati.
+const ELEMENT_ORDER = ["Fire", "Water", "Wind", "Light", "Dark"];
+function splitElement(fullName) {
+  const idx = ELEMENT_ORDER.findIndex((e) => (fullName || "").startsWith(`${e} `));
+  if (idx === -1) return { element: null, base: fullName || "", order: 99 };
+  return { element: ELEMENT_ORDER[idx], base: fullName.slice(ELEMENT_ORDER[idx].length + 1), order: idx };
+}
+
 function Spinner() {
   return <span className="spinner" aria-hidden="true" />;
 }
@@ -443,7 +453,15 @@ function TwinPairsCard() {
         .filter((n) => n && !rowsFromFlag.includes(n));
       const found = [...rowsFromFlag, ...extra]
         .map((name) => ({ name, canonical: twins[normalizeMonsterName(name)] || "" }))
-        .sort((a, b) => a.name.localeCompare(b.name));
+        .sort((a, b) => {
+          // Ordina per NOME del mostro, non per elemento: altrimenti le
+          // varianti della stessa famiglia finiscono sparse nell'elenco
+          // ("Dark Ciri" tra le D, "Water Ciri" tra le W). Così invece
+          // Ciri/Ciri/Ciri restano una sotto l'altra, nell'ordine elementale
+          // classico del gioco.
+          const pa = splitElement(a.name), pb = splitElement(b.name);
+          return pa.base.localeCompare(pb.base) || pa.order - pb.order;
+        });
       setRows(found);
       setPairs(tw.pairs || []);
     });
