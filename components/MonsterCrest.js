@@ -61,13 +61,13 @@ function hashHue(str) {
   return h;
 }
 
-export default function MonsterCrest({ name, size = 40, lead = false }) {
+export default function MonsterCrest({ name, size = 40, lead = false, noSplit = false }) {
   const [icon, setIcon] = useState(undefined);
   const [twinIcon, setTwinIcon] = useState(null);
 
   useEffect(() => {
     let alive = true;
-    Promise.all([getMonsterList(), getTwinPairs()]).then(([list, pairs]) => {
+    Promise.all([getMonsterList(), noSplit ? Promise.resolve([]) : getTwinPairs()]).then(([list, pairs]) => {
       if (!alive) return;
       const target = normalize(name);
       const iconOf = (n) => list.find((m) => normalize(m.name) === normalize(n))?.iconUrl || null;
@@ -79,11 +79,14 @@ export default function MonsterCrest({ name, size = 40, lead = false }) {
         (p) => normalize(p.canonical) === target || p.alts.some((a) => normalize(a) === target)
       );
       if (!pair) return setTwinIcon(null);
-      const other = normalize(pair.canonical) === target ? pair.alts[0] : pair.canonical;
-      setTwinIcon(iconOf(other));
+      // L'ordine delle due metà è FISSO per coppia (canonica a sinistra,
+      // alternativa a destra) e non dipende da quale dei due nomi è salvato
+      // nel counter: altrimenti lo stesso mostro apparirebbe specchiato da
+      // una card all'altra, rendendo impossibile riconoscerlo a colpo d'occhio.
+      setTwinIcon({ left: iconOf(pair.canonical), right: iconOf(pair.alts[0]) });
     });
     return () => { alive = false; };
-  }, [name]);
+  }, [name, noSplit]);
 
   const key = normalize(name);
   const hue = hashHue(key || "x");
@@ -105,13 +108,11 @@ export default function MonsterCrest({ name, size = 40, lead = false }) {
         position: "relative",
       }}
     >
-      {icon && twinIcon ? (
-        // Mezza e mezza: sinistra la versione con cui è salvato il counter,
-        // destra il gemello. clipPath taglia ciascuna immagine a metà senza
-        // deformarla (objectFit: cover sul doppio della larghezza).
+      {twinIcon?.left && twinIcon?.right ? (
+        // Mezza e mezza, sempre con lo stesso lato per ciascuna versione.
         <div style={{ position: "absolute", inset: 0, display: "flex" }} title={`${name} (versione collab e normale)`}>
-          <img src={icon} alt={name} style={{ width: "50%", height: "100%", objectFit: "cover", objectPosition: "left center" }} />
-          <img src={twinIcon} alt="" style={{ width: "50%", height: "100%", objectFit: "cover", objectPosition: "right center" }} />
+          <img src={twinIcon.left} alt={name} style={{ width: "50%", height: "100%", objectFit: "cover", objectPosition: "left center" }} />
+          <img src={twinIcon.right} alt="" style={{ width: "50%", height: "100%", objectFit: "cover", objectPosition: "right center" }} />
           <span style={{ position: "absolute", left: "50%", top: 0, bottom: 0, width: 1, background: "rgba(0,0,0,.45)" }} />
         </div>
       ) : icon ? (

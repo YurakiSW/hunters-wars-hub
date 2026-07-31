@@ -413,6 +413,7 @@ function TwinPairsCard() {
   const [iconKey, setIconKey] = useState(0);
   const [manualAlt, setManualAlt] = useState("");
   const [manualCanonical, setManualCanonical] = useState("");
+  const [onlyTodo, setOnlyTodo] = useState(false);
 
   // Inserimento manuale: stesso salvataggio del resto della tabella, solo su
   // una riga sola. Dopo il salvataggio la coppia rientra nell'elenco normale
@@ -451,7 +452,19 @@ function TwinPairsCard() {
       const extra = Object.keys(twins)
         .map((k) => all.find((m) => normalizeMonsterName(m.name) === k)?.name)
         .filter((n) => n && !rowsFromFlag.includes(n));
+      // Anche il gemello "normale" riusa lo stesso nome su tutti gli elementi,
+      // quindi la regola automatica pesca ENTRAMBE le facce della coppia. Una
+      // volta che una è stata abbinata, l'altra sparisce dall'elenco:
+      // altrimenti ti ritroveresti a compilare due volte la stessa coppia,
+      // una per verso.
+      const alreadyTargets = new Set(
+        Object.values(twins).map((v) => normalizeMonsterName(v))
+      );
       const found = [...rowsFromFlag, ...extra]
+        .filter((name) => {
+          const n = normalizeMonsterName(name);
+          return !alreadyTargets.has(n) || twins[n]; // resta se è a sua volta abbinato
+        })
         .map((name) => ({ name, canonical: twins[normalizeMonsterName(name)] || "" }))
         .sort((a, b) => {
           // Ordina per NOME del mostro, non per elemento: altrimenti le
@@ -531,21 +544,25 @@ function TwinPairsCard() {
             <span className="f-mono" style={{ fontSize: 11.5, color: "var(--text-faint)" }}>
               {compiled} compilate su {rows.length}
             </span>
+            <label style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: "var(--text-muted)", cursor: "pointer" }}>
+              <input type="checkbox" checked={onlyTodo} onChange={(e) => setOnlyTodo(e.target.checked)} />
+              Mostra solo da compilare
+            </label>
           </div>
           {msg && <p style={{ fontSize: 12.5, color: "var(--green)", marginBottom: 8 }}>{msg}</p>}
 
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            {rows.map((r, i) => {
+            {rows.map((r, i) => ({ r, i })).filter(({ r }) => !onlyTodo || !r.canonical.trim()).map(({ r, i }) => {
               return (
                 <div key={r.name}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 230 }}>
-                      <MonsterCrest key={`${r.name}-${iconKey}`} name={r.name} size={32} />
+                      <MonsterCrest key={`${r.name}-${iconKey}`} name={r.name} size={32} noSplit />
                       <span style={{ fontSize: 13 }}>{r.name}</span>
                     </div>
                     <span style={{ color: "var(--text-faint)" }}>→</span>
                     <div style={{ display: "flex", alignItems: "center", gap: 6, flex: 1, minWidth: 240 }}>
-                      <MonsterCrest key={`c-${r.canonical}-${iconKey}`} name={r.canonical} size={32} />
+                      <MonsterCrest key={`c-${r.canonical}-${iconKey}`} name={r.canonical} size={32} noSplit />
                       <div style={{ flex: 1 }}>
                         <MonsterPicker value={r.canonical} onChange={(v) => setRow(i, v)} placeholder="Versione normale corrispondente" />
                       </div>
@@ -568,14 +585,14 @@ function TwinPairsCard() {
             </p>
             <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 6, flex: 1, minWidth: 230 }}>
-                <MonsterCrest key={`ma-${manualAlt}-${iconKey}`} name={manualAlt} size={32} />
+                <MonsterCrest key={`ma-${manualAlt}-${iconKey}`} name={manualAlt} size={32} noSplit />
                 <div style={{ flex: 1 }}>
                   <MonsterPicker value={manualAlt} onChange={setManualAlt} placeholder="Mostro collab" />
                 </div>
               </div>
               <span style={{ color: "var(--text-faint)" }}>→</span>
               <div style={{ display: "flex", alignItems: "center", gap: 6, flex: 1, minWidth: 230 }}>
-                <MonsterCrest key={`mc-${manualCanonical}-${iconKey}`} name={manualCanonical} size={32} />
+                <MonsterCrest key={`mc-${manualCanonical}-${iconKey}`} name={manualCanonical} size={32} noSplit />
                 <div style={{ flex: 1 }}>
                   <MonsterPicker value={manualCanonical} onChange={setManualCanonical} placeholder="Versione normale" />
                 </div>
