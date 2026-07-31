@@ -525,6 +525,7 @@ function DiagnosticaTab() {
   const [cleaning, setCleaning] = useState(false);
   const [resyncing, setResyncing] = useState(false);
   const [backfilling, setBackfilling] = useState(false);
+  const [backfillMsg, setBackfillMsg] = useState("");
   const [resyncExamples, setResyncExamples] = useState([]);
   const [maintMsg, setMaintMsg] = useState("");
 
@@ -575,13 +576,18 @@ function DiagnosticaTab() {
 
   async function backfillNicknames() {
     setBackfilling(true);
+    setBackfillMsg("");
     const res = await fetch("/api/admin/maintenance", {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "backfill_log_nicknames" }),
     });
     const data = await res.json();
     setBackfilling(false);
-    if (!res.ok) return setMaintMsg(data.error);
-    setMaintMsg(`${data.updated} counter aggiornati col nick del proprietario su ${data.checked} da Siege Log (${data.noData} senza dato disponibile: serve reimportare il log).`);
+    if (!res.ok) return setBackfillMsg(data.error);
+    setBackfillMsg(
+      data.checked === 0
+        ? "Nessun counter da Siege Log trovato."
+        : `${data.updated} counter aggiornati col nick su ${data.checked} da Siege Log. ${data.noData} senza nick disponibile (serve reimportare il log con la versione nuova del sito).`
+    );
   }
 
   async function resyncFromVariants() {
@@ -652,6 +658,7 @@ function DiagnosticaTab() {
         <button className="btn btn-gold" disabled={backfilling} onClick={backfillNicknames} style={{ marginTop: 8 }}>
           {backfilling && <Spinner />}👤 Aggiungi il nick del proprietario ai counter da Siege Log
         </button>
+        {backfillMsg && <p style={{ fontSize: 12.5, color: "var(--green)", marginTop: 8 }}>{backfillMsg}</p>}
         <p style={{ fontSize: 11.5, color: "var(--red)", marginTop: 8 }}>
           ⚠️ Finestra di tempo limitata: funziona solo finché non fai "Fine Season" (che cancella i dati grezzi da
           cui recuperare). Usalo dopo ogni aggiornamento del sito per riportare i counter già approvati
