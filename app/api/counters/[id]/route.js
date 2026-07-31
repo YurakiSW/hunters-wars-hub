@@ -52,6 +52,16 @@ export async function PATCH(request, { params }) {
   }
 
   if (payload.units) {
+    // Se una persona modifica un counter arrivato dal Siege Log, la sua
+    // correzione deve resistere agli automatismi: il resync non deve
+    // sovrascriverla con i valori ricalcolati dal log, e la pulizia dei
+    // doppioni non deve cancellarla come se fosse contenuto rigenerabile.
+    // (Capita eccome: un attacco può vincere pur avendo artefatti sbagliati
+    // nel replay, e chi conosce il gioco corregge a mano.)
+    if (counter.authorNickname === "Siege Log") {
+      payload.manuallyEdited = true;
+      payload.editedByNickname = user.nickname;
+    }
     const errors = validateCounterPayload(payload);
     if (errors.length) {
       return NextResponse.json({ error: "Campi mancanti o non validi: " + errors.join("; ") }, { status: 400 });
