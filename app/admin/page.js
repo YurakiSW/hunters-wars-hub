@@ -1927,6 +1927,18 @@ function AllContentSection() {
     return !c.units?.some((u) => u.runes || u.artifactLeft?.length || u.artifactRight?.length);
   }
 
+  // Quanti dei counter selezionati sono lavoro umano (scritti a mano, oppure
+  // arrivati dal log ma poi corretti da qualcuno): quelli, a differenza dei
+  // counter da Siege Log, non si rigenerano reimportando.
+  const manualSelectedCount = defs.reduce((sum, d) => {
+    const defSelected = selectedDefs.has(d.id);
+    return sum + (d.counters || []).filter((c) => {
+      const selected = defSelected || selectedCounters.has(`${d.id}::${c.id}`);
+      const isHuman = c.authorNickname !== "Siege Log" || c.manuallyEdited;
+      return selected && isHuman;
+    }).length;
+  }, 0);
+
   const pendingCounterKeys = defs.flatMap((d) => (d.counters || []).filter((c) => c.status === "pending").map((c) => `${d.id}::${c.id}`));
   const allPendingCountersSelected = pendingCounterKeys.length > 0 && pendingCounterKeys.every((k) => selectedCounters.has(k));
 
@@ -1975,9 +1987,20 @@ function AllContentSection() {
           {expanded.has(d.id) && d.counters.map((c) => {
             const key = `${d.id}::${c.id}`;
             return (
-              <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 12px 7px 40px" }}>
+              <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 12px 7px 40px", flexWrap: "wrap" }}>
                 <input type="checkbox" checked={selectedCounters.has(key)} disabled={selectedDefs.has(d.id)} onChange={() => toggleSet(setSelectedCounters, key)} />
-                <span style={{ flex: 1, fontSize: 12.5 }}>{c.offense.join(" · ")}{c.units?.[3] && ` / ${c.units[3].name}`}</span>
+                <span style={{ flex: 1, minWidth: 180, fontSize: 12.5 }}>{c.offense.join(" · ")}{c.units?.[3] && ` / ${c.units[3].name}`}</span>
+                {/* Chi l'ha proposto e chi l'ha approvato: senza questi non si
+                    capisce cosa si sta per eliminare in blocco (roba dal log,
+                    rigenerabile, oppure lavoro scritto a mano da qualcuno). */}
+                <span className="f-mono" style={{ fontSize: 10.5, color: "var(--text-faint)", whiteSpace: "nowrap" }}>
+                  {counterAuthorLabel(c)}
+                </span>
+                {c.approvedByNickname && c.approvedByNickname !== c.authorNickname && (
+                  <span className="f-mono" style={{ fontSize: 10.5, color: "var(--green)", whiteSpace: "nowrap" }}>
+                    · Appr. da {displayAuthorName(c.approvedByNickname)}
+                  </span>
+                )}
                 {missingBuild(c) && <span className="badge" style={{ background: "var(--gold-soft, transparent)", color: "var(--gold)", border: "1px solid var(--gold)" }}>⚠️ Rune mancanti</span>}
                 <span className={`badge ${c.status === "approved" ? "badge-approved" : "badge-pending"}`}>{c.status}</span>
               </div>
@@ -1987,7 +2010,12 @@ function AllContentSection() {
       ))}
       {confirmOpen && (
         <ConfirmModal
-          message={`Eliminare ${selectedDefs.size} difese e ${selectedCounters.size} counter singoli? Non si può annullare.`}
+          message={
+            `Eliminare ${selectedDefs.size} difese e ${selectedCounters.size} counter singoli? Non si può annullare.` +
+            (manualSelectedCount > 0
+              ? `\n\n⚠️ ${manualSelectedCount} dei counter selezionati sono scritti o corretti a mano: NON si rigenerano dal log.`
+              : "")
+          }
           onConfirm={bulkDelete}
           onCancel={() => setConfirmOpen(false)}
         />
