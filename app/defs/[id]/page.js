@@ -312,12 +312,12 @@ function CounterCard({ counter: c, user, canManage, managerNicknames, onEdit, on
               return (
                 <div key={u.name + sortedIdx} style={{ background: "var(--bg-soft)", border: "1px solid var(--border-soft)", borderRadius: 10, padding: 12 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-                    <MonsterCrest name={u.name} size={28} lead={u.lead} />
+                    <MonsterCrest name={u.name} size={40} lead={u.lead} />
                     <span className="f-display" style={{ fontSize: 14 }}>{u.name}</span>
                     {alt && (
                       <>
                         <span style={{ color: "var(--text-faint)" }}>/</span>
-                        <MonsterCrest name={alt.name} size={28} />
+                        <MonsterCrest name={alt.name} size={40} />
                         <span className="f-display" style={{ fontSize: 14 }}>{alt.name}</span>
                       </>
                     )}
@@ -340,7 +340,7 @@ function CounterCard({ counter: c, user, canManage, managerNicknames, onEdit, on
               <div key={i} style={{ display: "flex", alignItems: "center", gap: 4 }}>
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center", minWidth: 52 }}>
                   <span className="f-mono" style={{ fontSize: 10, color: "var(--violet)", fontWeight: 700, marginBottom: 2 }}>Turno {i + 1}</span>
-                  <MonsterCrest name={name} size={36} lead={name === c.lead} />
+                  <MonsterCrest name={name} size={44} lead={name === c.lead} />
                   <span style={{ fontSize: 11, marginTop: 4 }}>{name}</span>
                 </div>
                 {i < c.turnOrder.length - 1 && <div style={{ width: 18, height: 0, borderTop: "2px dashed var(--border)", marginBottom: 22, alignSelf: "center" }} />}
@@ -356,7 +356,7 @@ function CounterCard({ counter: c, user, canManage, managerNicknames, onEdit, on
                   <span key={m} style={{ display: "flex", alignItems: "center", gap: 4 }}>
                     {i > 0 && <span style={{ color: "var(--text-faint)" }}>→</span>}
                     <span style={{ background: "var(--gold-soft)", color: "var(--gold)", padding: "4px 9px", borderRadius: 7, fontSize: 12.5, fontWeight: 600, display: "flex", alignItems: "center", gap: 5 }}>
-                      <MonsterCrest name={m} size={16} /> {m}
+                      <MonsterCrest name={m} size={22} /> {m}
                     </span>
                   </span>
                 ))}

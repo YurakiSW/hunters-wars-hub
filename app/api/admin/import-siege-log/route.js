@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser, canManage } from "../../../../lib/auth";
-import { getFullMonsterList } from "../../../../lib/monsters";
+import { getFullMonsterList, getCanonicalNameMap } from "../../../../lib/monsters";
+import { canonicalMonsterName } from "../../../../lib/textUtils";
 import { extractBattleEntries, entriesToMatchups, aggregateMatchups, extractRichReplayDetails, idsKey, orderedTeamKey, defenseKey } from "../../../../lib/siegeLogParser";
 import { recordCrossPlayerBattles } from "../../../../lib/siegeStats";
 import { safeJson } from "../../../../lib/apiUtils";
@@ -47,6 +48,15 @@ export async function POST(request) {
   for (const [id, name] of monsterByComId) comIdByName.set(name, id);
   const richByIdsKey = extractRichReplayDetails(logText);
 
+  // Versioni collab e non-collab dello stesso mostro vanno trattate come UN
+  // solo mostro (vedi lib/monsters.js). La traduzione al nome canonico si fa
+  // QUI, dopo aver risolto gli id per il lookup dei dati grezzi (che usano
+  // gli unit_master_id reali del replay, diversi tra le due versioni) ma
+  // prima di costruire qualunque chiave: così counter, difese, statistiche e
+  // aggancio ai counter già pubblicati vedono tutti lo stesso nome.
+  const canonicalMap = await getCanonicalNameMap();
+  const canon = (n) => canonicalMonsterName(n, canonicalMap);
+
   // Alimenta il database cross-player (usato dal tab "Approvazioni Siege
   // Log"): OGNI battaglia di questo log, vinta o persa, si somma a quelle
   // gia' viste da altri caricamenti -- non solo quelle sopra il 90% (serve
@@ -71,10 +81,10 @@ export async function POST(request) {
     const units = m.offense.map((name, i) => {
       const richIdx = richIndexByUnitId.get(offenseIds[i]);
       if (richIdx == null) {
-        return { name, rawRunes: null, rawArtifacts: null, rawRelics: null, rawSpd: null, rawCombatBase: null };
+        return { name: canon(name), rawRunes: null, rawArtifacts: null, rawRelics: null, rawSpd: null, rawCombatBase: null };
       }
       return {
-        name,
+        name: canon(name),
         rawRunes: rich.offenseRunes[richIdx],
         rawArtifacts: rich.offenseArtifacts[richIdx],
         rawRelics: rich.offenseRelics?.[richIdx] ?? null,
@@ -82,12 +92,18 @@ export async function POST(request) {
         rawCombatBase: rich.offenseCombatBase?.[richIdx] ?? null,
       };
     });
-    richUnitsByOffenseDefenseKey.set(`${orderedTeamKey(m.offense)}::${defenseKey(m.defense)}`, {
+    richUnitsByOffenseDefenseKey.set(`${orderedTeamKey(m.offense.map(canon))}::${defenseKey(m.defense.map(canon))}`, {
       units,
       ownerNick: rich.offenseWizardName || null,
     });
   }
-  const crossPlayerResult = await recordCrossPlayerBattles(matchups, richUnitsByOffenseDefenseKey);
+  // Da qui in poi si ragiona solo su nomi canonici.
+  const canonicalMatchups = matchups.map((m) => ({
+    ...m,
+    offense: m.offense.map(canon),
+    defense: m.defense.map(canon),
+  }));
+  const crossPlayerResult = await recordCrossPlayerBattles(canonicalMatchups, richUnitsByOffenseDefenseKey);
 
   // Solo per il messaggio di riepilogo mostrato all'utente (non crea piu'
   // nulla direttamente): quante coppie superano gia' il 90% con questo log.

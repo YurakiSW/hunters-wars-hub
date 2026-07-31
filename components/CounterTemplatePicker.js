@@ -43,7 +43,7 @@ export default function CounterTemplatePicker({ onSelect, onClose }) {
             style={{ display: "block", textAlign: "left", cursor: "pointer", padding: "10px 12px", color: "var(--text)", width: "100%" }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
-              {r.counter.offense.map((m, i) => <MonsterCrest key={i} name={m} size={24} />)}
+              {r.counter.offense.map((m, i) => <MonsterCrest key={i} name={m} size={32} />)}
               <span style={{ fontSize: 13.5, marginLeft: 4, fontWeight: 600, color: "var(--text)" }}>{r.counter.offense.join(" · ")}</span>
             </div>
             <div className="f-mono" style={{ fontSize: 11, color: "var(--gold)" }}>▸ usato contro: {r.defName}</div>

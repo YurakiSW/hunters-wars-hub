@@ -35,13 +35,11 @@ function parseRaw(raw) {
   return { name, element, iconUrl: `${ICON_BASE}${imageFilename}`, com2usId, baseAccuracy };
 }
 
-export async function GET(request) {
-  const { searchParams } = new URL(request.url);
-  if (searchParams.get("secret") !== process.env.CRON_SECRET) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  }
-
-  try {
+// Logica vera della sincronizzazione, separata dalla route: la usano sia il
+// link con il segreto (per il cron) sia il pulsante in Diagnostica, così
+// non esistono due copie della stessa cosa che possono divergere.
+export async function syncMonstersFromSwarfarm() {
+  {
     const raws = [];
     let url = `${SWARFARM_BASE}/api/v2/monsters/?awaken_level=1&limit=100`;
     let guard = 0;
@@ -82,8 +80,18 @@ export async function GET(request) {
     }
 
     await setSyncedMonsters(finalList);
+    return { count: finalList.length };
+  }
+}
 
-    return NextResponse.json({ ok: true, count: finalList.length });
+export async function GET(request) {
+  const { searchParams } = new URL(request.url);
+  if (searchParams.get("secret") !== process.env.CRON_SECRET) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+  try {
+    const result = await syncMonstersFromSwarfarm();
+    return NextResponse.json({ ok: true, ...result });
   } catch (err) {
     return NextResponse.json({ ok: false, error: String(err) }, { status: 500 });
   }

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getCurrentUser, isAdmin } from "../../../../lib/auth";
 import { findDuplicateCounters, cleanupDuplicateCounters } from "../../../../lib/defs";
 import { resyncApprovedCounters, backfillLogOwnerNicknames } from "../../../../lib/siegeStats";
+import { syncMonstersFromSwarfarm } from "../../monsters/sync/route";
 import { safeJson } from "../../../../lib/apiUtils";
 
 // GET: mostra quanti doppioni ci sono ora, senza cancellare nulla — utile
@@ -34,6 +35,14 @@ export async function POST(request) {
   if (data.action === "resync_from_variants") {
     const result = await resyncApprovedCounters();
     return NextResponse.json({ ok: true, ...result });
+  }
+  if (data.action === "sync_monsters") {
+    try {
+      const result = await syncMonstersFromSwarfarm();
+      return NextResponse.json({ ok: true, ...result });
+    } catch (err) {
+      return NextResponse.json({ error: `Sincronizzazione fallita: ${String(err.message || err)}` }, { status: 502 });
+    }
   }
   if (data.action === "backfill_log_nicknames") {
     const result = await backfillLogOwnerNicknames();

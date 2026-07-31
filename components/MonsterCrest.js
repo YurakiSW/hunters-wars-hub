@@ -22,6 +22,31 @@ function getMonsterList() {
   return pending;
 }
 
+// Stessa logica di cache per le coppie collab <-> normale: una sola
+// richiesta per pagina, condivisa da tutte le icone.
+let twinCache = null;
+let twinPending = null;
+function getTwinPairs() {
+  if (twinCache) return Promise.resolve(twinCache);
+  if (!twinPending) {
+    twinPending = fetch("/api/admin/monsters/twins")
+      .then((r) => r.json())
+      .then((d) => {
+        twinCache = d.pairs || [];
+        return twinCache;
+      })
+      .catch(() => []);
+  }
+  return twinPending;
+}
+
+// Da chiamare dopo aver aggiunto/rimosso una coppia in admin: senza questo
+// le icone continuerebbero a mostrare la versione vecchia fino al reload.
+export function invalidateTwinCache() {
+  twinCache = null;
+  twinPending = null;
+}
+
 function hashHue(str) {
   let h = 0;
   for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) % 360;
@@ -30,14 +55,24 @@ function hashHue(str) {
 
 export default function MonsterCrest({ name, size = 40, lead = false }) {
   const [icon, setIcon] = useState(undefined);
+  const [twinIcon, setTwinIcon] = useState(null);
 
   useEffect(() => {
     let alive = true;
-    getMonsterList().then((list) => {
+    Promise.all([getMonsterList(), getTwinPairs()]).then(([list, pairs]) => {
       if (!alive) return;
       const target = normalize(name);
-      const match = list.find((m) => normalize(m.name) === target);
-      setIcon(match?.iconUrl || null);
+      const iconOf = (n) => list.find((m) => normalize(m.name) === normalize(n))?.iconUrl || null;
+      setIcon(iconOf(name));
+      // Se questo mostro fa parte di una coppia collab <-> normale, mostriamo
+      // metà faccia per ciascuna versione: si capisce a colpo d'occhio che il
+      // counter vale per entrambe, senza doverlo scrivere.
+      const pair = pairs.find(
+        (p) => normalize(p.canonical) === target || p.alts.some((a) => normalize(a) === target)
+      );
+      if (!pair) return setTwinIcon(null);
+      const other = normalize(pair.canonical) === target ? pair.alts[0] : pair.canonical;
+      setTwinIcon(iconOf(other));
     });
     return () => { alive = false; };
   }, [name]);
@@ -62,7 +97,16 @@ export default function MonsterCrest({ name, size = 40, lead = false }) {
         position: "relative",
       }}
     >
-      {icon ? (
+      {icon && twinIcon ? (
+        // Mezza e mezza: sinistra la versione con cui è salvato il counter,
+        // destra il gemello. clipPath taglia ciascuna immagine a metà senza
+        // deformarla (objectFit: cover sul doppio della larghezza).
+        <div style={{ position: "absolute", inset: 0, display: "flex" }} title={`${name} (versione collab e normale)`}>
+          <img src={icon} alt={name} style={{ width: "50%", height: "100%", objectFit: "cover", objectPosition: "left center" }} />
+          <img src={twinIcon} alt="" style={{ width: "50%", height: "100%", objectFit: "cover", objectPosition: "right center" }} />
+          <span style={{ position: "absolute", left: "50%", top: 0, bottom: 0, width: 1, background: "rgba(0,0,0,.45)" }} />
+        </div>
+      ) : icon ? (
         <img src={icon} alt={name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
       ) : (
         <span className="f-display" style={{ color: "#ffffff", textShadow: "0 1px 2px rgba(0,0,0,.7)", fontSize: size * 0.34, fontWeight: 800 }}>

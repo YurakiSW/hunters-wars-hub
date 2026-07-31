@@ -7,7 +7,8 @@ import Modal from "../../components/Modal";
 import DefForm from "../../components/DefForm";
 import CounterForm from "../../components/CounterForm";
 import CounterTemplatePicker from "../../components/CounterTemplatePicker";
-import MonsterCrest from "../../components/MonsterCrest";
+import MonsterCrest, { invalidateTwinCache } from "../../components/MonsterCrest";
+import MonsterPicker from "../../components/MonsterPicker";
 import { gradeLabel, formatNickname, displayAuthorName, counterAuthorLabel, normalizeMonsterName } from "../../lib/textUtils";
 
 function Spinner() {
@@ -379,6 +380,87 @@ function MonstersTab() {
       ))}
 
       <AliasUploadCard />
+      <TwinPairsCard />
+    </div>
+  );
+}
+
+// Coppie collab <-> versione normale: due mostri diversi in game (nome, id e
+// aspetto) ma con kit e stat base identici. Registrandoli qui, il sito li
+// tratta come UN solo mostro — così un counter giocato con la versione
+// collab e uno con la versione normale finiscono nello stesso counter invece
+// di duplicarsi, e le statistiche si sommano.
+function TwinPairsCard() {
+  const [pairs, setPairs] = useState([]);
+  const [alt, setAlt] = useState("");
+  const [canonical, setCanonical] = useState("");
+  const [msg, setMsg] = useState("");
+  const [iconKey, setIconKey] = useState(0);
+
+  function reload() {
+    fetch("/api/admin/monsters/twins").then((r) => r.json()).then((d) => setPairs(d.pairs || []));
+  }
+  useEffect(reload, []);
+
+  async function send(body) {
+    const res = await fetch("/api/admin/monsters/twins", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    setMsg(res.ok ? "" : data.error);
+    if (res.ok) {
+      setPairs(data.pairs || []);
+      setAlt(""); setCanonical("");
+      // La cache delle coppie è condivisa da tutte le icone della pagina:
+      // va svuotata, altrimenti le mezze facce non compaiono fino al reload.
+      invalidateTwinCache();
+      setIconKey((k) => k + 1);
+    }
+  }
+
+  return (
+    <div className="card" style={{ marginTop: 12 }}>
+      <div className="section-label">Versioni collab ↔ versione normale</div>
+      <p style={{ fontSize: 12, color: "var(--text-faint)", margin: "6px 0 10px" }}>
+        Alcuni mostri escono in due versioni con kit identico (es. un personaggio da collaborazione e il suo
+        equivalente normale). Registrando qui la coppia, il sito li considera <strong>lo stesso mostro</strong>: i
+        counter non si duplicano più e le statistiche si sommano. Nelle icone comparirà mezza faccia per versione.
+      </p>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, flex: 1, minWidth: 210 }}>
+          <MonsterCrest name={alt} size={34} />
+          <div style={{ flex: 1 }}>
+            <MonsterPicker value={alt} onChange={setAlt} placeholder="Versione collab (es. Water Gandalf)" />
+          </div>
+        </div>
+        <span style={{ color: "var(--text-faint)" }}>→</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, flex: 1, minWidth: 210 }}>
+          <MonsterCrest name={canonical} size={34} />
+          <div style={{ flex: 1 }}>
+            <MonsterPicker value={canonical} onChange={setCanonical} placeholder="Nome da usare (es. Old Wood)" />
+          </div>
+        </div>
+        <button className="btn btn-gold" disabled={!alt.trim() || !canonical.trim()} onClick={() => send({ altName: alt, canonicalName: canonical })}>
+          Aggiungi
+        </button>
+      </div>
+      {msg && <p style={{ fontSize: 12.5, color: "var(--red)", marginTop: 8 }}>{msg}</p>}
+      {pairs.length > 0 && (
+        <div style={{ marginTop: 12 }}>
+          <div className="f-mono" style={{ fontSize: 10.5, color: "var(--text-faint)", marginBottom: 4 }}>COPPIE ATTUALI ({pairs.length})</div>
+          {pairs.map((p) => (
+            <div key={p.canonical} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, padding: "3px 0" }}>
+              <MonsterCrest key={`${p.canonical}-${iconKey}`} name={p.canonical} size={26} />
+              <span className="f-mono">{p.alts.join(" / ")} → <strong>{p.canonical}</strong></span>
+              {p.alts.map((a) => (
+                <button key={a} className="btn btn-ghost" style={{ fontSize: 11 }} onClick={() => send({ action: "remove", altName: a })}>
+                  ✕ {a}
+                </button>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -524,6 +606,8 @@ function DiagnosticaTab() {
   const [resyncing, setResyncing] = useState(false);
   const [backfilling, setBackfilling] = useState(false);
   const [backfillMsg, setBackfillMsg] = useState("");
+  const [syncingMon, setSyncingMon] = useState(false);
+  const [syncMonMsg, setSyncMonMsg] = useState("");
   const [resyncExamples, setResyncExamples] = useState([]);
   const [maintMsg, setMaintMsg] = useState("");
 
@@ -550,6 +634,17 @@ function DiagnosticaTab() {
     setCleaning(false);
     setMaintMsg(res.ok ? `${data.removed} counter doppi eliminati (${data.groupsFound} gruppi trovati).` : data.error);
     loadDupInfo();
+  }
+
+  async function syncMonsters() {
+    setSyncingMon(true);
+    setSyncMonMsg("");
+    const res = await fetch("/api/admin/maintenance", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "sync_monsters" }),
+    });
+    const data = await res.json();
+    setSyncingMon(false);
+    setSyncMonMsg(res.ok ? `Bestiario aggiornato: ${data.count} mostri sincronizzati da swarfarm.` : data.error);
   }
 
   async function backfillNicknames() {
@@ -608,7 +703,17 @@ function DiagnosticaTab() {
         </p>
         {maintMsg.includes("doppi") && <p style={{ fontSize: 12.5, color: "var(--green)", marginTop: 8 }}>{maintMsg}</p>}
       </div>
-      <div className="card" style={{ marginTop: 10, borderColor: "var(--gold)" }}>
+      <div className="card" style={{ marginBottom: 10 }}>
+        <button className="btn btn-primary" disabled={syncingMon} onClick={syncMonsters}>
+          {syncingMon && <Spinner />}🔃 Sincronizza bestiario da swarfarm
+        </button>
+        <p style={{ fontSize: 11.5, color: "var(--text-faint)", marginTop: 8 }}>
+          Scarica l&apos;elenco aggiornato dei mostri (nomi, icone, accuracy base). Lancialo quando escono mostri
+          nuovi o dopo un collab, altrimenti i nomi nuovi non vengono riconosciuti nei log.
+        </p>
+        {syncMonMsg && <p style={{ fontSize: 12.5, color: "var(--green)", marginTop: 8 }}>{syncMonMsg}</p>}
+      </div>
+      <div className="card" style={{ marginBottom: 10 }}>
         <button className="btn btn-gold" disabled={resyncing} onClick={resyncFromVariants}>
           {resyncing && <Spinner />}🔄 Recupera stat rune/artefatti nei counter già approvati
         </button>
@@ -1068,10 +1173,10 @@ function SiegeStatsProposalsTab({ isAdmin }) {
                       style={{ marginRight: 4 }}
                     />
                   )}
-                  {p.offenseNames?.map((m, i) => <MonsterCrest key={`o${i}`} name={m} size={22} lead={i === 0} />)}
+                  {p.offenseNames?.map((m, i) => <MonsterCrest key={`o${i}`} name={m} size={30} lead={i === 0} />)}
                   <strong>{p.offenseNames?.join(" / ")}</strong>
                   <span style={{ color: "var(--text-faint)" }}>contro</span>
-                  {p.defenseNames?.map((m, i) => <MonsterCrest key={`d${i}`} name={m} size={22} />)}
+                  {p.defenseNames?.map((m, i) => <MonsterCrest key={`d${i}`} name={m} size={30} />)}
                   <strong>{p.defenseNames?.join(" / ")}</strong>
                 </div>
                 <div style={{ fontSize: 13, color: "var(--text-muted)" }}>
@@ -1283,7 +1388,7 @@ function DuplicateDefsSection() {
           </div>
           {group.map((d) => (
             <div key={d.id} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-              {d.monsters.map((m, j) => <MonsterCrest key={j} name={m} size={24} />)}
+              {d.monsters.map((m, j) => <MonsterCrest key={j} name={m} size={30} />)}
               <span style={{ fontSize: 13 }}>{d.monsters.join(" / ")}</span>
               <span className="f-mono" style={{ fontSize: 10.5, color: "var(--text-faint)" }}>({d.counters.length} counter)</span>
             </div>
@@ -1429,7 +1534,7 @@ function PendingApprovalsSection() {
               <button onClick={() => toggle(d.id)} style={{ background: "none", border: "none", color: "var(--text-faint)" }}>
                 {expanded.has(d.id) ? "▼" : "▶"}
               </button>
-              {d.monsters.map((m, i) => <MonsterCrest key={i} name={m} size={26} />)}
+              {d.monsters.map((m, i) => <MonsterCrest key={i} name={m} size={30} />)}
               <span style={{ flex: 1, fontSize: 13.5 }}>{d.monsters.join(" / ")}</span>
               {d.status === "pending" && <span title="In attesa di approvazione" style={{ color: "var(--ember)", fontWeight: 700 }}>❗</span>}
               {d.status === "pending" ? (
@@ -1458,8 +1563,8 @@ function PendingApprovalsSection() {
                   background: c.status === "pending" ? "rgba(255,106,53,.06)" : "transparent",
                 }}
               >
-                {(c.lead ? [c.lead, ...c.offense.filter((m) => m !== c.lead)] : c.offense).map((m, i) => <MonsterCrest key={i} name={m} size={20} lead={m === c.lead} />)}
-                {c.units?.[3] && <MonsterCrest name={c.units[3].name} size={20} />}
+                {(c.lead ? [c.lead, ...c.offense.filter((m) => m !== c.lead)] : c.offense).map((m, i) => <MonsterCrest key={i} name={m} size={28} lead={m === c.lead} />)}
+                {c.units?.[3] && <MonsterCrest name={c.units[3].name} size={28} />}
                 <span style={{ flex: 1, fontSize: 12.5 }}>{c.offense.join(" · ")}{c.units?.[3] && ` / ${c.units[3].name}`}</span>
                 {!c.units?.some((u) => u.runes || u.artifactLeft?.length || u.artifactRight?.length) && (
                   <span className="badge" style={{ color: "var(--gold)", border: "1px solid var(--gold)" }}>⚠️ Rune mancanti</span>
