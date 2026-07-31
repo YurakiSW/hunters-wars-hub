@@ -73,8 +73,17 @@ export async function syncMonstersFromSwarfarm() {
       if (uniqueElements.size <= 1) {
         finalList.push({ name, iconUrl: variants[0].iconUrl, com2usId: variants[0].com2usId, baseAccuracy: variants[0].baseAccuracy });
       } else {
+        // Stesso nome su più elementi = mostro da collaborazione: i mostri
+        // normali hanno un nome diverso per ogni elemento (Raoq, Kro,
+        // Lushen...), i collab riusano il nome del personaggio su tutte le
+        // varianti. Lo marchiamo qui, così la tabella delle corrispondenze
+        // in admin si popola da sola con OGNI collab presente e futuro,
+        // senza elenchi scritti a mano.
+        // Unica eccezione nota: gli Homunculus, che condividono il nome tra
+        // elementi pur non essendo collab.
+        const isCollab = !/homunculus/i.test(name);
         for (const v of variants) {
-          finalList.push({ name: `${v.element} ${name}`, iconUrl: v.iconUrl, com2usId: v.com2usId, baseAccuracy: v.baseAccuracy });
+          finalList.push({ name: `${v.element} ${name}`, iconUrl: v.iconUrl, com2usId: v.com2usId, baseAccuracy: v.baseAccuracy, isCollab });
         }
       }
     }

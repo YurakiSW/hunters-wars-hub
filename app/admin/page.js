@@ -1,5 +1,5 @@
 "use client";
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Header from "../../components/Header";
 import ConfirmModal from "../../components/ConfirmModal";
@@ -7,9 +7,14 @@ import Modal from "../../components/Modal";
 import DefForm from "../../components/DefForm";
 import CounterForm from "../../components/CounterForm";
 import CounterTemplatePicker from "../../components/CounterTemplatePicker";
-import MonsterCrest, { invalidateTwinCache } from "../../components/MonsterCrest";
+import MonsterCrest, { invalidateTwinCache, invalidateMonsterCache } from "../../components/MonsterCrest";
 import MonsterPicker from "../../components/MonsterPicker";
 import { gradeLabel, formatNickname, displayAuthorName, counterAuthorLabel, normalizeMonsterName } from "../../lib/textUtils";
+
+// Evento interno alla pagina: lo lancia il pulsante "Sincronizza bestiario"
+// (tab Diagnostica) e lo ascolta la tabella delle coppie collab (tab Mostri),
+// che così si ripopola da sola con i mostri appena scaricati.
+const MONSTERS_SYNCED_EVENT = "hwhub:monsters-synced";
 
 function Spinner() {
   return <span className="spinner" aria-hidden="true" />;
@@ -392,74 +397,181 @@ function MonstersTab() {
 // di duplicarsi, e le statistiche si sommano.
 function TwinPairsCard() {
   const [pairs, setPairs] = useState([]);
-  const [alt, setAlt] = useState("");
-  const [canonical, setCanonical] = useState("");
+  const [rows, setRows] = useState([]);       // [{ name, canonical }]
   const [msg, setMsg] = useState("");
+  const [saving, setSaving] = useState(false);
   const [iconKey, setIconKey] = useState(0);
+  const [manualAlt, setManualAlt] = useState("");
+  const [manualCanonical, setManualCanonical] = useState("");
 
-  function reload() {
-    fetch("/api/admin/monsters/twins").then((r) => r.json()).then((d) => setPairs(d.pairs || []));
-  }
-  useEffect(reload, []);
-
-  async function send(body) {
+  // Inserimento manuale: stesso salvataggio del resto della tabella, solo su
+  // una riga sola. Dopo il salvataggio la coppia rientra nell'elenco normale
+  // (loadRows tiene anche le corrispondenze fuori dalla regola automatica).
+  async function addManual() {
     const res = await fetch("/api/admin/monsters/twins", {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ altName: manualAlt, canonicalName: manualCanonical }),
     });
     const data = await res.json();
-    setMsg(res.ok ? "" : data.error);
-    if (res.ok) {
-      setPairs(data.pairs || []);
-      setAlt(""); setCanonical("");
-      // La cache delle coppie è condivisa da tutte le icone della pagina:
-      // va svuotata, altrimenti le mezze facce non compaiono fino al reload.
-      invalidateTwinCache();
-      setIconKey((k) => k + 1);
-    }
+    if (!res.ok) return setMsg(data.error);
+    setManualAlt(""); setManualCanonical(""); setMsg("");
+    invalidateTwinCache();
+    setIconKey((k) => k + 1);
+    loadRows();
   }
+
+  // Costruisce la tabella: una riga per ogni mostro da collaborazione del
+  // bestiario. Si ricarica da sola quando il bestiario viene risincronizzato,
+  // così i mostri di un collab appena uscito compaiono subito senza reload.
+  const loadRows = useCallback(() => {
+    Promise.all([
+      fetch("/api/admin/monsters").then((r) => r.json()),
+      fetch("/api/admin/monsters/twins").then((r) => r.json()),
+    ]).then(([mon, tw]) => {
+      const all = mon.monsters || [];
+      const twins = {};
+      for (const p of tw.pairs || []) for (const a of p.alts) twins[normalizeMonsterName(a)] = p.canonical;
+      // I collab li riconosce direttamente il sync del bestiario (stesso nome
+      // su più elementi): nessun elenco scritto a mano, quindi ogni collab
+      // futuro compare da solo. Si aggiungono anche le corrispondenze già
+      // registrate che non rientrano nella regola (es. un collab uscito in
+      // un solo elemento, come Frodo).
+      const rowsFromFlag = all.filter((m) => m.isCollab).map((m) => m.name);
+      const extra = Object.keys(twins)
+        .map((k) => all.find((m) => normalizeMonsterName(m.name) === k)?.name)
+        .filter((n) => n && !rowsFromFlag.includes(n));
+      const found = [...rowsFromFlag, ...extra]
+        .map((name) => ({ name, canonical: twins[normalizeMonsterName(name)] || "" }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+      setRows(found);
+      setPairs(tw.pairs || []);
+    });
+  }, []);
+
+  useEffect(() => {
+    loadRows();
+    window.addEventListener(MONSTERS_SYNCED_EVENT, loadRows);
+    return () => window.removeEventListener(MONSTERS_SYNCED_EVENT, loadRows);
+  }, [loadRows]);
+
+  function setRow(i, canonical) {
+    setRows((prev) => prev.map((r, j) => (j === i ? { ...r, canonical } : r)));
+  }
+
+  async function saveAll() {
+    const entries = rows.filter((r) => r.canonical.trim()).map((r) => ({ altName: r.name, canonicalName: r.canonical }));
+    if (!entries.length) return setMsg("Nessuna corrispondenza da salvare.");
+    setSaving(true);
+    const res = await fetch("/api/admin/monsters/twins", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "bulk", entries }),
+    });
+    const data = await res.json();
+    setSaving(false);
+    if (!res.ok) return setMsg(data.error);
+    setPairs(data.pairs || []);
+    setMsg(`${data.saved} corrispondenze salvate (totale registrate: ${data.total}).`);
+    invalidateTwinCache();
+    setIconKey((k) => k + 1);
+  }
+
+  async function removeOne(altName) {
+    const res = await fetch("/api/admin/monsters/twins", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "remove", altName }),
+    });
+    const data = await res.json();
+    if (!res.ok) return setMsg(data.error);
+    setPairs(data.pairs || []);
+    setRows((prev) => prev.map((r) => (r.name === altName ? { ...r, canonical: "" } : r)));
+    invalidateTwinCache();
+    setIconKey((k) => k + 1);
+  }
+
+  const compiled = rows.filter((r) => r.canonical.trim()).length;
 
   return (
     <div className="card" style={{ marginTop: 12 }}>
       <div className="section-label">Versioni collab ↔ versione normale</div>
       <p style={{ fontSize: 12, color: "var(--text-faint)", margin: "6px 0 10px" }}>
-        Alcuni mostri escono in due versioni con kit identico (es. un personaggio da collaborazione e il suo
-        equivalente normale). Registrando qui la coppia, il sito li considera <strong>lo stesso mostro</strong>: i
-        counter non si duplicano più e le statistiche si sommano. Nelle icone comparirà mezza faccia per versione.
+        I mostri da collaborazione hanno un &quot;gemello&quot; normale con kit identico. Indicando qui la
+        corrispondenza, il sito li tratta come <strong>lo stesso mostro</strong>: i counter non si duplicano più e le
+        statistiche si sommano. L&apos;elenco a sinistra è ricavato da solo dal bestiario (i collab sono gli unici a
+        riusare lo stesso nome su più elementi), quindi <strong>si aggiorna da sé a ogni nuovo collab</strong>:
+        compila la colonna di destra quando escono i corrispettivi, le righe vuote non fanno nulla.
       </p>
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 6, flex: 1, minWidth: 210 }}>
-          <MonsterCrest name={alt} size={34} />
-          <div style={{ flex: 1 }}>
-            <MonsterPicker value={alt} onChange={setAlt} placeholder="Versione collab (es. Water Gandalf)" />
+
+      {rows.length === 0 ? (
+        <p style={{ fontSize: 12.5, color: "var(--text-faint)" }}>
+          Nessun mostro da collaborazione trovato nel bestiario — lancia prima &quot;Sincronizza bestiario&quot; in Diagnostica.
+        </p>
+      ) : (
+        <>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10, flexWrap: "wrap" }}>
+            <button className="btn btn-gold" disabled={saving} onClick={saveAll}>
+              {saving && <Spinner />}💾 Salva tutte le corrispondenze
+            </button>
+            <span className="f-mono" style={{ fontSize: 11.5, color: "var(--text-faint)" }}>
+              {compiled} compilate su {rows.length}
+            </span>
           </div>
-        </div>
-        <span style={{ color: "var(--text-faint)" }}>→</span>
-        <div style={{ display: "flex", alignItems: "center", gap: 6, flex: 1, minWidth: 210 }}>
-          <MonsterCrest name={canonical} size={34} />
-          <div style={{ flex: 1 }}>
-            <MonsterPicker value={canonical} onChange={setCanonical} placeholder="Nome da usare (es. Old Wood)" />
+          {msg && <p style={{ fontSize: 12.5, color: "var(--green)", marginBottom: 8 }}>{msg}</p>}
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {rows.map((r, i) => {
+              return (
+                <div key={r.name}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 230 }}>
+                      <MonsterCrest key={`${r.name}-${iconKey}`} name={r.name} size={32} />
+                      <span style={{ fontSize: 13 }}>{r.name}</span>
+                    </div>
+                    <span style={{ color: "var(--text-faint)" }}>→</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, flex: 1, minWidth: 240 }}>
+                      <MonsterCrest key={`c-${r.canonical}-${iconKey}`} name={r.canonical} size={32} />
+                      <div style={{ flex: 1 }}>
+                        <MonsterPicker value={r.canonical} onChange={(v) => setRow(i, v)} placeholder="Versione normale corrispondente" />
+                      </div>
+                    </div>
+                    {pairs.some((p) => p.alts.includes(r.name)) && (
+                      <button className="btn btn-ghost" style={{ fontSize: 11 }} onClick={() => removeOne(r.name)}>✕</button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
-        </div>
-        <button className="btn btn-gold" disabled={!alt.trim() || !canonical.trim()} onClick={() => send({ altName: alt, canonicalName: canonical })}>
-          Aggiungi
-        </button>
-      </div>
-      {msg && <p style={{ fontSize: 12.5, color: "var(--red)", marginTop: 8 }}>{msg}</p>}
-      {pairs.length > 0 && (
-        <div style={{ marginTop: 12 }}>
-          <div className="f-mono" style={{ fontSize: 10.5, color: "var(--text-faint)", marginBottom: 4 }}>COPPIE ATTUALI ({pairs.length})</div>
-          {pairs.map((p) => (
-            <div key={p.canonical} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, padding: "3px 0" }}>
-              <MonsterCrest key={`${p.canonical}-${iconKey}`} name={p.canonical} size={26} />
-              <span className="f-mono">{p.alts.join(" / ")} → <strong>{p.canonical}</strong></span>
-              {p.alts.map((a) => (
-                <button key={a} className="btn btn-ghost" style={{ fontSize: 11 }} onClick={() => send({ action: "remove", altName: a })}>
-                  ✕ {a}
-                </button>
-              ))}
+          <div style={{ borderTop: "1px solid var(--border-soft)", marginTop: 14, paddingTop: 12 }}>
+            <div className="f-mono" style={{ fontSize: 10.5, color: "var(--text-faint)", marginBottom: 6 }}>
+              AGGIUNGI A MANO
             </div>
-          ))}
-        </div>
+            <p style={{ fontSize: 11.5, color: "var(--text-faint)", marginBottom: 8 }}>
+              Serve solo per i collab usciti in un <strong>unico elemento</strong> (es. Frodo): senza varianti
+              elementali non vengono riconosciuti in automatico. Una volta aggiunta, la coppia resta nell&apos;elenco qui sopra.
+            </p>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, flex: 1, minWidth: 230 }}>
+                <MonsterCrest key={`ma-${manualAlt}-${iconKey}`} name={manualAlt} size={32} />
+                <div style={{ flex: 1 }}>
+                  <MonsterPicker value={manualAlt} onChange={setManualAlt} placeholder="Mostro collab" />
+                </div>
+              </div>
+              <span style={{ color: "var(--text-faint)" }}>→</span>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, flex: 1, minWidth: 230 }}>
+                <MonsterCrest key={`mc-${manualCanonical}-${iconKey}`} name={manualCanonical} size={32} />
+                <div style={{ flex: 1 }}>
+                  <MonsterPicker value={manualCanonical} onChange={setManualCanonical} placeholder="Versione normale" />
+                </div>
+              </div>
+              <button
+                className="btn btn-ghost"
+                disabled={!manualAlt.trim() || !manualCanonical.trim()}
+                onClick={addManual}
+              >
+                + Aggiungi
+              </button>
+            </div>
+          </div>
+        </>
       )}
     </div>
   );
@@ -645,6 +757,13 @@ function DiagnosticaTab() {
     const data = await res.json();
     setSyncingMon(false);
     setSyncMonMsg(res.ok ? `Bestiario aggiornato: ${data.count} mostri sincronizzati da swarfarm.` : data.error);
+    if (res.ok) {
+      // Le liste sono in cache condivisa: senza svuotarle, i mostri nuovi non
+      // comparirebbero nelle icone e nella tabella collab fino a un reload.
+      invalidateMonsterCache();
+      invalidateTwinCache();
+      window.dispatchEvent(new Event(MONSTERS_SYNCED_EVENT));
+    }
   }
 
   async function backfillNicknames() {

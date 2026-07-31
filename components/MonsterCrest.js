@@ -40,6 +40,14 @@ function getTwinPairs() {
   return twinPending;
 }
 
+// Da chiamare dopo aver sincronizzato il bestiario: la lista mostri è in
+// cache condivisa, senza svuotarla i mostri nuovi non comparirebbero fino
+// a un reload completo della pagina.
+export function invalidateMonsterCache() {
+  cache = null;
+  pending = null;
+}
+
 // Da chiamare dopo aver aggiunto/rimosso una coppia in admin: senza questo
 // le icone continuerebbero a mostrare la versione vecchia fino al reload.
 export function invalidateTwinCache() {

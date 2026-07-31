@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser, canManage } from "../../../../../lib/auth";
-import { getTwinPairs, setTwin, removeTwin } from "../../../../../lib/monsters";
+import { getTwinPairs, setTwin, setTwinsBulk, removeTwin } from "../../../../../lib/monsters";
 import { safeJson } from "../../../../../lib/apiUtils";
 
 // GET: elenco delle coppie collab <-> versione normale. Lettura libera per
@@ -27,6 +27,10 @@ export async function POST(request) {
     if (data.action === "remove") {
       await removeTwin(data.altName);
       return NextResponse.json({ ok: true, pairs: await getTwinPairs() });
+    }
+    if (data.action === "bulk") {
+      const result = await setTwinsBulk(data.entries);
+      return NextResponse.json({ ok: true, ...result, pairs: await getTwinPairs() });
     }
     await setTwin(data.altName, data.canonicalName);
     return NextResponse.json({ ok: true, pairs: await getTwinPairs() });
