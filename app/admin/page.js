@@ -520,8 +520,6 @@ function DiagnosticaTab() {
   const [checks, setChecks] = useState(null);
   const [loading, setLoading] = useState(true);
   const [dupInfo, setDupInfo] = useState(null);
-  const [renaming, setRenaming] = useState(false);
-  const [simplifying, setSimplifying] = useState(false);
   const [cleaning, setCleaning] = useState(false);
   const [resyncing, setResyncing] = useState(false);
   const [backfilling, setBackfilling] = useState(false);
@@ -542,26 +540,6 @@ function DiagnosticaTab() {
   }
 
   useEffect(() => { load(); loadDupInfo(); }, []);
-
-  async function renameAuthors() {
-    setRenaming(true);
-    const res = await fetch("/api/admin/maintenance", {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "rename_siege_log_authors" }),
-    });
-    const data = await res.json();
-    setRenaming(false);
-    setMaintMsg(res.ok ? `${data.renamed} autori rinominati in "Siege Log".` : data.error);
-  }
-
-  async function simplifyDescriptions() {
-    setSimplifying(true);
-    const res = await fetch("/api/admin/maintenance", {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "simplify_descriptions" }),
-    });
-    const data = await res.json();
-    setSimplifying(false);
-    setMaintMsg(res.ok ? `${data.updated} descrizioni semplificate.` : data.error);
-  }
 
   async function cleanupDuplicates() {
     setCleaning(true);
@@ -620,27 +598,6 @@ function DiagnosticaTab() {
       ))}
 
       <div className="section-label" style={{ marginTop: 24 }}>Manutenzione contenuti</div>
-      <p style={{ color: "var(--text-faint)", fontSize: 12.5, marginBottom: 14 }}>
-        Sistema una tantum: prima del 29/07/2026 il log Siege creava counter da due percorsi diversi (uno restava
-        "Import Log", l'altro diventava "Siege Log" solo dopo approvazione), a volte duplicando lo stesso counter.
-        Ora è unificato — questi due pulsanti sistemano quello creato prima.
-      </p>
-      <div className="card" style={{ marginBottom: 10 }}>
-        <button className="btn btn-ghost" disabled={renaming} onClick={renameAuthors}>
-          {renaming && <Spinner />}✎ Rinomina vecchi autori "Import Log"/"Siege Log Stats" → "Siege Log"
-        </button>
-        {maintMsg.includes("autori") && <p style={{ fontSize: 12.5, color: "var(--green)", marginTop: 8 }}>{maintMsg}</p>}
-      </div>
-      <div className="card" style={{ marginBottom: 10 }}>
-        <button className="btn btn-ghost" disabled={simplifying} onClick={simplifyDescriptions}>
-          {simplifying && <Spinner />}📝 Semplifica descrizioni Difese "Siege Log" (una tantum)
-        </button>
-        <p style={{ fontSize: 11.5, color: "var(--text-faint)", marginTop: 8 }}>
-          Sostituisce il testo lungo con "Importata da Log Siege. Segnalare eventuali problemi." — solo sulle Difese
-          con autore "Siege Log" (usa prima "Rinomina vecchi autori" se non l'hai già fatto), mai su una scritta a mano.
-        </p>
-        {maintMsg.includes("descrizioni") && <p style={{ fontSize: 12.5, color: "var(--green)", marginTop: 8 }}>{maintMsg}</p>}
-      </div>
       <div className="card">
         <button className="btn btn-danger" disabled={cleaning} onClick={cleanupDuplicates}>
           {cleaning && <Spinner />}🧹 Pulisci counter doppi ({dupInfo ? `${dupInfo.duplicateGroups} gruppi trovati` : "..."})

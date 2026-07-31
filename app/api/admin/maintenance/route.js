@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser, isAdmin } from "../../../../lib/auth";
-import { renameSiegeLogAuthors, findDuplicateCounters, cleanupDuplicateCounters, simplifySiegeLogDescriptions } from "../../../../lib/defs";
+import { findDuplicateCounters, cleanupDuplicateCounters } from "../../../../lib/defs";
 import { resyncApprovedCounters, backfillLogOwnerNicknames } from "../../../../lib/siegeStats";
 import { safeJson } from "../../../../lib/apiUtils";
 
@@ -27,10 +27,6 @@ export async function POST(request) {
   const { data, error: parseError } = await safeJson(request);
   if (parseError) return NextResponse.json({ error: parseError }, { status: 400 });
 
-  if (data.action === "rename_siege_log_authors") {
-    const result = await renameSiegeLogAuthors();
-    return NextResponse.json({ ok: true, ...result });
-  }
   if (data.action === "cleanup_duplicates") {
     const result = await cleanupDuplicateCounters();
     return NextResponse.json({ ok: true, ...result });
@@ -41,10 +37,6 @@ export async function POST(request) {
   }
   if (data.action === "backfill_log_nicknames") {
     const result = await backfillLogOwnerNicknames();
-    return NextResponse.json({ ok: true, ...result });
-  }
-  if (data.action === "simplify_descriptions") {
-    const result = await simplifySiegeLogDescriptions();
     return NextResponse.json({ ok: true, ...result });
   }
   return NextResponse.json({ error: "Azione non valida." }, { status: 400 });
