@@ -755,6 +755,9 @@ function DiagnosticaTab() {
   const [backfillMsg, setBackfillMsg] = useState("");
   const [syncingMon, setSyncingMon] = useState(false);
   const [syncMonMsg, setSyncMonMsg] = useState("");
+  const [merging, setMerging] = useState(false);
+  const [mergeMsg, setMergeMsg] = useState("");
+  const [reviewGroups, setReviewGroups] = useState([]);
   const [resyncExamples, setResyncExamples] = useState([]);
   const [maintMsg, setMaintMsg] = useState("");
 
@@ -772,6 +775,23 @@ function DiagnosticaTab() {
 
   useEffect(() => { load(); loadDupInfo(); }, []);
 
+  async function mergeEquivalent() {
+    setMerging(true);
+    setMergeMsg("");
+    const res = await fetch("/api/admin/maintenance", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "merge_equivalent_defs" }),
+    });
+    const data = await res.json();
+    setMerging(false);
+    if (!res.ok) return setMergeMsg(data.error);
+    setMergeMsg(
+      data.groups === 0
+        ? "Nessuna Difesa da unire: nessuna coppia collab registrata combacia con Difese esistenti."
+        : `${data.mergedDefs} Difese unite in ${data.groups} gruppi, ${data.movedCounters} counter spostati. Ora lancia "Pulisci counter doppi".`
+    );
+    loadDupInfo();
+  }
+
   async function cleanupDuplicates() {
     setCleaning(true);
     const res = await fetch("/api/admin/maintenance", {
@@ -779,7 +799,13 @@ function DiagnosticaTab() {
     });
     const data = await res.json();
     setCleaning(false);
-    setMaintMsg(res.ok ? `${data.removed} counter doppi eliminati (${data.groupsFound} gruppi trovati).` : data.error);
+    if (!res.ok) return setMaintMsg(data.error);
+    const review = data.needsReview || [];
+    setMaintMsg(
+      `${data.removed} counter doppi eliminati (${data.groupsFound} gruppi trovati).` +
+      (review.length ? ` ${review.length} gruppi NON toccati: contengono più counter scritti a mano.` : "")
+    );
+    setReviewGroups(review);
     loadDupInfo();
   }
 
@@ -847,15 +873,41 @@ function DiagnosticaTab() {
       ))}
 
       <div className="section-label" style={{ marginTop: 24 }}>Manutenzione contenuti</div>
+      <div className="card" style={{ marginBottom: 10 }}>
+        <button className="btn btn-danger" disabled={merging} onClick={mergeEquivalent}>
+          {merging && <Spinner />}🔗 Unisci Difese uguali a meno della versione collab
+          {dupInfo ? ` (${dupInfo.equivalentDefGroups} gruppi trovati)` : " (...)"}
+        </button>
+        <p style={{ fontSize: 11.5, color: "var(--text-faint)", marginTop: 8 }}>
+          Difese identiche tranne che per la versione collab/normale di un mostro (es. &quot;Dark Ciri / Son Zhang Lao /
+          Driana&quot; e &quot;Fiona / Son Zhang Lao / Driana&quot;): erano state create prima che la coppia fosse
+          registrata. Tiene quella con più counter e ci sposta dentro gli altri. <strong>Registra prima le coppie</strong>
+          nella tab Mostri, poi lancia &quot;Pulisci counter doppi&quot; qui sotto per togliere i counter ripetuti.
+        </p>
+        {mergeMsg && <p style={{ fontSize: 12.5, color: "var(--green)", marginTop: 8 }}>{mergeMsg}</p>}
+      </div>
       <div className="card">
         <button className="btn btn-danger" disabled={cleaning} onClick={cleanupDuplicates}>
           {cleaning && <Spinner />}🧹 Pulisci counter doppi ({dupInfo ? `${dupInfo.duplicateGroups} gruppi trovati` : "..."})
         </button>
         <p style={{ fontSize: 11.5, color: "var(--text-faint)", marginTop: 8 }}>
-          Stesso leader e stessi 2 mostri (ordine ignorato) sulla stessa Difesa → tiene quello con più informazioni
-          (rune/artefatti), a parità quello con autore "Siege Log", elimina gli altri.
+          Stesso leader e stessi 2 mostri (ordine ignorato) sulla stessa Difesa. <strong>I counter scritti a mano non
+          vengono mai cancellati</strong>: si eliminano solo i doppioni generati dal Log Siege, che si rigenerano al
+          prossimo import. Se in un gruppo ci sono più counter scritti a mano, non si tocca nulla e te li elenca qui
+          sotto perché decida tu.
         </p>
         {maintMsg.includes("doppi") && <p style={{ fontSize: 12.5, color: "var(--green)", marginTop: 8 }}>{maintMsg}</p>}
+        {reviewGroups.length > 0 && (
+          <div style={{ marginTop: 8 }}>
+            <div className="f-mono" style={{ fontSize: 10.5, color: "var(--ember)", marginBottom: 4 }}>DA DECIDERE A MANO</div>
+            {reviewGroups.map((g, i) => (
+              <div key={i} style={{ fontSize: 12, color: "var(--text-muted)", padding: "2px 0" }}>
+                {g.defMonsters?.join(" / ")} → <strong>{g.offense?.join(" / ")}</strong>{" "}
+                <span className="f-mono" style={{ fontSize: 11, color: "var(--text-faint)" }}>({g.authors?.join(", ")})</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
       <div className="card" style={{ marginBottom: 10 }}>
         <button className="btn btn-primary" disabled={syncingMon} onClick={syncMonsters}>
@@ -1489,10 +1541,20 @@ function DuplicateDefsSection() {
   const [defs, setDefs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [merging, setMerging] = useState(null);
+  const [canonicalMap, setCanonicalMap] = useState({});
 
   function load() {
     setLoading(true);
-    fetch("/api/defs").then((r) => r.json()).then((d) => {
+    Promise.all([
+      fetch("/api/defs").then((r) => r.json()),
+      fetch("/api/admin/monsters/twins").then((r) => r.json()),
+    ]).then(([d, tw]) => {
+      const map = {};
+      for (const p of tw.pairs || []) {
+        map[normalizeMonsterName(p.canonical)] = p.canonical;
+        for (const a of p.alts) map[normalizeMonsterName(a)] = p.canonical;
+      }
+      setCanonicalMap(map);
       setDefs(d.defs || []);
       setLoading(false);
     });
@@ -1502,7 +1564,14 @@ function DuplicateDefsSection() {
   // Stesso mostro conta uguale a prescindere da ordine/accenti/maiuscole —
   // stessa logica usata per il roster e la ricerca mostri.
   function keyFor(d) {
-    return d.monsters.map((m) => normalizeMonsterName(m)).sort().join("|");
+    // Passa per il nome canonico: due difese che differiscono solo per la
+    // versione (collab o normale) dello stesso mostro sono la STESSA difesa
+    // e vanno riconosciute come doppie, altrimenti restano separate per
+    // sempre anche dopo aver registrato la coppia.
+    return d.monsters
+      .map((m) => normalizeMonsterName(canonicalMap[normalizeMonsterName(m)] || m))
+      .sort()
+      .join("|");
   }
 
   const groups = {};
