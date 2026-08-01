@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser, canManage } from "../../../../lib/auth";
-import { getDef, updateDef, deleteDef } from "../../../../lib/defs";
+import { getDef, updateDef, deleteDef, findMatchingDef } from "../../../../lib/defs";
 import { isKnownMonster } from "../../../../lib/monsters";
 import { safeJson } from "../../../../lib/apiUtils";
 
@@ -25,6 +25,18 @@ export async function PATCH(request, { params }) {
     if (!(await isKnownMonster(m))) {
       return NextResponse.json({ error: `"${m}" non è un mostro riconosciuto.` }, { status: 400 });
     }
+  }
+  // Stesso controllo della creazione: valeva anche solo per i membri normali
+  // prima, ma modificare i mostri di una difesa già esistente fino a farla
+  // combaciare con un'altra è la stessa identica cosa — vale per TUTTI,
+  // Admin compreso. Si esclude questa stessa difesa dal confronto (altrimenti
+  // salvarla senza cambiare i mostri si bloccherebbe da sola).
+  const { exact } = await findMatchingDef(monsters, params.id);
+  if (exact) {
+    return NextResponse.json(
+      { error: `Questa difesa esiste già: ${exact.monsters.join(" / ")} (leader ${exact.monsters[0]}). Non puoi modificarla fino a farla combaciare con un'altra.` },
+      { status: 409 }
+    );
   }
   // Questo endpoint richiede già canManage (solo Admin/Revisori) — non ha
   // senso rimandarla "in attesa" per una nuova approvazione, dato che chi
