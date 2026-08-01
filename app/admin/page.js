@@ -11,6 +11,22 @@ import MonsterCrest, { invalidateTwinCache, invalidateMonsterCache } from "../..
 import MonsterPicker from "../../components/MonsterPicker";
 import { gradeLabel, formatNickname, displayAuthorName, counterAuthorLabel, normalizeMonsterName } from "../../lib/textUtils";
 
+// Raggruppa enemyGuildBreakdown (una voce per gilda) in una voce per DATA
+// solare, unendo i nomi delle gilde che condividono quella data — così
+// "28/07 vs GildaA" e "28/07 vs GildaB" diventano un'unica riga leggibile
+// "28/07 vs GildaA e GildaB", il caso normale di una siege con 2 nemiche.
+function groupBreakdownByDate(breakdown) {
+  const byDate = new Map();
+  for (const g of breakdown || []) {
+    const dateLabel = g.dateFrom ? new Date(g.dateFrom * 1000).toLocaleDateString() : "?";
+    const entry = byDate.get(dateLabel) || { dateLabel, guilds: [], count: 0 };
+    entry.guilds.push(g.guild);
+    entry.count += g.count;
+    byDate.set(dateLabel, entry);
+  }
+  return [...byDate.values()];
+}
+
 // Evento interno alla pagina: lo lancia il pulsante "Sincronizza bestiario"
 // (tab Diagnostica) e lo ascolta la tabella delle coppie collab (tab Mostri),
 // che così si ripopola da sola con i mostri appena scaricati.
@@ -965,6 +981,7 @@ function GuildDefenseImportCard() {
   const [guildNameInput, setGuildNameInput] = useState("");
   const [savingName, setSavingName] = useState(false);
   const [logText, setLogText] = useState("");
+  const [readingFile, setReadingFile] = useState(false);
   const [label, setLabel] = useState("");
   const [importing, setImporting] = useState(false);
   const [importMsg, setImportMsg] = useState("");
@@ -973,6 +990,17 @@ function GuildDefenseImportCard() {
   const [selectedLogs, setSelectedLogs] = useState(new Set());
   const [confirmDelete, setConfirmDelete] = useState(null); // logId singolo, o "bulk"
   const [deleting, setDeleting] = useState(false);
+
+  // Stesso identico pattern usato dall'import Siege Log offense: legge il
+  // file come testo e lo mette nella textarea, non lo manda al server da
+  // solo — così l'utente può ancora vedere/modificare prima di importare.
+  function handleFile(file) {
+    setReadingFile(true);
+    const reader = new FileReader();
+    reader.onload = () => { setLogText(reader.result); setReadingFile(false); };
+    reader.onerror = () => { setReadingFile(false); setImportMsg("Non sono riuscito a leggere il file."); };
+    reader.readAsText(file);
+  }
 
   function loadLogs() {
     setLogsLoading(true);
@@ -994,22 +1022,56 @@ function GuildDefenseImportCard() {
     if (res.ok) setGuildNameState(data.guildName);
   }
 
+  const [importProgress, setImportProgress] = useState(null);
+
   async function doImport() {
     setImporting(true);
     setImportMsg("");
-    const res = await fetch("/api/admin/guild-defenses/import", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ logText, label: label.trim() || null }),
-    });
-    const data = await res.json();
+    setImportProgress(null);
+    // Stesso limite di Vercel (4.5MB/richiesta) del log counter: un log
+    // intero di siege (visti anche 8-15MB) va spezzato PRIMA di spedirlo,
+    // senza mai tagliare a metà uno scambio "API Command: ... Response: ...".
+    // splitLogIntoChunks è generica, riusata identica da entrambi gli import.
+    const chunks = splitLogIntoChunks(logText);
+    const totals = { imported: 0, skippedDuplicate: 0, enemyGuilds: new Set(), dateFrom: null, dateTo: null };
+    const breakdownByGuild = new Map();
+    try {
+      for (let i = 0; i < chunks.length; i++) {
+        if (chunks.length > 1) setImportProgress({ part: i + 1, total: chunks.length });
+        const res = await fetch("/api/admin/guild-defenses/import", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ logText: chunks[i], label: label.trim() || null }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Errore sconosciuto");
+        totals.imported += data.imported;
+        totals.skippedDuplicate += data.skippedDuplicate;
+        for (const g of data.enemyGuilds) totals.enemyGuilds.add(g);
+        if (data.dateFrom) totals.dateFrom = totals.dateFrom ? Math.min(totals.dateFrom, data.dateFrom) : data.dateFrom;
+        if (data.dateTo) totals.dateTo = totals.dateTo ? Math.max(totals.dateTo, data.dateTo) : data.dateTo;
+        // Ogni pezzo può toccare le stesse gilde: si sommano i conteggi e si
+        // allargano gli intervalli data, non si sovrascrive.
+        for (const g of data.enemyGuildBreakdown || []) {
+          const cur = breakdownByGuild.get(g.guild) || { guild: g.guild, count: 0, dateFrom: null, dateTo: null };
+          cur.count += g.count;
+          if (g.dateFrom) cur.dateFrom = cur.dateFrom ? Math.min(cur.dateFrom, g.dateFrom) : g.dateFrom;
+          if (g.dateTo) cur.dateTo = cur.dateTo ? Math.max(cur.dateTo, g.dateTo) : g.dateTo;
+          breakdownByGuild.set(g.guild, cur);
+        }
+      }
+      const breakdown = [...breakdownByGuild.values()].sort((a, b) => (a.dateFrom || 0) - (b.dateFrom || 0));
+      setImportMsg(
+        totals.imported === 0
+          ? `Nessuna battaglia nuova (${totals.skippedDuplicate} già viste in precedenza, o nessuna riguarda "${guildName}").`
+          : `${totals.imported} battaglie importate (${totals.skippedDuplicate} già viste, scartate). ` +
+            breakdown.map((g) => `${guildName} vs ${g.guild}: ${g.count} battaglie` + (g.dateFrom ? ` (${new Date(g.dateFrom * 1000).toLocaleDateString()}${g.dateTo && g.dateTo !== g.dateFrom ? " → " + new Date(g.dateTo * 1000).toLocaleDateString() : ""})` : "")).join(" · ")
+      );
+      if (totals.imported > 0) { setLogText(""); setLabel(""); loadLogs(); }
+    } catch (e) {
+      setImportMsg(String(e.message || e));
+    }
     setImporting(false);
-    if (!res.ok) return setImportMsg(data.error);
-    setImportMsg(
-      data.imported === 0
-        ? `Nessuna battaglia nuova (${data.skippedDuplicate} già viste in precedenza, o nessuna riguarda "${guildName}").`
-        : `${data.imported} battaglie importate (${data.skippedDuplicate} già viste, scartate). Gilde nemiche incontrate: ${data.enemyGuilds.join(", ") || "—"}.`
-    );
-    if (data.imported > 0) { setLogText(""); setLabel(""); loadLogs(); }
+    setImportProgress(null);
   }
 
   function toggleLog(id) {
@@ -1042,15 +1104,26 @@ function GuildDefenseImportCard() {
         tutte le altre (scontri tra gilde nemiche) vengono scartate.
       </p>
 
+      <label
+        style={{
+          display: "block", border: "1.5px dashed var(--border)", borderRadius: 8, padding: "12px",
+          textAlign: "center", cursor: readingFile ? "default" : "pointer", color: "var(--text-muted)", fontSize: 12.5,
+          background: "var(--bg-soft)", marginBottom: 8, opacity: readingFile ? 0.6 : 1,
+        }}
+      >
+        {readingFile ? <><Spinner />Lettura del file in corso...</> : "📎 Clicca per selezionare il file di log (.txt)"}
+        <input type="file" accept=".txt,text/plain" disabled={readingFile} style={{ display: "none" }} onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])} />
+      </label>
       <textarea
         value={logText} onChange={(e) => setLogText(e.target.value)}
-        placeholder="Incolla qui il testo del log (stesso formato usato per Importa Log)"
-        rows={5} style={{ width: "100%", fontFamily: "monospace", fontSize: 12 }}
+        placeholder="...oppure incolla qui il testo del log"
+        rows={4} disabled={readingFile} style={{ width: "100%", fontFamily: "monospace", fontSize: 12 }}
       />
       <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8, flexWrap: "wrap" }}>
         <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Etichetta facoltativa (es. Siege del 30/07)" style={{ flex: 1, minWidth: 200 }} />
-        <button className="btn btn-gold" disabled={importing || !logText.trim()} onClick={doImport}>
-          {importing && <Spinner />}📥 Importa log Difese Gilda
+        <button className="btn btn-gold" disabled={importing || readingFile || !logText.trim()} onClick={doImport}>
+          {importing && <Spinner />}
+          {importProgress ? `📥 Importazione parte ${importProgress.part}/${importProgress.total}...` : "📥 Importa log Difese Gilda"}
         </button>
       </div>
       {importMsg && <p style={{ fontSize: 12.5, color: importMsg.startsWith("Nessuna") ? "var(--text-muted)" : "var(--green)", marginTop: 8 }}>{importMsg}</p>}
@@ -1072,19 +1145,31 @@ function GuildDefenseImportCard() {
           <p style={{ color: "var(--text-faint)", fontSize: 12.5 }}>Nessun log Difese Gilda importato finora.</p>
         ) : (
           logs.map((l) => (
-            <div key={l.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderBottom: "1px solid var(--border-soft)", flexWrap: "wrap" }}>
-              <input type="checkbox" checked={selectedLogs.has(l.id)} onChange={() => toggleLog(l.id)} />
-              <span style={{ fontSize: 12.5, flex: 1, minWidth: 160 }}>
-                {l.label || "(senza etichetta)"}{" "}
-                <span style={{ color: "var(--text-faint)" }}>
-                  — {l.dateFrom ? new Date(l.dateFrom * 1000).toLocaleDateString() : "?"}
-                  {l.dateTo && l.dateTo !== l.dateFrom ? ` → ${new Date(l.dateTo * 1000).toLocaleDateString()}` : ""}
-                </span>
-              </span>
-              <span className="f-mono" style={{ fontSize: 11, color: "var(--text-faint)" }}>{l.battleCount} battaglie</span>
-              <span className="f-mono" style={{ fontSize: 11, color: "var(--text-faint)" }}>vs {l.enemyGuilds?.join(", ") || "—"}</span>
-              <span className="f-mono" style={{ fontSize: 10.5, color: "var(--text-faint)" }}>{l.importedByNickname}</span>
-              <button className="btn btn-ghost" style={{ fontSize: 11 }} onClick={() => setConfirmDelete(l.id)}>🗑</button>
+            <div key={l.id} style={{ padding: "8px 0", borderBottom: "1px solid var(--border-soft)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                <input type="checkbox" checked={selectedLogs.has(l.id)} onChange={() => toggleLog(l.id)} />
+                <span style={{ fontSize: 12.5, flex: 1, minWidth: 160 }}>{l.label || "(senza etichetta)"}</span>
+                <span className="f-mono" style={{ fontSize: 11, color: "var(--text-faint)" }}>{l.battleCount} battaglie</span>
+                <span className="f-mono" style={{ fontSize: 10.5, color: "var(--text-faint)" }}>{l.importedByNickname}</span>
+                <button className="btn btn-ghost" style={{ fontSize: 11 }} onClick={() => setConfirmDelete(l.id)}>🗑</button>
+              </div>
+              {/* Normalmente un log è UNA data con fino a 2 gilde nemiche
+                  (siege normale = 2 gilde in contemporanea, torneo = 1) —
+                  si raggruppa per data così le due compaiono sulla stessa
+                  riga: "28/07/2026 vs GildaA e GildaB". Se per qualche
+                  motivo un log dovesse coprire davvero più date diverse
+                  (log mescolati per errore), restano righe separate: niente
+                  viene nascosto, si vede subito che c'è qualcosa di strano. */}
+              <div style={{ marginLeft: 24, marginTop: 4 }}>
+                {groupBreakdownByDate(l.enemyGuildBreakdown).map((g) => (
+                  <div key={g.dateLabel} className="f-mono" style={{ fontSize: 11, color: "var(--text-faint)" }}>
+                    {g.dateLabel}
+                    {" · "}<strong>{l.ourGuildName || "Hunters Wars"}</strong> vs{" "}
+                    <strong>{g.guilds.join(" e ")}</strong>
+                    {" "}({g.count} battaglie)
+                  </div>
+                ))}
+              </div>
             </div>
           ))
         )}
