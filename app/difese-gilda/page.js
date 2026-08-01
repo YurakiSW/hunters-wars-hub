@@ -73,9 +73,12 @@ function GuildDefensesContent() {
       <Header user={user} />
       <div style={{ maxWidth: 900, margin: "0 auto", padding: "20px 16px" }}>
         <h1 style={{ fontSize: 22, marginBottom: 4 }}>🛡️ Difese Gilda</h1>
-        <p style={{ color: "var(--text-faint)", fontSize: 13, marginBottom: 16 }}>
-          Come rendono le vostre difese contro chi vi attacca. Cerca il tuo nick per vedere solo le tue.
-        </p>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 8 }}>
+          <p style={{ color: "var(--text-faint)", fontSize: 13, marginBottom: 16 }}>
+            Come rendono le vostre difese contro chi vi attacca. Cerca il tuo nick per vedere solo le tue.
+          </p>
+          <a href="/difese-gilda/archivio" style={{ fontSize: 12.5, color: "var(--gold)" }}>📦 Archivio stagioni passate →</a>
+        </div>
 
         {!siegesLoading && sieges.length > 0 && (
           <div className="card" style={{ marginBottom: 16 }}>

@@ -973,6 +973,22 @@ function SiegeDefenseImportCard() {
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const [busySiege, setBusySiege] = useState(null);
+  const [confirmArchive, setConfirmArchive] = useState(false);
+  const [archiving, setArchiving] = useState(false);
+  const [archiveMsg, setArchiveMsg] = useState("");
+  const includedSiegeCount = sieges.filter((s) => s.included).length;
+
+  async function doArchive() {
+    setArchiving(true);
+    setArchiveMsg("");
+    const res = await fetch("/api/admin/siege-defenses/archive", { method: "POST" });
+    const data = await res.json();
+    setArchiving(false);
+    setConfirmArchive(false);
+    if (!res.ok) return setArchiveMsg(data.error);
+    setArchiveMsg(`Stagione "${data.label}" archiviata: ${data.defenseCount} difese congelate. Live svuotato, pronto per la prossima stagione.`);
+    loadSieges();
+  }
 
   function loadSieges() {
     setSiegesLoading(true);
@@ -1118,13 +1134,32 @@ function SiegeDefenseImportCard() {
             </div>
           ))
         )}
+        {includedSiegeCount > 0 && (
+          <button className="btn btn-danger" style={{ marginTop: 10 }} disabled={archiving} onClick={() => setConfirmArchive(true)}>
+            {archiving && <Spinner />}📦 Archivia DEF stagione ({includedSiegeCount} siege incluse)
+          </button>
+        )}
+        {archiveMsg && <p style={{ fontSize: 12.5, color: "var(--green)", marginTop: 8 }}>{archiveMsg}</p>}
+        <p style={{ fontSize: 11, color: "var(--text-faint)", marginTop: 6 }}>
+          Congela il risultato con le siege spuntate ORA (etichetta automatica dalla prima all&apos;ultima data),
+          poi svuota tutto per ricominciare. Consultabile dopo in sola lettura nella pagina Archivio.
+        </p>
       </div>
 
       {confirmDelete && (
         <ConfirmModal
           message="Eliminare questa siege? Le sue battaglie di difesa spariscono dalle statistiche — non si può annullare."
+          confirmLabel={deleting ? "..." : "Elimina"}
           onConfirm={() => doDelete(confirmDelete)}
           onCancel={() => setConfirmDelete(null)}
+        />
+      )}
+      {confirmArchive && (
+        <ConfirmModal
+          message={`Archiviare la stagione con le ${includedSiegeCount} siege attualmente incluse? Il risultato si congela così com'è ORA (sola lettura da qui in poi) e TUTTO il live si svuota — le siege escluse non archiviate spariscono senza lasciare traccia. Non si può annullare.`}
+          confirmLabel={archiving ? "..." : "Archivia e svuota"}
+          onConfirm={doArchive}
+          onCancel={() => setConfirmArchive(false)}
         />
       )}
     </div>
