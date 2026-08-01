@@ -858,7 +858,7 @@ function DiagnosticaTab() {
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-        <div className="section-label">Controllo configurazione</div>
+        <div className="section-label">🩺 Controllo configurazione</div>
         <button className="btn btn-ghost" onClick={load} disabled={loading}>{loading ? "Controllo..." : "↻ Ricontrolla"}</button>
       </div>
       <p style={{ color: "var(--text-faint)", fontSize: 12.5, marginBottom: 14 }}>
@@ -872,8 +872,20 @@ function DiagnosticaTab() {
         </div>
       ))}
 
-      <div className="section-label" style={{ marginTop: 24 }}>Manutenzione contenuti</div>
-      <div className="card" style={{ marginBottom: 10 }}>
+      <div className="section-label" style={{ marginTop: 28 }}>🐉 Bestiario</div>
+      <div className="card" style={{ marginBottom: 10, marginTop: 10 }}>
+        <button className="btn btn-primary" disabled={syncingMon} onClick={syncMonsters}>
+          {syncingMon && <Spinner />}🔃 Sincronizza bestiario da swarfarm
+        </button>
+        <p style={{ fontSize: 11.5, color: "var(--text-faint)", marginTop: 8 }}>
+          Scarica l&apos;elenco aggiornato dei mostri (nomi, icone, accuracy base). Lancialo quando escono mostri
+          nuovi o dopo un collab, altrimenti i nomi nuovi non vengono riconosciuti nei log.
+        </p>
+        {syncMonMsg && <p style={{ fontSize: 12.5, color: "var(--green)", marginTop: 8 }}>{syncMonMsg}</p>}
+      </div>
+
+      <div className="section-label" style={{ marginTop: 28 }}>🔗 Difese & Counter — Manutenzione</div>
+      <div className="card" style={{ marginBottom: 10, marginTop: 10 }}>
         <button className="btn btn-danger" disabled={merging} onClick={mergeEquivalent}>
           {merging && <Spinner />}🔗 Unisci Difese uguali a meno della versione collab
           {dupInfo ? ` (${dupInfo.equivalentDefGroups} gruppi trovati)` : " (...)"}
@@ -909,17 +921,7 @@ function DiagnosticaTab() {
           </div>
         )}
       </div>
-      <div className="card" style={{ marginBottom: 10 }}>
-        <button className="btn btn-primary" disabled={syncingMon} onClick={syncMonsters}>
-          {syncingMon && <Spinner />}🔃 Sincronizza bestiario da swarfarm
-        </button>
-        <p style={{ fontSize: 11.5, color: "var(--text-faint)", marginTop: 8 }}>
-          Scarica l&apos;elenco aggiornato dei mostri (nomi, icone, accuracy base). Lancialo quando escono mostri
-          nuovi o dopo un collab, altrimenti i nomi nuovi non vengono riconosciuti nei log.
-        </p>
-        {syncMonMsg && <p style={{ fontSize: 12.5, color: "var(--green)", marginTop: 8 }}>{syncMonMsg}</p>}
-      </div>
-      <div className="card" style={{ marginBottom: 10 }}>
+      <div className="card" style={{ marginBottom: 10, marginTop: 10 }}>
         <button className="btn btn-gold" disabled={resyncing} onClick={resyncFromVariants}>
           {resyncing && <Spinner />}🔄 Recupera stat rune/artefatti nei counter già approvati
         </button>
@@ -948,6 +950,157 @@ function DiagnosticaTab() {
           </div>
         )}
       </div>
+
+      <div className="section-label" style={{ marginTop: 28 }}>🛡️ Difese Gilda — import log</div>
+      <GuildDefenseImportCard />
+    </div>
+  );
+}
+
+// Sezione a sé, ben distinta (bordo blu), per l'import dei log che
+// alimentano la pagina pubblica "Difese Gilda" — diverso dal Siege Log
+// offense: qui si guarda chi ATTACCA la nostra gilda, non chi vince.
+function GuildDefenseImportCard() {
+  const [guildName, setGuildNameState] = useState("");
+  const [guildNameInput, setGuildNameInput] = useState("");
+  const [savingName, setSavingName] = useState(false);
+  const [logText, setLogText] = useState("");
+  const [label, setLabel] = useState("");
+  const [importing, setImporting] = useState(false);
+  const [importMsg, setImportMsg] = useState("");
+  const [logs, setLogs] = useState([]);
+  const [logsLoading, setLogsLoading] = useState(true);
+  const [selectedLogs, setSelectedLogs] = useState(new Set());
+  const [confirmDelete, setConfirmDelete] = useState(null); // logId singolo, o "bulk"
+  const [deleting, setDeleting] = useState(false);
+
+  function loadLogs() {
+    setLogsLoading(true);
+    fetch("/api/admin/guild-defenses/logs").then((r) => r.json()).then((d) => {
+      if (d.ok) { setLogs(d.logs || []); setGuildNameState(d.guildName); setGuildNameInput(d.guildName); }
+      setLogsLoading(false);
+    });
+  }
+  useEffect(loadLogs, []);
+
+  async function saveGuildName() {
+    setSavingName(true);
+    const res = await fetch("/api/admin/guild-defenses/logs", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "set_guild_name", name: guildNameInput }),
+    });
+    const data = await res.json();
+    setSavingName(false);
+    if (res.ok) setGuildNameState(data.guildName);
+  }
+
+  async function doImport() {
+    setImporting(true);
+    setImportMsg("");
+    const res = await fetch("/api/admin/guild-defenses/import", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ logText, label: label.trim() || null }),
+    });
+    const data = await res.json();
+    setImporting(false);
+    if (!res.ok) return setImportMsg(data.error);
+    setImportMsg(
+      data.imported === 0
+        ? `Nessuna battaglia nuova (${data.skippedDuplicate} già viste in precedenza, o nessuna riguarda "${guildName}").`
+        : `${data.imported} battaglie importate (${data.skippedDuplicate} già viste, scartate). Gilde nemiche incontrate: ${data.enemyGuilds.join(", ") || "—"}.`
+    );
+    if (data.imported > 0) { setLogText(""); setLabel(""); loadLogs(); }
+  }
+
+  function toggleLog(id) {
+    setSelectedLogs((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  }
+
+  async function doDelete(ids) {
+    setDeleting(true);
+    const res = await fetch("/api/admin/guild-defenses/logs", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "delete", logIds: ids }),
+    });
+    setDeleting(false);
+    setConfirmDelete(null);
+    setSelectedLogs(new Set());
+    if (res.ok) loadLogs();
+  }
+
+  return (
+    <div className="card" style={{ marginTop: 10, border: "1px solid #4d7ec2", background: "rgba(77,126,194,0.06)" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+        <span className="f-mono" style={{ fontSize: 11, color: "#7fa8de" }}>NOME GILDA</span>
+        <input value={guildNameInput} onChange={(e) => setGuildNameInput(e.target.value)} style={{ width: 180 }} />
+        <button className="btn btn-ghost" disabled={savingName || guildNameInput.trim() === guildName} onClick={saveGuildName}>
+          {savingName ? "..." : "Salva"}
+        </button>
+      </div>
+      <p style={{ fontSize: 11.5, color: "var(--text-faint)", marginBottom: 10 }}>
+        Solo le battaglie dove uno dei due lati ha esattamente questo nome gilda vengono importate come Difesa —
+        tutte le altre (scontri tra gilde nemiche) vengono scartate.
+      </p>
+
+      <textarea
+        value={logText} onChange={(e) => setLogText(e.target.value)}
+        placeholder="Incolla qui il testo del log (stesso formato usato per Importa Log)"
+        rows={5} style={{ width: "100%", fontFamily: "monospace", fontSize: 12 }}
+      />
+      <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8, flexWrap: "wrap" }}>
+        <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Etichetta facoltativa (es. Siege del 30/07)" style={{ flex: 1, minWidth: 200 }} />
+        <button className="btn btn-gold" disabled={importing || !logText.trim()} onClick={doImport}>
+          {importing && <Spinner />}📥 Importa log Difese Gilda
+        </button>
+      </div>
+      {importMsg && <p style={{ fontSize: 12.5, color: importMsg.startsWith("Nessuna") ? "var(--text-muted)" : "var(--green)", marginTop: 8 }}>{importMsg}</p>}
+
+      <div style={{ marginTop: 18, borderTop: "1px solid var(--border-soft)", paddingTop: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8, flexWrap: "wrap", gap: 8 }}>
+          <div className="f-mono" style={{ fontSize: 11, color: "var(--text-faint)" }}>
+            STORICO LOG DIFESE GILDA {logs.length > 0 && `(${logs.length})`}
+          </div>
+          {selectedLogs.size > 0 && (
+            <button className="btn btn-danger" disabled={deleting} onClick={() => setConfirmDelete("bulk")}>
+              🗑 Elimina selezionati ({selectedLogs.size})
+            </button>
+          )}
+        </div>
+        {logsLoading ? (
+          <p style={{ color: "var(--text-faint)", fontSize: 12.5 }}>Caricamento...</p>
+        ) : logs.length === 0 ? (
+          <p style={{ color: "var(--text-faint)", fontSize: 12.5 }}>Nessun log Difese Gilda importato finora.</p>
+        ) : (
+          logs.map((l) => (
+            <div key={l.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderBottom: "1px solid var(--border-soft)", flexWrap: "wrap" }}>
+              <input type="checkbox" checked={selectedLogs.has(l.id)} onChange={() => toggleLog(l.id)} />
+              <span style={{ fontSize: 12.5, flex: 1, minWidth: 160 }}>
+                {l.label || "(senza etichetta)"}{" "}
+                <span style={{ color: "var(--text-faint)" }}>
+                  — {l.dateFrom ? new Date(l.dateFrom * 1000).toLocaleDateString() : "?"}
+                  {l.dateTo && l.dateTo !== l.dateFrom ? ` → ${new Date(l.dateTo * 1000).toLocaleDateString()}` : ""}
+                </span>
+              </span>
+              <span className="f-mono" style={{ fontSize: 11, color: "var(--text-faint)" }}>{l.battleCount} battaglie</span>
+              <span className="f-mono" style={{ fontSize: 11, color: "var(--text-faint)" }}>vs {l.enemyGuilds?.join(", ") || "—"}</span>
+              <span className="f-mono" style={{ fontSize: 10.5, color: "var(--text-faint)" }}>{l.importedByNickname}</span>
+              <button className="btn btn-ghost" style={{ fontSize: 11 }} onClick={() => setConfirmDelete(l.id)}>🗑</button>
+            </div>
+          ))
+        )}
+      </div>
+
+      {confirmDelete && (
+        <ConfirmModal
+          message={
+            confirmDelete === "bulk"
+              ? `Eliminare ${selectedLogs.size} log Difese Gilda? Le battaglie che contengono spariscono dalle statistiche — non si può annullare.`
+              : "Eliminare questo log Difese Gilda? Le sue battaglie spariscono dalle statistiche — non si può annullare."
+          }
+          onConfirm={() => doDelete(confirmDelete === "bulk" ? [...selectedLogs] : [confirmDelete])}
+          onCancel={() => setConfirmDelete(null)}
+        />
+      )}
     </div>
   );
 }
