@@ -77,7 +77,7 @@ export default function Header({ user }) {
           </div>
         </a>
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-          <NavPill href="/defs" icon="⚔" accent="gold">Difese</NavPill>
+          <NavPill href="/defs" icon="⚔" accent="gold">Counters</NavPill>
           <NavPill href="/mine" icon="📋" accent="violet">Le mie proposte</NavPill>
           {canManage && (
             <NavPill href="/admin" icon="⚙" accent="ember">Pannello {user.role === "admin" ? "Admin" : "Gestione"}</NavPill>
