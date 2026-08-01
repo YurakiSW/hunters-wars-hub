@@ -1,8 +1,15 @@
 "use client";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Header from "../../components/Header";
 import MonsterCrest from "../../components/MonsterCrest";
+import ConfirmModal from "../../components/ConfirmModal";
+
+function rateColor(rate) {
+  if (rate >= 0.8) return "var(--green)";
+  if (rate >= 0.5) return "var(--gold)";
+  return "var(--red)";
+}
 
 export default function GuildDefensesPage() {
   return (
@@ -14,14 +21,28 @@ export default function GuildDefensesPage() {
 
 function GuildDefensesContent() {
   const [user, setUser] = useState(null);
-  const [defenses, setDefenses] = useState([]);
+  const [ownerQuery, setOwnerQuery] = useState("");
+  const [teamQuery, setTeamQuery] = useState("");
+  const [mode, setMode] = useState("team"); // "team" | "owner"
+  const [defenses, setDefenses] = useState([]); // modalità owner: lista piatta
+  const [teams, setTeams] = useState([]); // modalità team: lista raggruppata
   const [loading, setLoading] = useState(true);
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
   const [sieges, setSieges] = useState([]);
   const [siegesLoading, setSiegesLoading] = useState(true);
   const [busySiege, setBusySiege] = useState(null);
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const [query, setQuery] = useState(searchParams.get("q") || "");
+  const [confirmDeleteSiege, setConfirmDeleteSiege] = useState(null);
+  const [deletingSiege, setDeletingSiege] = useState(false);
+
+  // Guardia contro le richieste "in corsa": se spunti/rispunti in fretta,
+  // partono più fetch in sequenza — senza questo controllo una risposta
+  // VECCHIA (es. "0 risultati" dell'istante in cui avevi tolto la spunta)
+  // può arrivare DOPO quella nuova e restare a schermo per sbaglio, dando
+  // l'impressione di un bug ("dice nulla da mostrare" anche se non è vero).
+  const loadReqIdRef = useRef(0);
+  const siegeReqIdRef = useRef(0);
 
   useEffect(() => {
     fetch("/api/me").then((r) => r.json()).then((d) => {
@@ -31,27 +52,57 @@ function GuildDefensesContent() {
     });
   }, []);
 
-  function loadDefenses(q) {
+  function loadResults(owner, team) {
+    const myReqId = ++loadReqIdRef.current;
     setLoading(true);
-    fetch(`/api/guild-defenses${q ? `?q=${encodeURIComponent(q)}` : ""}`)
+    const params = new URLSearchParams();
+    if (owner) params.set("owner", owner);
+    else if (team) params.set("team", team);
+    fetch(`/api/guild-defenses${params.toString() ? `?${params}` : ""}`)
       .then((r) => r.json())
-      .then((d) => { setDefenses(d.defenses || []); setLoading(false); });
+      .then((d) => {
+        if (loadReqIdRef.current !== myReqId) return; // risposta vecchia, scartata
+        setMode(d.mode || "team");
+        if (d.mode === "owner") setDefenses(d.defenses || []);
+        else setTeams(d.teams || []);
+        setLoading(false);
+      });
   }
+
   function loadSieges() {
+    const myReqId = ++siegeReqIdRef.current;
     setSiegesLoading(true);
     fetch("/api/admin/siege-defenses").then((r) => r.json()).then((d) => {
+      if (siegeReqIdRef.current !== myReqId) return;
       setSieges(d.sieges || []);
       setSiegesLoading(false);
     });
   }
-  useEffect(() => { loadDefenses(query); loadSieges(); }, []);
 
-  function updateQuery(v) {
-    setQuery(v);
-    const params = new URLSearchParams(searchParams.toString());
-    if (v) params.set("q", v); else params.delete("q");
+  useEffect(() => {
+    const o = searchParams.get("owner") || "";
+    const t = searchParams.get("team") || "";
+    setOwnerQuery(o);
+    setTeamQuery(t);
+    loadResults(o, t);
+    loadSieges();
+  }, []);
+
+  function updateOwnerQuery(v) {
+    setOwnerQuery(v);
+    setTeamQuery("");
+    const params = new URLSearchParams();
+    if (v) params.set("owner", v);
     router.replace(`/difese-gilda${params.toString() ? `?${params}` : ""}`, { scroll: false });
-    loadDefenses(v);
+    loadResults(v, "");
+  }
+  function updateTeamQuery(v) {
+    setTeamQuery(v);
+    setOwnerQuery("");
+    const params = new URLSearchParams();
+    if (v) params.set("team", v);
+    router.replace(`/difese-gilda${params.toString() ? `?${params}` : ""}`, { scroll: false });
+    loadResults("", v);
   }
 
   async function toggleSiege(siegeKey, included) {
@@ -61,11 +112,23 @@ function GuildDefensesContent() {
       body: JSON.stringify({ action: "set_included", siegeKey, included }),
     });
     setBusySiege(null);
-    if (res.ok) { loadSieges(); loadDefenses(query); }
+    if (res.ok) { loadSieges(); loadResults(ownerQuery, teamQuery); }
+  }
+
+  async function doDeleteSiege(siegeKey) {
+    setDeletingSiege(true);
+    const res = await fetch("/api/admin/siege-defenses", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "delete", siegeKey }),
+    });
+    setDeletingSiege(false);
+    setConfirmDeleteSiege(null);
+    if (res.ok) { loadSieges(); loadResults(ownerQuery, teamQuery); }
   }
 
   if (!user) return null;
   const canToggle = user.role === "admin" || user.role === "reviewer";
+  const isAdmin = user.role === "admin";
   const includedCount = sieges.filter((s) => s.included).length;
 
   return (
@@ -75,7 +138,7 @@ function GuildDefensesContent() {
         <h1 style={{ fontSize: 22, marginBottom: 4 }}>🛡️ Difese Gilda</h1>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 8 }}>
           <p style={{ color: "var(--text-faint)", fontSize: 13, marginBottom: 16 }}>
-            Come rendono le vostre difese contro chi vi attacca. Cerca il tuo nick per vedere solo le tue.
+            Vista unificata per team — apri un team per vedere tutti i nostri giocatori che lo usano.
           </p>
           <a href="/difese-gilda/archivio" style={{ fontSize: 12.5, color: "var(--gold)" }}>📦 Archivio stagioni passate →</a>
         </div>
@@ -86,17 +149,20 @@ function GuildDefensesContent() {
               SIEGE INCLUSE NEL CONTEGGIO ({includedCount}/{sieges.length})
             </div>
             {sieges.map((s) => (
-              <div key={s.siegeKey} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 0" }}>
+              <div key={s.siegeKey} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 0", flexWrap: "wrap" }}>
                 <input
                   type="checkbox" checked={!!s.included} disabled={!canToggle || busySiege === s.siegeKey}
                   onChange={(e) => toggleSiege(s.siegeKey, e.target.checked)}
                 />
-                <span style={{ fontSize: 13, flex: 1 }}>
+                <span style={{ fontSize: 13, flex: 1, minWidth: 160 }}>
                   {s.enemyGuilds?.join(" e ") || "—"}{" "}
                   <span style={{ color: "var(--text-faint)", fontSize: 11.5 }}>
                     — {s.dateFrom ? new Date(s.dateFrom * 1000).toLocaleDateString() : "?"} · {s.battleCount} battaglie
                   </span>
                 </span>
+                {isAdmin && (
+                  <button className="btn btn-ghost" style={{ fontSize: 11 }} onClick={() => setConfirmDeleteSiege(s.siegeKey)}>🗑</button>
+                )}
               </div>
             ))}
             {!canToggle && (
@@ -107,34 +173,52 @@ function GuildDefensesContent() {
           </div>
         )}
 
-        <input
-          value={query}
-          onChange={(e) => updateQuery(e.target.value)}
-          placeholder="Cerca per nick proprietario..."
-          style={{ width: "100%", marginBottom: 16 }}
-        />
+        <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
+          <input
+            value={ownerQuery}
+            onChange={(e) => updateOwnerQuery(e.target.value)}
+            placeholder="Cerca per nick proprietario..."
+            style={{ flex: 1, minWidth: 200 }}
+          />
+          <input
+            value={teamQuery}
+            onChange={(e) => updateTeamQuery(e.target.value)}
+            placeholder="Cerca per mostro (team)..."
+            style={{ flex: 1, minWidth: 200 }}
+          />
+        </div>
+
         {loading ? (
           <p style={{ color: "var(--text-faint)" }}>Caricamento...</p>
-        ) : defenses.length === 0 ? (
-          <p style={{ color: "var(--text-faint)" }}>
-            {includedCount === 0
-              ? "Nessuna siege inclusa nel conteggio — includine almeno una in Diagnostica o qui sopra."
-              : query ? "Nessuna difesa trovata per questo nick." : "Nessuna difesa da mostrare."}
-          </p>
+        ) : includedCount === 0 ? (
+          <p style={{ color: "var(--text-faint)" }}>Nessuna siege inclusa nel conteggio — includine almeno una qui sopra.</p>
+        ) : mode === "owner" ? (
+          defenses.length === 0 ? (
+            <p style={{ color: "var(--text-faint)" }}>Nessuna difesa trovata per questo nick.</p>
+          ) : (
+            defenses.map((d) => <DefenseRow key={d.defenseKey} summary={d} />)
+          )
+        ) : teams.length === 0 ? (
+          <p style={{ color: "var(--text-faint)" }}>{teamQuery ? "Nessun team trovato con questo mostro." : "Nessuna difesa da mostrare."}</p>
         ) : (
-          defenses.map((d) => <DefenseRow key={d.defenseKey} summary={d} />)
+          teams.map((t) => <TeamRow key={t.teamKey} summary={t} />)
         )}
       </div>
+
+      {confirmDeleteSiege && (
+        <ConfirmModal
+          message="Eliminare questa siege? Le sue battaglie di difesa spariscono dalle statistiche — non si può annullare."
+          confirmLabel={deletingSiege ? "..." : "Elimina"}
+          onConfirm={() => doDeleteSiege(confirmDeleteSiege)}
+          onCancel={() => setConfirmDeleteSiege(null)}
+        />
+      )}
     </div>
   );
 }
 
-function rateColor(rate) {
-  if (rate >= 0.8) return "var(--green)";
-  if (rate >= 0.5) return "var(--gold)";
-  return "var(--red)";
-}
-
+// Riga di una singola difesa (modalità ricerca per proprietario): un
+// giocatore, un team, espandibile per vedere lo stamp per gilda nemica.
 function DefenseRow({ summary }) {
   const [open, setOpen] = useState(false);
   const [detail, setDetail] = useState(null);
@@ -194,6 +278,97 @@ function DefenseRow({ summary }) {
         ) : (
           <p style={{ color: "var(--red)", fontSize: 12.5, marginTop: 10 }}>Errore nel caricare il dettaglio.</p>
         )
+      )}
+    </div>
+  );
+}
+
+// Riga di un TEAM (vista di default e ricerca per mostro): la terna di
+// mostri, sommata su tutti i nostri giocatori che la usano — espandibile
+// per vedere ogni giocatore con le proprie vittorie/sconfitte.
+function TeamRow({ summary }) {
+  const [open, setOpen] = useState(false);
+  const [detail, setDetail] = useState(null);
+  const [loadingDetail, setLoadingDetail] = useState(false);
+
+  function toggle() {
+    if (!open && !detail) {
+      setLoadingDetail(true);
+      fetch(`/api/guild-defenses/team/${encodeURIComponent(summary.teamKey)}`)
+        .then((r) => r.json())
+        .then((d) => { setDetail(d.detail || null); setLoadingDetail(false); });
+    }
+    setOpen((v) => !v);
+  }
+
+  return (
+    <div className="card" style={{ marginBottom: 10 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", flexWrap: "wrap" }} onClick={toggle}>
+        <span style={{ fontSize: 12, color: "var(--text-faint)" }}>{open ? "▼" : "▶"}</span>
+        <div style={{ display: "flex", gap: 4 }}>
+          {summary.monsterNames.map((n, i) => <MonsterCrest key={i} name={n} size={34} />)}
+        </div>
+        <div style={{ flex: 1, minWidth: 140 }}>
+          <div style={{ fontSize: 14.5, fontWeight: 600 }}>{summary.monsterNames.join(" / ")}</div>
+          <div style={{ fontSize: 11.5, color: "var(--text-faint)" }}>
+            usato da {summary.playerCount} {summary.playerCount === 1 ? "giocatore" : "giocatori"}
+          </div>
+        </div>
+        <div style={{ textAlign: "right" }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: rateColor(summary.winRate) }}>
+            {Math.round(summary.winRate * 100)}%
+          </div>
+          <div className="f-mono" style={{ fontSize: 10.5, color: "var(--text-faint)" }}>
+            {summary.wins} vittorie · {summary.losses} sconfitte
+          </div>
+        </div>
+      </div>
+      {open && (
+        loadingDetail ? (
+          <p style={{ color: "var(--text-faint)", fontSize: 12.5, marginTop: 10 }}>Caricamento...</p>
+        ) : detail ? (
+          <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border-soft)", display: "flex", flexDirection: "column", gap: 6 }}>
+            <div className="f-mono" style={{ fontSize: 10.5, color: "var(--text-faint)", marginBottom: 2 }}>
+              I NOSTRI GIOCATORI
+            </div>
+            {detail.players.map((p) => (
+              <PlayerSubRow key={p.defenseKey} player={p} />
+            ))}
+          </div>
+        ) : (
+          <p style={{ color: "var(--red)", fontSize: 12.5, marginTop: 10 }}>Errore nel caricare il dettaglio.</p>
+        )
+      )}
+    </div>
+  );
+}
+
+// Un giocatore dentro un team aperto — espandibile una seconda volta per lo
+// stamp per gilda nemica di QUELLO specifico giocatore.
+function PlayerSubRow({ player }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div style={{ background: "var(--bg-soft)", borderRadius: 8, padding: "8px 10px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }} onClick={() => setOpen((v) => !v)}>
+        <span style={{ fontSize: 10, color: "var(--text-faint)" }}>{open ? "▼" : "▶"}</span>
+        <span style={{ fontSize: 13, flex: 1 }}>{player.ownerNick}</span>
+        <span className="f-mono" style={{ fontSize: 12, fontWeight: 600, color: rateColor(player.winRate) }}>
+          {player.wins}V — {player.losses}S ({Math.round(player.winRate * 100)}%)
+        </span>
+      </div>
+      {open && (
+        <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 4 }}>
+          {player.enemyGuilds.map((g) => {
+            const total = g.wins + g.losses;
+            const rate = total ? g.wins / total : 0;
+            return (
+              <div key={g.guild} style={{ display: "flex", justifyContent: "space-between", fontSize: 11.5, padding: "2px 4px" }}>
+                <span style={{ color: "var(--text-faint)" }}>{g.guild}</span>
+                <span className="f-mono" style={{ color: rateColor(rate) }}>{g.wins}V — {g.losses}S</span>
+              </div>
+            );
+          })}
+        </div>
       )}
     </div>
   );

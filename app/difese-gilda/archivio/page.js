@@ -15,6 +15,8 @@ export default function GuildDefenseArchivePage() {
   const [user, setUser] = useState(null);
   const [archives, setArchives] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [confirmDeleteAll, setConfirmDeleteAll] = useState(false);
+  const [deletingAll, setDeletingAll] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -34,6 +36,14 @@ export default function GuildDefenseArchivePage() {
   }
   useEffect(load, []);
 
+  async function doDeleteAll() {
+    setDeletingAll(true);
+    const res = await fetch("/api/guild-defenses/archive/all", { method: "DELETE" });
+    setDeletingAll(false);
+    setConfirmDeleteAll(false);
+    if (res.ok) load();
+  }
+
   if (!user) return null;
   const isAdmin = user.role === "admin";
 
@@ -41,8 +51,13 @@ export default function GuildDefenseArchivePage() {
     <div>
       <Header user={user} />
       <div style={{ maxWidth: 900, margin: "0 auto", padding: "20px 16px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
           <h1 style={{ fontSize: 22, margin: 0 }}>📦 Archivio Difese Gilda</h1>
+          {isAdmin && archives.length > 0 && (
+            <button className="btn btn-ghost" onClick={() => setConfirmDeleteAll(true)}>
+              🗑 Svuota tutto l&apos;archivio ({archives.length})
+            </button>
+          )}
         </div>
         <p style={{ color: "var(--text-faint)", fontSize: 13, marginBottom: 16 }}>
           Stagioni passate, congelate al momento dell&apos;archiviazione — sola lettura, i numeri qui non cambiano più.
@@ -59,6 +74,15 @@ export default function GuildDefenseArchivePage() {
           )}
         </div>
       </div>
+
+      {confirmDeleteAll && (
+        <ConfirmModal
+          message={`Eliminare per sempre TUTTE e ${archives.length} le stagioni archiviate? Non si può annullare.`}
+          confirmLabel={deletingAll ? "..." : "Svuota tutto"}
+          onConfirm={doDeleteAll}
+          onCancel={() => setConfirmDeleteAll(false)}
+        />
+      )}
     </div>
   );
 }

@@ -41,26 +41,37 @@ function parseRaw(raw) {
 export async function syncMonstersFromSwarfarm() {
   {
     const raws = [];
-    let url = `${SWARFARM_BASE}/api/v2/monsters/?awaken_level=1&limit=100`;
-    let guard = 0;
-    while (url && guard < 100) {
-      guard++;
-      const res = await fetch(url, { headers: { Accept: "application/json" } });
-      if (!res.ok) throw new Error(`swarfarm risposta ${res.status}`);
-      const data = await res.json();
-      const items = data.results || data;
-      for (const raw of Array.isArray(items) ? items : []) {
-        const parsed = parseRaw(raw);
-        if (parsed) raws.push(parsed);
+    // Prima le forme risvegliate standard (awaken_level=1), poi le SECONDE
+    // awakening (awaken_level=2) — scoperto il 01/08/2026 (grazie a Flora,
+    // che ha beccato ID 14034 = Eshir 2ª awakening mancante nelle Difese
+    // Gilda): il filtro escludeva DEL TUTTO queste forme, non solo le
+    // nascondeva. Compaiono davvero nei log di siege, vanno sincronizzate.
+    for (const level of [1, 2]) {
+      let url = `${SWARFARM_BASE}/api/v2/monsters/?awaken_level=${level}&limit=100`;
+      let guard = 0;
+      while (url && guard < 100) {
+        guard++;
+        const res = await fetch(url, { headers: { Accept: "application/json" } });
+        if (!res.ok) throw new Error(`swarfarm risposta ${res.status}`);
+        const data = await res.json();
+        const items = data.results || data;
+        for (const raw of Array.isArray(items) ? items : []) {
+          const parsed = parseRaw(raw);
+          if (parsed) raws.push({ ...parsed, awakenLevel: level });
+        }
+        url = data.next || null;
       }
-      url = data.next || null;
     }
 
-    // Un nome, un'icona — TRANNE per i pochi mostri con lo stesso nome su
-    // più elementi (le vere collab, es. Nobara/Aragorn): per quelli si
-    // aggiunge l'elemento davanti, altrimenti sarebbero ambigui. Ora che
-    // filtriamo per awaken_level=1 lato server, non ci sono più forme
-    // diverse a creare falsi "doppioni" — il conteggio è affidabile.
+    // Un nome, un'icona — TRANNE due casi che vanno disambiguati, altrimenti
+    // si sovrascrivono a vicenda nella stessa chiave:
+    //  1) stesso nome su più elementi = collab (es. Nobara/Aragorn) -> si
+    //     antepone l'elemento
+    //  2) stesso nome (ed elemento) ma awaken_level diverso = seconda
+    //     awakening (es. Eshir normale vs Eshir 2ª awakening) -> si
+    //     aggiunge "(2ª Awakening)" alla seconda, la prima resta col nome
+    //     semplice (è quella che la gente si aspetta di trovare cercando
+    //     "Eshir" senza altro)
     const byBareName = new Map();
     for (const m of raws) {
       if (!byBareName.has(m.name)) byBareName.set(m.name, []);
@@ -70,8 +81,20 @@ export async function syncMonstersFromSwarfarm() {
     const finalList = [];
     for (const [name, variants] of byBareName) {
       const uniqueElements = new Set(variants.map((v) => v.element));
+      // Etichetta di seconda awakening SOLO se per quel nome+elemento
+      // esistono davvero entrambe le forme (altrimenti un mostro con solo
+      // la forma 2 sincronizzata — capita raramente — resterebbe etichettato
+      // "2ª Awakening" anche se è l'unica versione disponibile, confondendo
+      // inutilmente chi cerca il nome semplice).
+      const labelSecondAwaken = (v, sameGroup) => {
+        const hasBothLevels = sameGroup.some((x) => x.awakenLevel === 1) && sameGroup.some((x) => x.awakenLevel === 2);
+        return hasBothLevels && v.awakenLevel === 2 ? " (2ª Awakening)" : "";
+      };
       if (uniqueElements.size <= 1) {
-        finalList.push({ name, iconUrl: variants[0].iconUrl, com2usId: variants[0].com2usId, baseAccuracy: variants[0].baseAccuracy });
+        for (const v of variants) {
+          const suffix = labelSecondAwaken(v, variants);
+          finalList.push({ name: `${name}${suffix}`, iconUrl: v.iconUrl, com2usId: v.com2usId, baseAccuracy: v.baseAccuracy });
+        }
       } else {
         // Stesso nome su più elementi = mostro da collaborazione: i mostri
         // normali hanno un nome diverso per ogni elemento (Raoq, Kro,
@@ -82,8 +105,12 @@ export async function syncMonstersFromSwarfarm() {
         // Unica eccezione nota: gli Homunculus, che condividono il nome tra
         // elementi pur non essendo collab.
         const isCollab = !/homunculus/i.test(name);
-        for (const v of variants) {
-          finalList.push({ name: `${v.element} ${name}`, iconUrl: v.iconUrl, com2usId: v.com2usId, baseAccuracy: v.baseAccuracy, isCollab });
+        for (const element of uniqueElements) {
+          const sameElement = variants.filter((v) => v.element === element);
+          for (const v of sameElement) {
+            const suffix = labelSecondAwaken(v, sameElement);
+            finalList.push({ name: `${v.element} ${name}${suffix}`, iconUrl: v.iconUrl, com2usId: v.com2usId, baseAccuracy: v.baseAccuracy, isCollab });
+          }
         }
       }
     }

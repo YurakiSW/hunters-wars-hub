@@ -968,15 +968,25 @@ function SiegeDefenseImportCard() {
   const [importing, setImporting] = useState(false);
   const [importMsg, setImportMsg] = useState("");
   const [importProgress, setImportProgress] = useState(null);
-  const [sieges, setSieges] = useState([]);
-  const [siegesLoading, setSiegesLoading] = useState(true);
-  const [confirmDelete, setConfirmDelete] = useState(null);
-  const [deleting, setDeleting] = useState(false);
-  const [busySiege, setBusySiege] = useState(null);
+  // Serve solo per contare quante siege sono incluse (per il pulsante
+  // Archivia) — le spunte in sé si gestiscono SOLO nella pagina pubblica
+  // Difese Gilda, non più qui: due posti diversi per la stessa cosa
+  // creavano confusione su dove agire davvero.
+  const [includedSiegeCount, setIncludedSiegeCount] = useState(0);
   const [confirmArchive, setConfirmArchive] = useState(false);
   const [archiving, setArchiving] = useState(false);
   const [archiveMsg, setArchiveMsg] = useState("");
-  const includedSiegeCount = sieges.filter((s) => s.included).length;
+
+  function loadSiegeCount() {
+    fetch("/api/admin/siege-defenses").then((r) => r.json()).then((d) => {
+      if (d.ok) {
+        setIncludedSiegeCount((d.sieges || []).filter((s) => s.included).length);
+        setGuildNameState(d.guildName);
+        setGuildNameInput(d.guildName);
+      }
+    });
+  }
+  useEffect(loadSiegeCount, []);
 
   async function doArchive() {
     setArchiving(true);
@@ -987,17 +997,8 @@ function SiegeDefenseImportCard() {
     setConfirmArchive(false);
     if (!res.ok) return setArchiveMsg(data.error);
     setArchiveMsg(`Stagione "${data.label}" archiviata: ${data.defenseCount} difese congelate. Live svuotato, pronto per la prossima stagione.`);
-    loadSieges();
+    loadSiegeCount();
   }
-
-  function loadSieges() {
-    setSiegesLoading(true);
-    fetch("/api/admin/siege-defenses").then((r) => r.json()).then((d) => {
-      if (d.ok) { setSieges(d.sieges || []); setGuildNameState(d.guildName); setGuildNameInput(d.guildName); }
-      setSiegesLoading(false);
-    });
-  }
-  useEffect(loadSieges, []);
 
   function handleFile(file) {
     setReadingFile(true);
@@ -1039,35 +1040,14 @@ function SiegeDefenseImportCard() {
       setImportMsg(
         totals.imported === 0
           ? `Nessuna battaglia di difesa nuova (${totals.skippedDuplicate} già viste, o nessuna riguarda "${guildName}").`
-          : `${totals.imported} battaglie di difesa importate (${totals.skippedDuplicate} già viste, scartate). Le siege nuove nascono ESCLUSE dal conteggio: includile qui sotto quando vuoi.`
+          : `${totals.imported} battaglie di difesa importate (${totals.skippedDuplicate} già viste, scartate). Le siege nuove nascono ESCLUSE dal conteggio — vai su Difese Gilda per includerle.`
       );
-      if (totals.imported > 0) { setLogText(""); loadSieges(); }
+      if (totals.imported > 0) { setLogText(""); loadSiegeCount(); }
     } catch (e) {
       setImportMsg(String(e.message || e));
     }
     setImporting(false);
     setImportProgress(null);
-  }
-
-  async function toggleIncluded(siegeKey, included) {
-    setBusySiege(siegeKey);
-    const res = await fetch("/api/admin/siege-defenses", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "set_included", siegeKey, included }),
-    });
-    setBusySiege(null);
-    if (res.ok) loadSieges();
-  }
-
-  async function doDelete(siegeKey) {
-    setDeleting(true);
-    const res = await fetch("/api/admin/siege-defenses", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "delete", siegeKey }),
-    });
-    setDeleting(false);
-    setConfirmDelete(null);
-    if (res.ok) loadSieges();
   }
 
   return (
@@ -1104,38 +1084,13 @@ function SiegeDefenseImportCard() {
         {importProgress ? `📥 Importazione parte ${importProgress.part}/${importProgress.total}...` : "📥 Importa log Difese Gilda"}
       </button>
       {importMsg && <p style={{ fontSize: 12.5, color: importMsg.startsWith("Nessuna") ? "var(--text-muted)" : "var(--green)", marginTop: 8 }}>{importMsg}</p>}
+      <p style={{ fontSize: 11.5, color: "var(--text-faint)", marginTop: 6 }}>
+        Le siege importate si includono/escludono dalla pagina pubblica <strong>🛡 Difese Gilda</strong>, non da qui.
+      </p>
 
       <div style={{ marginTop: 18, borderTop: "1px solid var(--border-soft)", paddingTop: 12 }}>
-        <div className="f-mono" style={{ fontSize: 11, color: "var(--text-faint)", marginBottom: 8 }}>
-          SIEGE TROVATE {sieges.length > 0 && `(${sieges.length})`} — spunta quelle da includere nel conteggio
-        </div>
-        {siegesLoading ? (
-          <p style={{ color: "var(--text-faint)", fontSize: 12.5 }}>Caricamento...</p>
-        ) : sieges.length === 0 ? (
-          <p style={{ color: "var(--text-faint)", fontSize: 12.5 }}>Nessuna siege importata finora.</p>
-        ) : (
-          sieges.map((s) => (
-            <div key={s.siegeKey} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderBottom: "1px solid var(--border-soft)", flexWrap: "wrap" }}>
-              <input
-                type="checkbox" checked={!!s.included} disabled={busySiege === s.siegeKey}
-                onChange={(e) => toggleIncluded(s.siegeKey, e.target.checked)}
-              />
-              <span style={{ fontSize: 12.5, flex: 1, minWidth: 160 }}>
-                {s.enemyGuilds?.join(" e ") || "—"}{" "}
-                <span style={{ color: "var(--text-faint)" }}>
-                  — {s.dateFrom ? new Date(s.dateFrom * 1000).toLocaleDateString() : "?"}
-                </span>
-              </span>
-              <span className="f-mono" style={{ fontSize: 11, color: "var(--text-faint)" }}>{s.battleCount} battaglie</span>
-              <span className="f-mono" style={{ fontSize: 10.5, color: s.included ? "var(--green)" : "var(--text-faint)" }}>
-                {s.included ? "inclusa" : "esclusa"}
-              </span>
-              <button className="btn btn-ghost" style={{ fontSize: 11 }} onClick={() => setConfirmDelete(s.siegeKey)}>🗑</button>
-            </div>
-          ))
-        )}
         {includedSiegeCount > 0 && (
-          <button className="btn btn-danger" style={{ marginTop: 10 }} disabled={archiving} onClick={() => setConfirmArchive(true)}>
+          <button className="btn btn-danger" disabled={archiving} onClick={() => setConfirmArchive(true)}>
             {archiving && <Spinner />}📦 Archivia DEF stagione ({includedSiegeCount} siege incluse)
           </button>
         )}
@@ -1146,14 +1101,6 @@ function SiegeDefenseImportCard() {
         </p>
       </div>
 
-      {confirmDelete && (
-        <ConfirmModal
-          message="Eliminare questa siege? Le sue battaglie di difesa spariscono dalle statistiche — non si può annullare."
-          confirmLabel={deleting ? "..." : "Elimina"}
-          onConfirm={() => doDelete(confirmDelete)}
-          onCancel={() => setConfirmDelete(null)}
-        />
-      )}
       {confirmArchive && (
         <ConfirmModal
           message={`Archiviare la stagione con le ${includedSiegeCount} siege attualmente incluse? Il risultato si congela così com'è ORA (sola lettura da qui in poi) e TUTTO il live si svuota — le siege escluse non archiviate spariscono senza lasciare traccia. Non si può annullare.`}
