@@ -7,6 +7,7 @@ function NavPill({ href, icon, children, accent = "gold", external, onClick }) {
     violet: "rgba(147,118,242,.35)",
     ember: "rgba(255,106,53,.35)",
     red: "rgba(216,72,82,.35)",
+    blue: "rgba(77,126,194,.35)",
   };
   const glow = glows[accent];
 
@@ -78,6 +79,7 @@ export default function Header({ user }) {
         </a>
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <NavPill href="/defs" icon="⚔" accent="gold">Counters</NavPill>
+          <NavPill href="/difese-gilda" icon="🛡" accent="blue">Difese Gilda</NavPill>
           <NavPill href="/mine" icon="📋" accent="violet">Le mie proposte</NavPill>
           {canManage && (
             <NavPill href="/admin" icon="⚙" accent="ember">Pannello {user.role === "admin" ? "Admin" : "Gestione"}</NavPill>

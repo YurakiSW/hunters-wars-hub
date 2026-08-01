@@ -28,6 +28,9 @@ function DefsPageContent() {
   // indietro dopo aver aperto una Difesa si ritrova la ricerca fatta,
   // invece di ripartire da capo con tutte le Difese.
   const [query, setQuery] = useState(searchParams.get("q") || "");
+  const [showAllRest, setShowAllRest] = useState(false);
+  const [confirmUnpinAll, setConfirmUnpinAll] = useState(false);
+  const [unpinningAll, setUnpinningAll] = useState(false);
   useEffect(() => {
     setQuery(searchParams.get("q") || "");
   }, [searchParams]);
@@ -71,6 +74,24 @@ function DefsPageContent() {
     ? sorted.filter((d) => qTokens.every((t) => d.monsters.some((m) => m.toLowerCase().includes(t))))
     : sorted;
 
+  // Le pinnate si vedono SEMPRE per intero (è il punto di fissarle in
+  // cima). Le altre sono limitate a un tot, con "Mostra altre" per
+  // espandere — altrimenti con centinaia di Difese la pagina diventa
+  // interminabile da scorrere. Con una ricerca attiva il limite non ha
+  // senso (i risultati sono già pochi e mirati): si mostrano tutti.
+  const PAGE_SIZE = 24;
+  const pinnedResults = filtered.filter((d) => d.pinned);
+  const restResults = filtered.filter((d) => !d.pinned);
+  const isSearching = qTokens.length > 0;
+  const visibleRest = isSearching || showAllRest ? restResults : restResults.slice(0, PAGE_SIZE);
+  const hiddenCount = restResults.length - visibleRest.length;
+  const visible = [...pinnedResults, ...visibleRest];
+  // Conteggio vero per "Unpin all": deve riflettere quante SARANNO
+  // sbloccate (tutte, sull'intero sito), non solo quelle che la ricerca
+  // sta mostrando in questo momento — altrimenti il numero sul pulsante
+  // non corrisponde a quello che l'azione fa davvero.
+  const totalPinnedCount = defs.filter((d) => d.pinned).length;
+
   async function submitEditDef({ m1, m2, m3, desc }) {
     const res = await fetch(`/api/defs/${editingDef.id}`, {
       method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ m1, m2, m3, desc }),
@@ -96,6 +117,14 @@ function DefsPageContent() {
     if (data.def) setDefs((prev) => prev.map((x) => (x.id === d.id ? { ...x, pinned: data.def.pinned } : x)));
   }
 
+  async function unpinAll() {
+    setUnpinningAll(true);
+    const res = await fetch("/api/defs/unpin-all", { method: "POST" });
+    setUnpinningAll(false);
+    setConfirmUnpinAll(false);
+    if (res.ok) setDefs((prev) => prev.map((x) => ({ ...x, pinned: false })));
+  }
+
   async function approveDef(d) {
     const res = await fetch(`/api/defs/${d.id}`, {
       method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "approved" }),
@@ -111,11 +140,16 @@ function DefsPageContent() {
         <div style={{ display: "flex", gap: 12, marginBottom: 22, flexWrap: "wrap" }}>
           <input placeholder="Cerca per mostro..." value={query} onChange={(e) => updateQuery(e.target.value)} style={{ maxWidth: 320 }} />
           <div style={{ flex: 1 }} />
-          {canManage && <button className="btn btn-gold" onClick={() => setShowNewDef(true)}>+ Nuova difesa</button>}
+          {user.role === "admin" && totalPinnedCount > 0 && (
+            <button className="btn btn-ghost" onClick={() => setConfirmUnpinAll(true)}>
+              📌 Unpin all ({totalPinnedCount})
+            </button>
+          )}
+          <button className="btn btn-gold" onClick={() => setShowNewDef(true)}>+ Nuova difesa</button>
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 14 }}>
-          {filtered.map((d) => {
+          {visible.map((d) => {
             const pendingCounters = d.counters.filter((c) => c.status === "pending").length;
             // Stesso identico criterio usato per l'ordinamento qui sopra
             // (aNeeds) — se non combaciano, un colore mostra una cosa e
@@ -193,6 +227,13 @@ function DefsPageContent() {
             );
           })}
         </div>
+        {hiddenCount > 0 && (
+          <div style={{ textAlign: "center", marginTop: 18 }}>
+            <button className="btn btn-ghost" onClick={() => setShowAllRest(true)}>
+              Mostra altre ({hiddenCount})
+            </button>
+          </div>
+        )}
         {filtered.length === 0 && <p style={{ color: "var(--text-faint)", marginTop: 20 }}>Nessuna difesa trovata.</p>}
       </div>
 
@@ -207,6 +248,10 @@ function DefsPageContent() {
               const data = await res.json();
               if (!res.ok) return { error: data.error };
               setDefs((prev) => [{ ...data.def, counters: [] }, ...prev]);
+              // Se c'è una nota (stessi 3 mostri, leader diverso da una
+              // difesa già esistente) il modale resta aperto per farla
+              // leggere — la difesa è già stata creata e aggiunta sopra.
+              if (data.note) return { note: data.note };
               setShowNewDef(false);
               return {};
             }}
@@ -223,6 +268,14 @@ function DefsPageContent() {
           message={`Eliminare la difesa ${confirmDeleteDef.monsters.join(" / ")} e tutti i suoi ${confirmDeleteDef.counters.length} counter? Non si può annullare.`}
           onConfirm={confirmDelete}
           onCancel={() => setConfirmDeleteDef(null)}
+        />
+      )}
+      {confirmUnpinAll && (
+        <ConfirmModal
+          message={`Togliere il pin a tutte e ${totalPinnedCount} le difese fissate in cima? Restano tutte al loro posto, solo non più in cima.`}
+          confirmLabel={unpinningAll ? "..." : "Unpin all"}
+          onConfirm={unpinAll}
+          onCancel={() => setConfirmUnpinAll(false)}
         />
       )}
     </div>

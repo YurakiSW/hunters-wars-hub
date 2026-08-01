@@ -8,6 +8,7 @@ export default function DefForm({ initial, onSubmit, onCancel }) {
   const [m3, setM3] = useState(initial?.monsters?.[2] || "");
   const [desc, setDesc] = useState(initial?.desc || "");
   const [error, setError] = useState("");
+  const [note, setNote] = useState("");
   const [loading, setLoading] = useState(false);
 
   async function submit() {
@@ -16,6 +17,19 @@ export default function DefForm({ initial, onSubmit, onCancel }) {
     const res = await onSubmit({ m1, m2, m3, desc });
     setLoading(false);
     if (res?.error) setError(res.error);
+    // La nota è informativa (es. "esiste già una difesa con questi 3 mostri
+    // ma leader diverso") — la difesa è stata creata comunque, si resta
+    // sulla schermata solo per farla leggere, non blocca nulla.
+    else if (res?.note) setNote(res.note);
+  }
+
+  if (note) {
+    return (
+      <div>
+        <p style={{ color: "var(--gold)", fontSize: 13.5, lineHeight: 1.5, marginBottom: 16 }}>⚠️ {note}</p>
+        <button className="btn btn-primary" onClick={onCancel}>Ho capito</button>
+      </div>
+    );
   }
 
   return (

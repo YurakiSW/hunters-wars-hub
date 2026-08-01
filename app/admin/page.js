@@ -948,6 +948,185 @@ function DiagnosticaTab() {
           </div>
         )}
       </div>
+
+      <div className="section-label" style={{ marginTop: 28 }}>🛡️ Difese Gilda — import log</div>
+      <SiegeDefenseImportCard />
+    </div>
+  );
+}
+
+// Sezione a sé (bordo blu), per l'import dei log che alimentano la pagina
+// pubblica Difese Gilda. Usa GetGuildSiegeBattleLog (log_type:2): ruoli
+// espliciti nel dato stesso (guild_id = chi si difende, opp_guild_id = chi
+// attacca), niente ambiguità come nel primo tentativo di stanotte.
+function SiegeDefenseImportCard() {
+  const [guildName, setGuildNameState] = useState("");
+  const [guildNameInput, setGuildNameInput] = useState("");
+  const [savingName, setSavingName] = useState(false);
+  const [logText, setLogText] = useState("");
+  const [readingFile, setReadingFile] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importMsg, setImportMsg] = useState("");
+  const [importProgress, setImportProgress] = useState(null);
+  const [sieges, setSieges] = useState([]);
+  const [siegesLoading, setSiegesLoading] = useState(true);
+  const [confirmDelete, setConfirmDelete] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+  const [busySiege, setBusySiege] = useState(null);
+
+  function loadSieges() {
+    setSiegesLoading(true);
+    fetch("/api/admin/siege-defenses").then((r) => r.json()).then((d) => {
+      if (d.ok) { setSieges(d.sieges || []); setGuildNameState(d.guildName); setGuildNameInput(d.guildName); }
+      setSiegesLoading(false);
+    });
+  }
+  useEffect(loadSieges, []);
+
+  function handleFile(file) {
+    setReadingFile(true);
+    const reader = new FileReader();
+    reader.onload = () => { setLogText(reader.result); setReadingFile(false); };
+    reader.onerror = () => { setReadingFile(false); setImportMsg("Non sono riuscito a leggere il file."); };
+    reader.readAsText(file);
+  }
+
+  async function saveGuildName() {
+    setSavingName(true);
+    const res = await fetch("/api/admin/siege-defenses", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "set_guild_name", name: guildNameInput }),
+    });
+    const data = await res.json();
+    setSavingName(false);
+    if (res.ok) setGuildNameState(data.guildName);
+  }
+
+  async function doImport() {
+    setImporting(true);
+    setImportMsg("");
+    setImportProgress(null);
+    const chunks = splitLogIntoChunks(logText);
+    const totals = { imported: 0, skippedDuplicate: 0 };
+    try {
+      for (let i = 0; i < chunks.length; i++) {
+        if (chunks.length > 1) setImportProgress({ part: i + 1, total: chunks.length });
+        const res = await fetch("/api/admin/siege-defenses/import", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ logText: chunks[i] }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Errore sconosciuto");
+        totals.imported += data.imported;
+        totals.skippedDuplicate += data.skippedDuplicate;
+      }
+      setImportMsg(
+        totals.imported === 0
+          ? `Nessuna battaglia di difesa nuova (${totals.skippedDuplicate} già viste, o nessuna riguarda "${guildName}").`
+          : `${totals.imported} battaglie di difesa importate (${totals.skippedDuplicate} già viste, scartate). Le siege nuove nascono ESCLUSE dal conteggio: includile qui sotto quando vuoi.`
+      );
+      if (totals.imported > 0) { setLogText(""); loadSieges(); }
+    } catch (e) {
+      setImportMsg(String(e.message || e));
+    }
+    setImporting(false);
+    setImportProgress(null);
+  }
+
+  async function toggleIncluded(siegeKey, included) {
+    setBusySiege(siegeKey);
+    const res = await fetch("/api/admin/siege-defenses", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "set_included", siegeKey, included }),
+    });
+    setBusySiege(null);
+    if (res.ok) loadSieges();
+  }
+
+  async function doDelete(siegeKey) {
+    setDeleting(true);
+    const res = await fetch("/api/admin/siege-defenses", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "delete", siegeKey }),
+    });
+    setDeleting(false);
+    setConfirmDelete(null);
+    if (res.ok) loadSieges();
+  }
+
+  return (
+    <div className="card" style={{ marginTop: 10, border: "1px solid #4d7ec2", background: "rgba(77,126,194,0.06)" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+        <span className="f-mono" style={{ fontSize: 11, color: "#7fa8de" }}>NOME GILDA</span>
+        <input value={guildNameInput} onChange={(e) => setGuildNameInput(e.target.value)} style={{ width: 180 }} />
+        <button className="btn btn-ghost" disabled={savingName || guildNameInput.trim() === guildName} onClick={saveGuildName}>
+          {savingName ? "..." : "Salva"}
+        </button>
+      </div>
+      <p style={{ fontSize: 11.5, color: "var(--text-faint)", marginBottom: 10 }}>
+        Solo le righe dove questa gilda è il DIFENSORE vengono importate — chi attacca è sempre l&apos;altro lato,
+        letto direttamente dal dato del gioco, non dedotto.
+      </p>
+
+      <label
+        style={{
+          display: "block", border: "1.5px dashed var(--border)", borderRadius: 8, padding: "12px",
+          textAlign: "center", cursor: readingFile ? "default" : "pointer", color: "var(--text-muted)", fontSize: 12.5,
+          background: "var(--bg-soft)", marginBottom: 8, opacity: readingFile ? 0.6 : 1,
+        }}
+      >
+        {readingFile ? <><Spinner />Lettura del file in corso...</> : "📎 Clicca per selezionare il file di log (.txt)"}
+        <input type="file" accept=".txt,text/plain" disabled={readingFile} style={{ display: "none" }} onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])} />
+      </label>
+      <textarea
+        value={logText} onChange={(e) => setLogText(e.target.value)}
+        placeholder="...oppure incolla qui il testo del log (serve la schermata Battle Info → Defense aperta durante la cattura)"
+        rows={4} disabled={readingFile} style={{ width: "100%", fontFamily: "monospace", fontSize: 12 }}
+      />
+      <button className="btn btn-gold" disabled={importing || readingFile || !logText.trim()} onClick={doImport} style={{ marginTop: 8 }}>
+        {importing && <Spinner />}
+        {importProgress ? `📥 Importazione parte ${importProgress.part}/${importProgress.total}...` : "📥 Importa log Difese Gilda"}
+      </button>
+      {importMsg && <p style={{ fontSize: 12.5, color: importMsg.startsWith("Nessuna") ? "var(--text-muted)" : "var(--green)", marginTop: 8 }}>{importMsg}</p>}
+
+      <div style={{ marginTop: 18, borderTop: "1px solid var(--border-soft)", paddingTop: 12 }}>
+        <div className="f-mono" style={{ fontSize: 11, color: "var(--text-faint)", marginBottom: 8 }}>
+          SIEGE TROVATE {sieges.length > 0 && `(${sieges.length})`} — spunta quelle da includere nel conteggio
+        </div>
+        {siegesLoading ? (
+          <p style={{ color: "var(--text-faint)", fontSize: 12.5 }}>Caricamento...</p>
+        ) : sieges.length === 0 ? (
+          <p style={{ color: "var(--text-faint)", fontSize: 12.5 }}>Nessuna siege importata finora.</p>
+        ) : (
+          sieges.map((s) => (
+            <div key={s.siegeKey} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderBottom: "1px solid var(--border-soft)", flexWrap: "wrap" }}>
+              <input
+                type="checkbox" checked={!!s.included} disabled={busySiege === s.siegeKey}
+                onChange={(e) => toggleIncluded(s.siegeKey, e.target.checked)}
+              />
+              <span style={{ fontSize: 12.5, flex: 1, minWidth: 160 }}>
+                {s.enemyGuilds?.join(" e ") || "—"}{" "}
+                <span style={{ color: "var(--text-faint)" }}>
+                  — {s.dateFrom ? new Date(s.dateFrom * 1000).toLocaleDateString() : "?"}
+                </span>
+              </span>
+              <span className="f-mono" style={{ fontSize: 11, color: "var(--text-faint)" }}>{s.battleCount} battaglie</span>
+              <span className="f-mono" style={{ fontSize: 10.5, color: s.included ? "var(--green)" : "var(--text-faint)" }}>
+                {s.included ? "inclusa" : "esclusa"}
+              </span>
+              <button className="btn btn-ghost" style={{ fontSize: 11 }} onClick={() => setConfirmDelete(s.siegeKey)}>🗑</button>
+            </div>
+          ))
+        )}
+      </div>
+
+      {confirmDelete && (
+        <ConfirmModal
+          message="Eliminare questa siege? Le sue battaglie di difesa spariscono dalle statistiche — non si può annullare."
+          onConfirm={() => doDelete(confirmDelete)}
+          onCancel={() => setConfirmDelete(null)}
+        />
+      )}
     </div>
   );
 }
