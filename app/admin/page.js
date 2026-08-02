@@ -968,36 +968,52 @@ function SiegeDefenseImportCard() {
   const [importing, setImporting] = useState(false);
   const [importMsg, setImportMsg] = useState("");
   const [importProgress, setImportProgress] = useState(null);
-  // Serve solo per contare quante siege sono incluse (per il pulsante
-  // Archivia) — le spunte in sé si gestiscono SOLO nella pagina pubblica
-  // Difese Gilda, non più qui: due posti diversi per la stessa cosa
-  // creavano confusione su dove agire davvero.
-  const [includedSiegeCount, setIncludedSiegeCount] = useState(0);
+  // Selettore DEDICATO all'archiviazione: caselle proprie, separate da
+  // quelle della pagina pubblica — scegli qui, apposta per QUESTA
+  // archiviazione, invece di dover fidarti di quello che era rimasto
+  // spuntato altrove per altri motivi. Parte allineato allo stato globale
+  // come base di partenza comoda, poi è libero di cambiare.
+  const [sieges, setSieges] = useState([]);
+  const [siegesLoading, setSiegesLoading] = useState(true);
+  const [archiveSelection, setArchiveSelection] = useState(new Set());
   const [confirmArchive, setConfirmArchive] = useState(false);
   const [archiving, setArchiving] = useState(false);
   const [archiveMsg, setArchiveMsg] = useState("");
 
-  function loadSiegeCount() {
+  function loadSieges() {
+    setSiegesLoading(true);
     fetch("/api/admin/siege-defenses").then((r) => r.json()).then((d) => {
       if (d.ok) {
-        setIncludedSiegeCount((d.sieges || []).filter((s) => s.included).length);
+        setSieges(d.sieges || []);
+        setArchiveSelection(new Set((d.sieges || []).filter((s) => s.included).map((s) => s.siegeKey)));
         setGuildNameState(d.guildName);
         setGuildNameInput(d.guildName);
       }
     });
   }
-  useEffect(loadSiegeCount, []);
+  useEffect(loadSieges, []);
+
+  function toggleArchiveSelection(siegeKey) {
+    setArchiveSelection((prev) => {
+      const next = new Set(prev);
+      next.has(siegeKey) ? next.delete(siegeKey) : next.add(siegeKey);
+      return next;
+    });
+  }
 
   async function doArchive() {
     setArchiving(true);
     setArchiveMsg("");
-    const res = await fetch("/api/admin/siege-defenses/archive", { method: "POST" });
+    const res = await fetch("/api/admin/siege-defenses/archive", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ siegeKeys: [...archiveSelection] }),
+    });
     const data = await res.json();
     setArchiving(false);
     setConfirmArchive(false);
     if (!res.ok) return setArchiveMsg(data.error);
     setArchiveMsg(`Stagione "${data.label}" archiviata: ${data.defenseCount} difese congelate. Live svuotato, pronto per la prossima stagione.`);
-    loadSiegeCount();
+    loadSieges();
   }
 
   function handleFile(file) {
@@ -1042,7 +1058,7 @@ function SiegeDefenseImportCard() {
           ? `Nessuna battaglia di difesa nuova (${totals.skippedDuplicate} già viste, o nessuna riguarda "${guildName}").`
           : `${totals.imported} battaglie di difesa importate (${totals.skippedDuplicate} già viste, scartate). Le siege nuove nascono ESCLUSE dal conteggio — vai su Difese Gilda per includerle.`
       );
-      if (totals.imported > 0) { setLogText(""); loadSiegeCount(); }
+      if (totals.imported > 0) { setLogText(""); loadSieges(); }
     } catch (e) {
       setImportMsg(String(e.message || e));
     }
@@ -1089,21 +1105,44 @@ function SiegeDefenseImportCard() {
       </p>
 
       <div style={{ marginTop: 18, borderTop: "1px solid var(--border-soft)", paddingTop: 12 }}>
-        {includedSiegeCount > 0 && (
-          <button className="btn btn-danger" disabled={archiving} onClick={() => setConfirmArchive(true)}>
-            {archiving && <Spinner />}📦 Archivia DEF stagione ({includedSiegeCount} siege incluse)
+        <div className="f-mono" style={{ fontSize: 11, color: "var(--text-faint)", marginBottom: 8 }}>
+          SIEGE DA ARCHIVIARE — scegli qui, apposta per questa archiviazione (non tocca le spunte della pagina pubblica)
+        </div>
+        {siegesLoading ? (
+          <p style={{ color: "var(--text-faint)", fontSize: 12.5 }}>Caricamento...</p>
+        ) : sieges.length === 0 ? (
+          <p style={{ color: "var(--text-faint)", fontSize: 12.5 }}>Nessuna siege importata finora.</p>
+        ) : (
+          sieges.map((s) => (
+            <div key={s.siegeKey} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 0" }}>
+              <input
+                type="checkbox" checked={archiveSelection.has(s.siegeKey)}
+                onChange={() => toggleArchiveSelection(s.siegeKey)}
+              />
+              <span style={{ fontSize: 12.5, flex: 1 }}>
+                {s.enemyGuilds?.join(" e ") || "—"}{" "}
+                <span style={{ color: "var(--text-faint)" }}>
+                  — {s.dateFrom ? new Date(s.dateFrom * 1000).toLocaleDateString() : "?"} · {s.battleCount} battaglie
+                </span>
+              </span>
+            </div>
+          ))
+        )}
+        {archiveSelection.size > 0 && (
+          <button className="btn btn-danger" style={{ marginTop: 10 }} disabled={archiving} onClick={() => setConfirmArchive(true)}>
+            {archiving && <Spinner />}📦 Archivia DEF stagione ({archiveSelection.size} selezionate)
           </button>
         )}
         {archiveMsg && <p style={{ fontSize: 12.5, color: "var(--green)", marginTop: 8 }}>{archiveMsg}</p>}
         <p style={{ fontSize: 11, color: "var(--text-faint)", marginTop: 6 }}>
-          Congela il risultato con le siege spuntate ORA (etichetta automatica dalla prima all&apos;ultima data),
+          Congela il risultato con le siege spuntate qui sopra (etichetta automatica dalla prima all&apos;ultima data),
           poi svuota tutto per ricominciare. Consultabile dopo in sola lettura nella pagina Archivio.
         </p>
       </div>
 
       {confirmArchive && (
         <ConfirmModal
-          message={`Archiviare la stagione con le ${includedSiegeCount} siege attualmente incluse? Il risultato si congela così com'è ORA (sola lettura da qui in poi) e TUTTO il live si svuota — le siege escluse non archiviate spariscono senza lasciare traccia. Non si può annullare.`}
+          message={`Archiviare la stagione con le ${archiveSelection.size} siege selezionate qui sopra? Il risultato si congela così com'è ORA (sola lettura da qui in poi) e TUTTO il live si svuota — anche le siege NON selezionate spariscono senza lasciare traccia. Non si può annullare.`}
           confirmLabel={archiving ? "..." : "Archivia e svuota"}
           onConfirm={doArchive}
           onCancel={() => setConfirmArchive(false)}

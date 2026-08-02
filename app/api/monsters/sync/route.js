@@ -69,7 +69,7 @@ export async function syncMonstersFromSwarfarm() {
     //     antepone l'elemento
     //  2) stesso nome (ed elemento) ma awaken_level diverso = seconda
     //     awakening (es. Eshir normale vs Eshir 2ª awakening) -> si
-    //     aggiunge "(2ª Awakening)" alla seconda, la prima resta col nome
+    //     aggiunge " 2A" alla seconda, la prima resta col nome
     //     semplice (è quella che la gente si aspetta di trovare cercando
     //     "Eshir" senza altro)
     const byBareName = new Map();
@@ -84,11 +84,11 @@ export async function syncMonstersFromSwarfarm() {
       // Etichetta di seconda awakening SOLO se per quel nome+elemento
       // esistono davvero entrambe le forme (altrimenti un mostro con solo
       // la forma 2 sincronizzata — capita raramente — resterebbe etichettato
-      // "2ª Awakening" anche se è l'unica versione disponibile, confondendo
+      // "2A" anche se è l'unica versione disponibile, confondendo
       // inutilmente chi cerca il nome semplice).
       const labelSecondAwaken = (v, sameGroup) => {
         const hasBothLevels = sameGroup.some((x) => x.awakenLevel === 1) && sameGroup.some((x) => x.awakenLevel === 2);
-        return hasBothLevels && v.awakenLevel === 2 ? " (2ª Awakening)" : "";
+        return hasBothLevels && v.awakenLevel === 2 ? " 2A" : "";
       };
       if (uniqueElements.size <= 1) {
         for (const v of variants) {

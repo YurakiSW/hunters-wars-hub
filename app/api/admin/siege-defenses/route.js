@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser, canManage } from "../../../../lib/auth";
+import { getCurrentUser, canManage, isAdmin } from "../../../../lib/auth";
 import { listSieges, setSiegeIncluded, deleteSiege, getGuildName, setGuildName } from "../../../../lib/guildDefenses";
 import { safeJson } from "../../../../lib/apiUtils";
 
@@ -12,17 +12,28 @@ export async function GET() {
   return NextResponse.json({ ok: true, sieges, guildName });
 }
 
-// POST: includere/escludere una siege, eliminarla, o cambiare il nome
-// gilda — tutte azioni che cambiano cosa vede TUTTA la gilda, riservate a
-// chi gestisce i contenuti (Admin/Revisori), non un filtro personale.
+// POST: include/escludi (Admin+Revisori) è diverso da elimina (SOLO Admin)
+// — eliminare una siege è irreversibile e toglie dati per sempre, incluso
+// non è la stessa cosa. Controllato qui per azione, non genericamente
+// all'inizio della funzione, altrimenti un Revisore poteva comunque
+// chiamare "delete" a mano anche col pulsante nascosto in interfaccia.
 export async function POST(request) {
   const user = await getCurrentUser();
-  if (!user || !canManage(user)) {
-    return NextResponse.json({ error: "Solo Admin e Revisori possono modificare le siege incluse." }, { status: 403 });
-  }
+  if (!user) return NextResponse.json({ error: "Non autenticato." }, { status: 401 });
   const { data, error: parseError } = await safeJson(request);
   if (parseError) return NextResponse.json({ error: parseError }, { status: 400 });
 
+  if (data.action === "delete") {
+    if (!isAdmin(user)) {
+      return NextResponse.json({ error: "Solo gli Admin possono eliminare una siege." }, { status: 403 });
+    }
+    const result = await deleteSiege(data.siegeKey);
+    return NextResponse.json({ ok: true, ...result });
+  }
+
+  if (!canManage(user)) {
+    return NextResponse.json({ error: "Solo Admin e Revisori possono modificare le siege incluse." }, { status: 403 });
+  }
   if (data.action === "set_included") {
     try {
       const record = await setSiegeIncluded(data.siegeKey, data.included);
@@ -30,10 +41,6 @@ export async function POST(request) {
     } catch (err) {
       return NextResponse.json({ error: String(err.message || err) }, { status: 400 });
     }
-  }
-  if (data.action === "delete") {
-    const result = await deleteSiege(data.siegeKey);
-    return NextResponse.json({ ok: true, ...result });
   }
   if (data.action === "set_guild_name") {
     try {
