@@ -43,6 +43,7 @@ function DefsPageContent() {
   const [showNewDef, setShowNewDef] = useState(false);
   const [editingDef, setEditingDef] = useState(null);
   const [confirmDeleteDef, setConfirmDeleteDef] = useState(null);
+  const [twinPairs, setTwinPairs] = useState([]);
 
   function reload() {
     fetch("/api/defs").then((r) => r.json()).then((d) => setDefs(d.defs || []));
@@ -55,6 +56,12 @@ function DefsPageContent() {
       setUser(d.user);
     });
     reload();
+    // Coppie collab <-> normale, stesse usate da MonsterCrest per l'icona
+    // mezza e mezza: servono qui per far coincidere la ricerca. Se cerchi
+    // "Shahat" deve trovare anche le Difese salvate come "Wind Bayek" (e
+    // viceversa) — senza questo, cercare il nome "sbagliato" dei due non
+    // trova nulla anche se è davvero la stessa identica difesa.
+    fetch("/api/admin/monsters/twins").then((r) => r.json()).then((d) => setTwinPairs(d.pairs || []));
   }, []);
 
   if (!user) return null;
@@ -69,9 +76,24 @@ function DefsPageContent() {
     if (aNeeds !== bNeeds) return aNeeds ? 1 : -1;
     return (a.monsters[0] || "").localeCompare(b.monsters[0] || "");
   });
+  // Un token cercato combacia con un nome salvato se sono uguali/uno
+  // contiene l'altro DIRETTAMENTE, oppure se sono le due metà della stessa
+  // coppia collab <-> normale (in qualunque verso, dato che sul sito può
+  // essere salvato con l'uno o con l'altro nome a seconda di chi l'ha
+  // giocato per primo).
+  function tokenMatchesMonster(token, monsterName) {
+    const m = monsterName.toLowerCase();
+    if (m.includes(token)) return true;
+    const pair = twinPairs.find(
+      (p) => p.canonical.toLowerCase() === m || p.alts.some((a) => a.toLowerCase() === m)
+    );
+    if (!pair) return false;
+    const allNames = [pair.canonical, ...pair.alts].map((n) => n.toLowerCase());
+    return allNames.some((n) => n.includes(token));
+  }
   const qTokens = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
   const filtered = qTokens.length
-    ? sorted.filter((d) => qTokens.every((t) => d.monsters.some((m) => m.toLowerCase().includes(t))))
+    ? sorted.filter((d) => qTokens.every((t) => d.monsters.some((m) => tokenMatchesMonster(t, m))))
     : sorted;
 
   // Le pinnate si vedono SEMPRE per intero (è il punto di fissarle in

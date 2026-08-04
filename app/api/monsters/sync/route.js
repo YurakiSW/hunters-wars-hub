@@ -1,15 +1,26 @@
 import { NextResponse } from "next/server";
-import { setSyncedMonsters } from "../../../../lib/monsters";
+import { getSyncedMonsters, setSyncedMonsters } from "../../../../lib/monsters";
 
 // Chiamata da cron-job.org (stesso meccanismo usato per SW Auto Redeemer):
 // GET /api/monsters/sync?secret=CRON_SECRET
 //
-// Campi verificati leggendo il codice sorgente reale di swarfarm
-// (github.com/swarfarm/swarfarm, bestiary/serializers.py + models/monsters.py):
-// name, image_filename, element, awaken_level (0=non risvegliato,
-// 1=risvegliato, 2=secondo risveglio, -1=incompleto). Il parametro
-// "awaken_level=1" nella query filtra lato server solo le forme
-// risvegliate standard — quella giusta da usare per una Difesa/Counter.
+// Riscritta il 02/08/2026 dopo aver verificato l'API vera di swarfarm alla
+// mano (grazie a Flora):
+// - "/api/v2/monsters/" (quello usato da questo file fino a stanotte) non
+//   compare nella Api Root ufficiale (swarfarm.com/api/?format=api elenca
+//   solo bestiary, skill, skill_effect, leader_skill, source) — molto
+//   probabilmente non è mai esistito davvero, un errore mio fin
+//   dall'inizio. L'endpoint vero è "/api/bestiary".
+// - "/api/bestiary" (lista) NON ha il campo accuracy, solo la pagina di
+//   DETTAGLIO di ogni singolo mostro ce l'ha — vedi gestione sotto.
+// - Le seconde awakening NON si riconoscono in modo affidabile da "stesso
+//   nome+elemento, ID diverso": verificato da Flora che questo criterio
+//   dava falsi positivi su Abellio e Bayek (nessuna seconda awakening).
+//   L'UNICO segnale vero è il campo "awakens_from" della pagina di
+//   dettaglio: per una seconda awakening punta al proprio stesso nome
+//   (confermato su Eshir). Per ogni coppia stesso-nome-stesso-elemento
+//   trovata (un numero contenuto, decine non migliaia) si fa la chiamata
+//   di dettaglio in più per controllarlo DAVVERO, invece di indovinare.
 const SWARFARM_BASE = "https://swarfarm.com";
 const ICON_BASE = "https://swarfarm.com/static/herders/images/monsters/";
 
@@ -18,106 +29,106 @@ function parseRaw(raw) {
   const element = raw.element;
   const imageFilename = raw.image_filename;
   const com2usId = raw.com2us_id;
-  // Accuracy BASE della specie: è l'UNICA stat base che il replay di Siege
-  // non contiene mai (con/atk/def/spd/resist ci sono tutte, verificato:
-  // es. Nobara resist 15 e Gandalf 40, entrambi corretti). Quasi tutti i
-  // mostri hanno 0, ma alcuni no (es. Wind Nobara Kugisaki ha 25%) — senza
-  // questo dato la Accuracy mostrata era sbagliata proprio per quei mostri.
-  // Nomi di campo difensivi: se swarfarm cambia schema, resta null e il
-  // calcolo si comporta come prima (base 0) invece di rompersi.
-  const baseAccuracy = raw.accuracy ?? raw.base_accuracy ?? null;
-  if (!name || !imageFilename) return null;
+  const pk = raw.pk;
+  if (!name || !imageFilename || !pk) return null;
   // Alcuni elementi del bestiario sono materiali di fusione (es. "Living
   // Armor") senza nome localizzato in inglese: swarfarm restituisce il nome
   // in coreano. Non sono mostri giocabili in una Difesa/Counter, li scartiamo.
   if (/[\u3131-\uD79D\u4E00-\u9FFF]/.test(name)) return null;
 
-  return { name, element, iconUrl: `${ICON_BASE}${imageFilename}`, com2usId, baseAccuracy };
+  return { name, element, iconUrl: `${ICON_BASE}${imageFilename}`, com2usId, pk };
+}
+
+// Verifica VERA (non un indovinello) se un mostro è una seconda awakening:
+// la sua pagina di dettaglio ha "awakens_from" che punta al proprio stesso
+// nome (risveglia da se stesso già risvegliato una volta), non a un nome
+// diverso (che sarebbe la normale prima awakening, che risveglia dalla
+// forma base non awakened).
+async function isConfirmedSecondAwakening(pk, ownName) {
+  try {
+    const res = await fetch(`${SWARFARM_BASE}/api/bestiary/${pk}?format=json`, { headers: { Accept: "application/json" } });
+    if (!res.ok) return false;
+    const data = await res.json();
+    const fromName = data?.awakens_from?.name;
+    return !!fromName && fromName.trim().toLowerCase() === ownName.trim().toLowerCase();
+  } catch {
+    return false;
+  }
 }
 
 // Logica vera della sincronizzazione, separata dalla route: la usano sia il
 // link con il segreto (per il cron) sia il pulsante in Diagnostica, così
 // non esistono due copie della stessa cosa che possono divergere.
 export async function syncMonstersFromSwarfarm() {
-  {
-    const raws = [];
-    // Prima le forme risvegliate standard (awaken_level=1), poi le SECONDE
-    // awakening (awaken_level=2) — scoperto il 01/08/2026 (grazie a Flora,
-    // che ha beccato ID 14034 = Eshir 2ª awakening mancante nelle Difese
-    // Gilda): il filtro escludeva DEL TUTTO queste forme, non solo le
-    // nascondeva. Compaiono davvero nei log di siege, vanno sincronizzate.
-    for (const level of [1, 2]) {
-      let url = `${SWARFARM_BASE}/api/v2/monsters/?awaken_level=${level}&limit=100`;
-      let guard = 0;
-      while (url && guard < 100) {
-        guard++;
-        const res = await fetch(url, { headers: { Accept: "application/json" } });
-        if (!res.ok) throw new Error(`swarfarm risposta ${res.status}`);
-        const data = await res.json();
-        const items = data.results || data;
-        for (const raw of Array.isArray(items) ? items : []) {
-          const parsed = parseRaw(raw);
-          if (parsed) raws.push({ ...parsed, awakenLevel: level });
-        }
-        url = data.next || null;
-      }
-    }
+  const res = await fetch(`${SWARFARM_BASE}/api/bestiary?format=json`, { headers: { Accept: "application/json" } });
+  if (!res.ok) throw new Error(`swarfarm risposta ${res.status}`);
+  const items = await res.json(); // niente paginazione su questo endpoint: tutto in un colpo solo
+  const raws = (Array.isArray(items) ? items : []).map(parseRaw).filter(Boolean);
 
-    // Un nome, un'icona — TRANNE due casi che vanno disambiguati, altrimenti
-    // si sovrascrivono a vicenda nella stessa chiave:
-    //  1) stesso nome su più elementi = collab (es. Nobara/Aragorn) -> si
-    //     antepone l'elemento
-    //  2) stesso nome (ed elemento) ma awaken_level diverso = seconda
-    //     awakening (es. Eshir normale vs Eshir 2ª awakening) -> si
-    //     aggiunge " 2A" alla seconda, la prima resta col nome
-    //     semplice (è quella che la gente si aspetta di trovare cercando
-    //     "Eshir" senza altro)
-    const byBareName = new Map();
-    for (const m of raws) {
-      if (!byBareName.has(m.name)) byBareName.set(m.name, []);
-      byBareName.get(m.name).push(m);
-    }
-
-    const finalList = [];
-    for (const [name, variants] of byBareName) {
-      const uniqueElements = new Set(variants.map((v) => v.element));
-      // Etichetta di seconda awakening SOLO se per quel nome+elemento
-      // esistono davvero entrambe le forme (altrimenti un mostro con solo
-      // la forma 2 sincronizzata — capita raramente — resterebbe etichettato
-      // "2A" anche se è l'unica versione disponibile, confondendo
-      // inutilmente chi cerca il nome semplice).
-      const labelSecondAwaken = (v, sameGroup) => {
-        const hasBothLevels = sameGroup.some((x) => x.awakenLevel === 1) && sameGroup.some((x) => x.awakenLevel === 2);
-        return hasBothLevels && v.awakenLevel === 2 ? " 2A" : "";
-      };
-      if (uniqueElements.size <= 1) {
-        for (const v of variants) {
-          const suffix = labelSecondAwaken(v, variants);
-          finalList.push({ name: `${name}${suffix}`, iconUrl: v.iconUrl, com2usId: v.com2usId, baseAccuracy: v.baseAccuracy });
-        }
-      } else {
-        // Stesso nome su più elementi = mostro da collaborazione: i mostri
-        // normali hanno un nome diverso per ogni elemento (Raoq, Kro,
-        // Lushen...), i collab riusano il nome del personaggio su tutte le
-        // varianti. Lo marchiamo qui, così la tabella delle corrispondenze
-        // in admin si popola da sola con OGNI collab presente e futuro,
-        // senza elenchi scritti a mano.
-        // Unica eccezione nota: gli Homunculus, che condividono il nome tra
-        // elementi pur non essendo collab.
-        const isCollab = !/homunculus/i.test(name);
-        for (const element of uniqueElements) {
-          const sameElement = variants.filter((v) => v.element === element);
-          for (const v of sameElement) {
-            const suffix = labelSecondAwaken(v, sameElement);
-            finalList.push({ name: `${v.element} ${name}${suffix}`, iconUrl: v.iconUrl, com2usId: v.com2usId, baseAccuracy: v.baseAccuracy, isCollab });
-          }
-        }
-      }
-    }
-
-    await setSyncedMonsters(finalList);
-    return { count: finalList.length };
+  // L'accuracy base non è nella lista, solo nel dettaglio di ogni mostro —
+  // richiederebbe migliaia di chiamate per tutti. Nel dubbio si preserva
+  // quella già salvata da una sincronizzazione precedente, invece di
+  // perderla o inventarla: si aggiorna sempre nome/icona/ID (quelli sì
+  // affidabili dalla lista), l'accuracy resta quella vecchia se già nota.
+  const oldByComId = new Map();
+  for (const m of await getSyncedMonsters()) {
+    if (m.com2usId != null && m.baseAccuracy != null) oldByComId.set(m.com2usId, m.baseAccuracy);
   }
+
+  const byBareName = new Map();
+  for (const m of raws) {
+    if (!byBareName.has(m.name)) byBareName.set(m.name, []);
+    byBareName.get(m.name).push(m);
+  }
+
+  // Prima passata: separo subito i "sicuri" (una sola variante per
+  // nome+elemento, o il primo/più-basso ID di ogni gruppo — quello resta
+  // sempre col nome semplice) dai "candidati da verificare" (ogni ID extra
+  // oltre al primo, per cui serve la chiamata di dettaglio). Le verifiche
+  // si fanno poi TUTTE INSIEME a lotti paralleli, non una alla volta —
+  // con qualche decina di candidati una sequenza rischierebbe di far
+  // scadere il tempo massimo di Vercel per una singola richiesta.
+  const safeEntries = [];
+  const candidates = []; // { name, elementPrefix, extra, isCollab }
+  for (const [name, variants] of byBareName) {
+    const uniqueElements = new Set(variants.map((v) => v.element));
+    const isCollab = uniqueElements.size > 1 && !/homunculus/i.test(name);
+    for (const element of uniqueElements) {
+      const sameElement = variants.filter((v) => v.element === element);
+      const sorted = [...sameElement].sort((a, b) => a.com2usId - b.com2usId);
+      const elementPrefix = uniqueElements.size > 1 ? element : null;
+      const displayName = elementPrefix ? `${elementPrefix} ${name}` : name;
+      const base = sorted[0];
+      safeEntries.push({ name: displayName, iconUrl: base.iconUrl, com2usId: base.com2usId, baseAccuracy: oldByComId.get(base.com2usId) ?? null, isCollab });
+      for (let i = 1; i < sorted.length; i++) {
+        candidates.push({ displayName, bareName: name, extra: sorted[i], isCollab });
+      }
+    }
+  }
+
+  // Verifica a lotti paralleli (10 alla volta): abbastanza per essere
+  // veloci, non tanti da rischiare i rate limit di swarfarm.
+  const confirmed = [];
+  const BATCH = 10;
+  for (let i = 0; i < candidates.length; i += BATCH) {
+    const batch = candidates.slice(i, i + BATCH);
+    const results = await Promise.all(batch.map((c) => isConfirmedSecondAwakening(c.extra.pk, c.bareName)));
+    batch.forEach((c, j) => { if (results[j]) confirmed.push(c); });
+  }
+
+  const finalList = [...safeEntries];
+  for (const c of confirmed) {
+    finalList.push({
+      name: `${c.displayName} 2A`,
+      iconUrl: c.extra.iconUrl,
+      com2usId: c.extra.com2usId,
+      baseAccuracy: oldByComId.get(c.extra.com2usId) ?? null,
+      isCollab: c.isCollab,
+    });
+  }
+
+  await setSyncedMonsters(finalList);
+  return { count: finalList.length, secondAwakeningsFound: confirmed.length, candidatesChecked: candidates.length };
 }
 
 export async function GET(request) {

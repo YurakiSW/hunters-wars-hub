@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser, canManage } from "../../../../../lib/auth";
-import { listProposals, approveProposal, rejectProposal, purgePendingBelowThreshold, dismissUnderperforming, unpublishProposal, deleteProposal } from "../../../../../lib/siegeStats";
+import { listProposals, countProposalsByStatus, approveProposal, rejectProposal, purgePendingBelowThreshold, dismissUnderperforming, unpublishProposal, deleteProposal } from "../../../../../lib/siegeStats";
 import { safeJson } from "../../../../../lib/apiUtils";
 
 export async function GET(request) {
@@ -9,6 +9,11 @@ export async function GET(request) {
     return NextResponse.json({ error: "Solo Admin e Revisori possono vedere le proposal." }, { status: 403 });
   }
   const { searchParams } = new URL(request.url);
+  // ?counts=1 -> solo i numeretti per i tab, leggero (niente build decodificate)
+  if (searchParams.get("counts") === "1") {
+    const counts = await countProposalsByStatus();
+    return NextResponse.json({ ok: true, counts });
+  }
   const status = searchParams.get("status") || undefined; // pending | approved | rejected | update_available | underperforming
   const proposals = await listProposals(status);
   return NextResponse.json({ ok: true, proposals });

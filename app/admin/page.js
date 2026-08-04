@@ -989,7 +989,8 @@ function SiegeDefenseImportCard() {
         setGuildNameState(d.guildName);
         setGuildNameInput(d.guildName);
       }
-    });
+      setSiegesLoading(false);
+    }).catch(() => setSiegesLoading(false));
   }
   useEffect(loadSieges, []);
 
@@ -1412,6 +1413,7 @@ function SiegeStatsProposalsTab({ isAdmin }) {
     if (!res.ok) return setPurgeMsg(data.error);
     setPurgeMsg(`${data.purged} proposal sotto il 90% spostate in "Rifiutate".`);
     if (subTab === "pending") load();
+    loadCounts();
   }
 
   // Contatore di richiesta: se cambi tab mentre una richiesta è ancora in
@@ -1431,6 +1433,17 @@ function SiegeStatsProposalsTab({ isAdmin }) {
     setProposals(data.proposals || []);
     setLoading(false);
   }
+
+  // Numeretti sui tab: leggeri (solo conteggio, niente build decodificate)
+  // — richiesta a parte dalla lista piena, così sapere "c'è roba da
+  // controllare" non aspetta il caricamento pesante di "Approvate".
+  const [counts, setCounts] = useState(null);
+  async function loadCounts() {
+    const res = await fetch("/api/admin/siege-stats/proposals?counts=1");
+    const data = await res.json();
+    if (data.ok) setCounts(data.counts);
+  }
+  useEffect(() => { loadCounts(); }, []);
 
   useEffect(() => { load(); setSelectedProposals(new Set()); }, [subTab]);
 
@@ -1470,6 +1483,7 @@ function SiegeStatsProposalsTab({ isAdmin }) {
     setBulkApproving(false);
     setSelectedProposals(new Set());
     load();
+    loadCounts();
   }
 
   async function act(p, action) {
@@ -1480,6 +1494,7 @@ function SiegeStatsProposalsTab({ isAdmin }) {
     });
     setBusyKey(null);
     load();
+    loadCounts();
   }
 
   async function approveWithOverride(payload) {
@@ -1491,6 +1506,7 @@ function SiegeStatsProposalsTab({ isAdmin }) {
     if (!res.ok) return { error: data.error };
     setEditingProposal(null);
     load();
+    loadCounts();
     return {};
   }
 
@@ -1509,6 +1525,7 @@ function SiegeStatsProposalsTab({ isAdmin }) {
     setSeasonId("");
     loadArchives();
     load();
+    loadCounts();
   }
 
   async function loadArchives() {
@@ -1529,11 +1546,24 @@ function SiegeStatsProposalsTab({ isAdmin }) {
   return (
     <div>
       <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
-        <button className={`btn ${subTab === "pending" ? "btn-primary" : "btn-ghost"}`} onClick={() => setSubTab("pending")}>In attesa</button>
-        <button className={`btn ${subTab === "update_available" ? "btn-primary" : "btn-ghost"}`} onClick={() => setSubTab("update_available")}>Aggiornamento disponibile</button>
-        <button className={`btn ${subTab === "underperforming" ? "btn-primary" : "btn-ghost"}`} onClick={() => setSubTab("underperforming")}>⚠️ Da rivedere</button>
-        <button className={`btn ${subTab === "approved" ? "btn-primary" : "btn-ghost"}`} onClick={() => setSubTab("approved")}>Approvate</button>
-        <button className={`btn ${subTab === "rejected" ? "btn-primary" : "btn-ghost"}`} onClick={() => setSubTab("rejected")}>Rifiutate</button>
+        <button className={`btn ${subTab === "pending" ? "btn-primary" : "btn-ghost"}`} onClick={() => setSubTab("pending")}>
+          In attesa{counts && counts.pending > 0 ? ` (${counts.pending})` : ""}
+        </button>
+        <button className={`btn ${subTab === "update_available" ? "btn-primary" : "btn-ghost"}`} onClick={() => setSubTab("update_available")}>
+          Aggiornamento disponibile{counts && counts.update_available > 0 ? ` (${counts.update_available})` : ""}
+        </button>
+        <button
+          className={`btn ${subTab === "underperforming" ? "btn-primary" : "btn-ghost"}`} onClick={() => setSubTab("underperforming")}
+          style={counts && counts.underperforming > 0 && subTab !== "underperforming" ? { borderColor: "var(--red)", color: "var(--red)" } : undefined}
+        >
+          ⚠️ Da rivedere{counts && counts.underperforming > 0 ? ` (${counts.underperforming})` : ""}
+        </button>
+        <button className={`btn ${subTab === "approved" ? "btn-primary" : "btn-ghost"}`} onClick={() => setSubTab("approved")}>
+          Approvate{counts && counts.approved > 0 ? ` (${counts.approved})` : ""}
+        </button>
+        <button className={`btn ${subTab === "rejected" ? "btn-primary" : "btn-ghost"}`} onClick={() => setSubTab("rejected")}>
+          Rifiutate{counts && counts.rejected > 0 ? ` (${counts.rejected})` : ""}
+        </button>
       </div>
 
       {(subTab === "pending" || subTab === "update_available" || subTab === "underperforming" || subTab === "rejected") && (
