@@ -115,11 +115,21 @@ export async function syncMonstersFromSwarfarm() {
     const results = await Promise.all(batch.map((c) => isConfirmedSecondAwakening(c.extra.pk, c.bareName)));
     batch.forEach((c, j) => { if (results[j]) confirmed.push(c); });
   }
+  const confirmedIds = new Set(confirmed.map((c) => c.extra.com2usId));
 
   const finalList = [...safeEntries];
-  for (const c of confirmed) {
+  for (const c of candidates) {
+    // Confermata seconda awakening -> "Nome 2A". NON confermata (perché è
+    // davvero qualcos'altro, O perché la verifica è fallita per un motivo
+    // di rete) -> si tiene COMUNQUE, mai scartata, solo disambiguata con il
+    // proprio ID. Scoperto il 04/08/2026 (Flora, ancora): scartare i non
+    // confermati faceva sparire mostri VERI dal sito ogni volta che due
+    // entry condividevano nome+elemento per un motivo diverso dalla
+    // seconda awakening (es. Abellio/Bayek) — un pattern molto più comune
+    // del previsto, non un'eccezione rara.
+    const isConfirmed = confirmedIds.has(c.extra.com2usId);
     finalList.push({
-      name: `${c.displayName} 2A`,
+      name: isConfirmed ? `${c.displayName} 2A` : `${c.displayName} (ID ${c.extra.com2usId})`,
       iconUrl: c.extra.iconUrl,
       com2usId: c.extra.com2usId,
       baseAccuracy: oldByComId.get(c.extra.com2usId) ?? null,

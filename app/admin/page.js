@@ -755,6 +755,18 @@ function DiagnosticaTab() {
   const [backfillMsg, setBackfillMsg] = useState("");
   const [syncingMon, setSyncingMon] = useState(false);
   const [syncMonMsg, setSyncMonMsg] = useState("");
+  const [lookupId, setLookupId] = useState("");
+  const [lookingUp, setLookingUp] = useState(false);
+  const [lookupResult, setLookupResult] = useState(null);
+
+  async function doLookup() {
+    setLookingUp(true);
+    setLookupResult(null);
+    const res = await fetch(`/api/admin/monsters/lookup?id=${lookupId}`);
+    const data = await res.json();
+    setLookingUp(false);
+    setLookupResult(res.ok ? data : { error: data.error });
+  }
   const [merging, setMerging] = useState(false);
   const [mergeMsg, setMergeMsg] = useState("");
   const [reviewGroups, setReviewGroups] = useState([]);
@@ -918,6 +930,38 @@ function DiagnosticaTab() {
           nuovi o dopo un collab, altrimenti i nomi nuovi non vengono riconosciuti nei log.
         </p>
         {syncMonMsg && <p style={{ fontSize: 12.5, color: "var(--green)", marginTop: 8 }}>{syncMonMsg}</p>}
+      </div>
+      <div className="card" style={{ marginBottom: 10 }}>
+        <div className="f-mono" style={{ fontSize: 11, color: "var(--text-faint)", marginBottom: 8 }}>
+          🔍 CERCA UN ID MOSTRO SU SWARFARM (in diretta, senza aspettare un sync)
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <input
+            value={lookupId} onChange={(e) => setLookupId(e.target.value.replace(/\D/g, ""))}
+            placeholder="es. 14034" style={{ width: 140 }}
+            onKeyDown={(e) => e.key === "Enter" && doLookup()}
+          />
+          <button className="btn btn-ghost" disabled={lookingUp || !lookupId} onClick={doLookup}>
+            {lookingUp && <Spinner />}Cerca
+          </button>
+        </div>
+        <p style={{ fontSize: 11.5, color: "var(--text-faint)", marginTop: 8 }}>
+          Utile quando un ID resta &quot;Sconosciuto&quot; e vuoi sapere subito di che mostro si tratta, senza
+          dover rifare un resync completo.
+        </p>
+        {lookupResult && (
+          <div style={{ marginTop: 8, padding: "8px 10px", background: "var(--bg-soft)", borderRadius: 6, fontSize: 12.5 }}>
+            {lookupResult.error ? (
+              <span style={{ color: "var(--red)" }}>{lookupResult.error}</span>
+            ) : !lookupResult.found ? (
+              <span style={{ color: "var(--text-faint)" }}>Nessun mostro trovato con questo ID su swarfarm.</span>
+            ) : (
+              <span>
+                ID {lookupResult.com2usId} = <strong>{lookupResult.name}</strong> ({lookupResult.element}, {lookupResult.archetype})
+              </span>
+            )}
+          </div>
+        )}
       </div>
       <div className="card" style={{ marginBottom: 10 }}>
         <button className="btn btn-gold" disabled={resyncing} onClick={resyncFromVariants}>
