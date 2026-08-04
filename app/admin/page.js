@@ -979,6 +979,22 @@ function SiegeDefenseImportCard() {
   const [confirmArchive, setConfirmArchive] = useState(false);
   const [archiving, setArchiving] = useState(false);
   const [archiveMsg, setArchiveMsg] = useState("");
+  const [confirmWipe, setConfirmWipe] = useState(false);
+  const [wiping, setWiping] = useState(false);
+
+  async function doWipe() {
+    setWiping(true);
+    const res = await fetch("/api/admin/siege-defenses/archive", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ wipeOnly: true }),
+    });
+    const data = await res.json();
+    setWiping(false);
+    setConfirmWipe(false);
+    if (!res.ok) return setArchiveMsg(data.error);
+    setArchiveMsg("Tutto svuotato — pronto per reimportare da capo.");
+    loadSieges();
+  }
 
   function loadSieges() {
     setSiegesLoading(true);
@@ -1139,6 +1155,17 @@ function SiegeDefenseImportCard() {
           Congela il risultato con le siege spuntate qui sopra (etichetta automatica dalla prima all&apos;ultima data),
           poi svuota tutto per ricominciare. Consultabile dopo in sola lettura nella pagina Archivio.
         </p>
+
+        <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid var(--border-soft)" }}>
+          <button className="btn btn-ghost" style={{ color: "var(--red)", borderColor: "var(--red)" }} disabled={wiping} onClick={() => setConfirmWipe(true)}>
+            {wiping && <Spinner />}🗑 Svuota tutto SENZA archiviare
+          </button>
+          <p style={{ fontSize: 11, color: "var(--text-faint)", marginTop: 6 }}>
+            Butta via tutto il live — nessun fermo immagine, nessun archivio. Da usare solo se i dati sono da
+            buttare per davvero (es. dopo una modifica al formato di salvataggio): i log di siege si riscaricano
+            facilmente dal gioco, non serve tenerne una copia rotta.
+          </p>
+        </div>
       </div>
 
       {confirmArchive && (
@@ -1147,6 +1174,14 @@ function SiegeDefenseImportCard() {
           confirmLabel={archiving ? "..." : "Archivia e svuota"}
           onConfirm={doArchive}
           onCancel={() => setConfirmArchive(false)}
+        />
+      )}
+      {confirmWipe && (
+        <ConfirmModal
+          message="Svuotare TUTTO il live senza archiviare nulla? Ogni siege, ogni battaglia, ogni difesa spariscono per sempre — nessun fermo immagine da consultare dopo. Dovrai reimportare i log da capo. Non si può annullare."
+          confirmLabel={wiping ? "..." : "Svuota tutto"}
+          onConfirm={doWipe}
+          onCancel={() => setConfirmWipe(false)}
         />
       )}
     </div>
