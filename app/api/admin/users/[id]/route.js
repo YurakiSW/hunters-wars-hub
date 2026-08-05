@@ -18,7 +18,7 @@ export async function PATCH(request, { params }) {
 
   const { data, error: parseError } = await safeJson(request);
   if (parseError) return NextResponse.json({ error: parseError }, { status: 400 });
-  const { role, canUploadRoster, status } = data;
+  const { role, canUploadRoster, isDeckBuilder, status } = data;
   const patch = {};
   if (role) {
     patch.role = role;
@@ -28,6 +28,12 @@ export async function PATCH(request, { params }) {
   if (typeof canUploadRoster === "boolean") {
     patch.canUploadRoster = canUploadRoster;
     patch.manualPerm = true;
+  }
+  // isDeckBuilder non ha nulla a che vedere col roster sync (che tocca solo
+  // role/canUploadRoster in base al grado in game), quindi nessun flag
+  // "manuale" da tracciare qui: è sempre e solo un'impostazione diretta.
+  if (typeof isDeckBuilder === "boolean") {
+    patch.isDeckBuilder = isDeckBuilder;
   }
   if (status) patch.status = status;
 

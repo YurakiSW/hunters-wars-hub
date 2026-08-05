@@ -114,7 +114,7 @@ function ArtifactPicker({ value, onChange, options }) {
   );
 }
 
-export default function CounterForm({ defMonsters, initial, isEdit, onSubmit, onCancel }) {
+export default function CounterForm({ defMonsters = [], initial, isEdit, onSubmit, onCancel, noApprovalFlow = false, submitLabel }) {
   const [units, setUnits] = useState(initial?.units?.map((u) => ({ ...u })) || [emptyUnit(), emptyUnit(), emptyUnit()]);
   const [turnOrder, setTurnOrder] = useState(initial?.turnOrder || []);
   const [focus, setFocus] = useState(initial?.focus || []);
@@ -175,7 +175,8 @@ export default function CounterForm({ defMonsters, initial, isEdit, onSubmit, on
   return (
     <div>
       <p style={{ color: "var(--text-faint)", fontSize: 12.5, marginBottom: 16 }}>
-        I campi con <span style={{ color: "var(--red)" }}>*</span> sono obbligatori. Il counter {isEdit ? "torna" : "entra"} in coda "in attesa" per l'approvazione.
+        I campi con <span style={{ color: "var(--red)" }}>*</span> sono obbligatori.
+        {!noApprovalFlow && ` Il counter ${isEdit ? "torna" : "entra"} in coda "in attesa" per l'approvazione.`}
       </p>
 
       <div className="section-label">Squadra</div>
@@ -309,6 +310,8 @@ export default function CounterForm({ defMonsters, initial, isEdit, onSubmit, on
         ))}
       </div>
 
+      {defMonsters.length > 0 && (
+      <>
       <div className="section-label">Focus priority (bersagli sulla difesa)</div>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
         {defMonsters.map((_, i) => (
@@ -332,6 +335,8 @@ export default function CounterForm({ defMonsters, initial, isEdit, onSubmit, on
           </select>
         ))}
       </div>
+      </>
+      )}
 
       <label style={{ display: "block", marginBottom: 12 }}>
         <div style={{ fontSize: 12.5, marginBottom: 5, fontWeight: 600 }}>Strategia</div>
@@ -382,7 +387,7 @@ export default function CounterForm({ defMonsters, initial, isEdit, onSubmit, on
 
       {error && <p style={{ color: "var(--red)", fontSize: 13, marginBottom: 12 }}>{error}</p>}
       <div style={{ display: "flex", gap: 8 }}>
-        <button className="btn btn-primary" onClick={submit} disabled={loading}>{isEdit ? "Salva modifiche" : "Invia per approvazione"}</button>
+        <button className="btn btn-primary" onClick={submit} disabled={loading}>{submitLabel || (isEdit ? "Salva modifiche" : "Invia per approvazione")}</button>
         <button className="btn btn-ghost" onClick={onCancel}>Annulla</button>
       </div>
     </div>

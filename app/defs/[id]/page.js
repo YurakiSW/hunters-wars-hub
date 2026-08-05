@@ -42,6 +42,14 @@ export default function DefDetailPage({ params }) {
 
   if (!user || !def) return null;
   const canManage = user.role === "admin" || user.role === "reviewer";
+  const canManageDecks = user.role === "admin" || user.isDeckBuilder === true;
+
+  async function copyToDeck(counterId) {
+    const res = await fetch("/api/decks/from-counter", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ counterId }) });
+    const data = await res.json();
+    if (data.deck) router.push("/deck-build");
+    else if (data.error) alert(data.error);
+  }
 
   async function submitNewCounter(payload) {
     const res = await fetch(`/api/defs/${def.id}/counters`, {
@@ -127,6 +135,8 @@ export default function DefDetailPage({ params }) {
 
         {def.counters.map((c) => (
           <CounterCard
+            canManageDecks={canManageDecks}
+            onCopyToDeck={() => copyToDeck(c.id)}
             key={c.id}
             counter={c}
             user={user}
@@ -264,7 +274,7 @@ function UnitBuildDetails({ u }) {
   );
 }
 
-function CounterCard({ counter: c, user, canManage, managerNicknames, onEdit, onDelete, onApprove, onReject, onUnapprove }) {
+function CounterCard({ counter: c, user, canManage, managerNicknames, onEdit, onDelete, onApprove, onReject, onUnapprove, canManageDecks, onCopyToDeck }) {
   const [open, setOpen] = useState(false);
   const canEdit = canManage || (c.authorId === user.id && c.status === "pending");
 
@@ -288,6 +298,9 @@ function CounterCard({ counter: c, user, canManage, managerNicknames, onEdit, on
             </span>
           )}
           {canEdit && <button className="btn btn-ghost" onClick={onEdit}>✎</button>}
+          {canManageDecks && c.status === "approved" && (
+            <button className="btn btn-ghost" title="Crea una copia indipendente su ATK Deck" onClick={onCopyToDeck}>⧉ Copia su Deck</button>
+          )}
           {c.status === "approved" && (
             <button className="btn btn-ghost" title="Segnala un problema — la rimanda in coda per un ricontrollo" onClick={onUnapprove}>↺ Da rivedere</button>
           )}

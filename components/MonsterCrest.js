@@ -61,7 +61,7 @@ function hashHue(str) {
   return h;
 }
 
-export default function MonsterCrest({ name, size = 40, lead = false, noSplit = false }) {
+export default function MonsterCrest({ name, size = 40, lead = false, noSplit = false, square = false }) {
   const [icon, setIcon] = useState(undefined);
   const [twinIcon, setTwinIcon] = useState(null);
 
@@ -97,7 +97,7 @@ export default function MonsterCrest({ name, size = 40, lead = false, noSplit = 
       style={{
         width: size,
         height: size,
-        borderRadius: "9999px",
+        borderRadius: square ? Math.max(6, Math.round(size * 0.2)) : "9999px",
         border: `2px solid ${lead ? "var(--gold)" : "var(--border)"}`,
         background: icon ? "var(--bg-soft)" : `hsl(${hue} 55% 16%)`,
         overflow: "hidden",

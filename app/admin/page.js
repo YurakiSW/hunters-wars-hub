@@ -306,7 +306,8 @@ function UsersTab() {
             <th style={{ textAlign: "left", padding: 8 }}>Grado</th>
             <th style={{ textAlign: "left", padding: 8 }}>Stato</th>
             <th style={{ textAlign: "left", padding: 8 }}>Ruolo</th>
-            <th style={{ textAlign: "left", padding: 8 }}>Upload roster</th>
+            <th style={{ textAlign: "left", padding: 8 }}>Roster</th>
+            <th style={{ textAlign: "left", padding: 8 }}>Builder</th>
             <th style={{ textAlign: "left", padding: 8 }}></th>
           </tr>
         </thead>
@@ -323,11 +324,12 @@ function UsersTab() {
                   <option value="reviewer">Revisore Counters</option>
                   <option value="admin">Admin</option>
                 </select>
-                {u.manualRole && <span className="f-mono" style={{ color: "var(--gold)", fontSize: 10, marginLeft: 6 }}>✎ manuale</span>}
               </td>
               <td style={{ padding: 8 }}>
                 <input type="checkbox" checked={u.canUploadRoster} onChange={(e) => updateUser(u.id, { canUploadRoster: e.target.checked })} />
-                {u.manualPerm && <span className="f-mono" style={{ color: "var(--gold)", fontSize: 10, marginLeft: 6 }}>✎ manuale</span>}
+              </td>
+              <td style={{ padding: 8 }}>
+                <input type="checkbox" checked={u.isDeckBuilder || false} onChange={(e) => updateUser(u.id, { isDeckBuilder: e.target.checked })} />
               </td>
               <td style={{ padding: 8 }}>
                 {u.role !== "admin" && (

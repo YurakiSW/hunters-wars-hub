@@ -80,9 +80,9 @@ export default function Header({ user }) {
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <NavPill href="/defs" icon="⚔" accent="gold">Counters</NavPill>
           <NavPill href="/difese-gilda" icon="🛡" accent="blue">Difese Gilda</NavPill>
-          <NavPill href="/mine" icon="📋" accent="violet">Le mie proposte</NavPill>
+          <NavPill href="/deck-build" icon="🗡" accent="violet">ATK Deck</NavPill>
           {canManage && (
-            <NavPill href="/admin" icon="⚙" accent="ember">Pannello {user.role === "admin" ? "Admin" : "Gestione"}</NavPill>
+            <NavPill href="/admin" icon="⚙" accent="ember">{user.role === "admin" ? "Admin" : "Gestione"}</NavPill>
           )}
           <NavPill href="https://sw-guild-site.vercel.app" icon="🎁" accent="gold" external>Redeem codici</NavPill>
           <span className="f-mono" style={{ fontSize: 11, color: "var(--text-faint)", marginLeft: 4 }}>{user?.nickname}</span>

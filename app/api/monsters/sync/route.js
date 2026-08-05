@@ -39,20 +39,26 @@ function parseRaw(raw) {
   return { name, element, iconUrl: `${ICON_BASE}${imageFilename}`, com2usId, pk };
 }
 
-// Verifica VERA (non un indovinello) se un mostro è una seconda awakening:
-// la sua pagina di dettaglio ha "awakens_from" che punta al proprio stesso
-// nome (risveglia da se stesso già risvegliato una volta), non a un nome
-// diverso (che sarebbe la normale prima awakening, che risveglia dalla
-// forma base non awakened).
-async function isConfirmedSecondAwakening(pk, ownName) {
+// Chiamata di dettaglio VERA (non un indovinello) per un singolo pk:
+// restituisce se è confermata seconda awakening di se stesso
+// ("awakens_from" punta al proprio stesso nome) e se è "obtainable" —
+// campo aggiunto il 05/08/2026 (Flora, "Tesarion"): quando due mostri
+// diversi condividono nome+elemento non per un errore di database ma
+// perché uno è una versione VECCHIA e RITIRATA dello stesso personaggio
+// (pre-rework, swarfarm la tiene comunque nello storico), "obtainable"
+// distingue in modo affidabile quale delle due è quella vera oggi — molto
+// meglio di indovinare dall'ID più basso/più alto, che non ha alcuna
+// relazione garantita con quale versione sia quella attuale.
+async function fetchMonsterDetail(pk, ownName) {
   try {
     const res = await fetch(`${SWARFARM_BASE}/api/bestiary/${pk}?format=json`, { headers: { Accept: "application/json" } });
-    if (!res.ok) return false;
+    if (!res.ok) return { confirmed2A: false, obtainable: null };
     const data = await res.json();
     const fromName = data?.awakens_from?.name;
-    return !!fromName && fromName.trim().toLowerCase() === ownName.trim().toLowerCase();
+    const confirmed2A = !!fromName && fromName.trim().toLowerCase() === ownName.trim().toLowerCase();
+    return { confirmed2A, obtainable: typeof data?.obtainable === "boolean" ? data.obtainable : null };
   } catch {
-    return false;
+    return { confirmed2A: false, obtainable: null };
   }
 }
 
@@ -81,64 +87,90 @@ export async function syncMonstersFromSwarfarm() {
     byBareName.get(m.name).push(m);
   }
 
-  // Prima passata: separo subito i "sicuri" (una sola variante per
-  // nome+elemento, o il primo/più-basso ID di ogni gruppo — quello resta
-  // sempre col nome semplice) dai "candidati da verificare" (ogni ID extra
-  // oltre al primo, per cui serve la chiamata di dettaglio). Le verifiche
-  // si fanno poi TUTTE INSIEME a lotti paralleli, non una alla volta —
-  // con qualche decina di candidati una sequenza rischierebbe di far
-  // scadere il tempo massimo di Vercel per una singola richiesta.
+  // Prima passata: separo i "sicuri" (una sola variante per nome+elemento,
+  // niente da disambiguare) dai "gruppi con più varianti" (per cui serve
+  // la chiamata di dettaglio per capire chi è chi).
+  // BUG CORRETTO IL 05/08/2026 (Flora): prima il primo/più-basso ID di ogni
+  // gruppo teneva SEMPRE il nome pulito, dando per scontato che fosse
+  // sempre quello legittimo. Falso in due modi diversi, entrambi visti
+  // stavolta con "Tesarion": com2us_id 17112 e 19212 condividono nome ed
+  // elemento, ma non sono un errore di database (come Abellio/Bayek) — 17112
+  // è una versione VECCHIA e RITIRATA dello stesso personaggio ("obtainable":
+  // false), 19212 è quella vera oggi. L'ID più basso non ha alcuna relazione
+  // garantita con "quale versione è quella attuale". Ora: per ogni gruppo si
+  // guarda "obtainable" su TUTTI i membri (non solo sugli extra) — chi è
+  // l'unico ottenibile tiene il nome pulito. Se il gruppo non dà una risposta
+  // chiara (zero o più di un ottenibile, o dati mancanti), NESSUNO tiene il
+  // nome pulito: si disambiguano tutti con l'ID, mai un'ipotesi silenziosa.
   const safeEntries = [];
-  const candidates = []; // { name, elementPrefix, extra, isCollab }
+  const groupMembers = []; // ogni entry di un gruppo con più varianti, in attesa di dettaglio
   for (const [name, variants] of byBareName) {
     const uniqueElements = new Set(variants.map((v) => v.element));
     const isCollab = uniqueElements.size > 1 && !/homunculus/i.test(name);
     for (const element of uniqueElements) {
       const sameElement = variants.filter((v) => v.element === element);
-      const sorted = [...sameElement].sort((a, b) => a.com2usId - b.com2usId);
       const elementPrefix = uniqueElements.size > 1 ? element : null;
       const displayName = elementPrefix ? `${elementPrefix} ${name}` : name;
-      const base = sorted[0];
-      safeEntries.push({ name: displayName, iconUrl: base.iconUrl, com2usId: base.com2usId, baseAccuracy: oldByComId.get(base.com2usId) ?? null, isCollab });
-      for (let i = 1; i < sorted.length; i++) {
-        candidates.push({ displayName, bareName: name, extra: sorted[i], isCollab });
+      if (sameElement.length === 1) {
+        const only = sameElement[0];
+        safeEntries.push({ name: displayName, iconUrl: only.iconUrl, com2usId: only.com2usId, baseAccuracy: oldByComId.get(only.com2usId) ?? null, isCollab });
+        continue;
+      }
+      const groupKey = `${name}|${element}`;
+      for (const m of sameElement) {
+        groupMembers.push({ displayName, bareName: name, member: m, isCollab, groupKey });
       }
     }
   }
 
-  // Verifica a lotti paralleli (10 alla volta): abbastanza per essere
-  // veloci, non tanti da rischiare i rate limit di swarfarm.
-  const confirmed = [];
+  // Dettaglio a lotti paralleli (10 alla volta) per OGNI membro di un
+  // gruppo con più varianti: abbastanza per essere veloci, non tanti da
+  // rischiare i rate limit di swarfarm.
   const BATCH = 10;
-  for (let i = 0; i < candidates.length; i += BATCH) {
-    const batch = candidates.slice(i, i + BATCH);
-    const results = await Promise.all(batch.map((c) => isConfirmedSecondAwakening(c.extra.pk, c.bareName)));
-    batch.forEach((c, j) => { if (results[j]) confirmed.push(c); });
+  for (let i = 0; i < groupMembers.length; i += BATCH) {
+    const batch = groupMembers.slice(i, i + BATCH);
+    const results = await Promise.all(batch.map((c) => fetchMonsterDetail(c.member.pk, c.bareName)));
+    batch.forEach((c, j) => { c.detail = results[j]; });
   }
-  const confirmedIds = new Set(confirmed.map((c) => c.extra.com2usId));
 
-  const finalList = [...safeEntries];
-  for (const c of candidates) {
-    // Confermata seconda awakening -> "Nome 2A". NON confermata (perché è
-    // davvero qualcos'altro, O perché la verifica è fallita per un motivo
-    // di rete) -> si tiene COMUNQUE, mai scartata, solo disambiguata con il
-    // proprio ID. Scoperto il 04/08/2026 (Flora, ancora): scartare i non
-    // confermati faceva sparire mostri VERI dal sito ogni volta che due
-    // entry condividevano nome+elemento per un motivo diverso dalla
-    // seconda awakening (es. Abellio/Bayek) — un pattern molto più comune
-    // del previsto, non un'eccezione rara.
-    const isConfirmed = confirmedIds.has(c.extra.com2usId);
-    finalList.push({
-      name: isConfirmed ? `${c.displayName} 2A` : `${c.displayName} (ID ${c.extra.com2usId})`,
-      iconUrl: c.extra.iconUrl,
-      com2usId: c.extra.com2usId,
-      baseAccuracy: oldByComId.get(c.extra.com2usId) ?? null,
+  // Un vincitore per gruppo: l'unico membro con obtainable===true. Se il
+  // gruppo non ne ha esattamente uno, resta ambiguo -> nessuno tiene il
+  // nome pulito.
+  const byGroupKey = new Map();
+  for (const c of groupMembers) {
+    if (!byGroupKey.has(c.groupKey)) byGroupKey.set(c.groupKey, []);
+    byGroupKey.get(c.groupKey).push(c);
+  }
+  const winnerComId = new Map(); // groupKey -> com2usId del vincitore, o null se ambiguo
+  for (const [groupKey, members] of byGroupKey) {
+    const obtainableOnes = members.filter((m) => m.detail?.obtainable === true);
+    winnerComId.set(groupKey, obtainableOnes.length === 1 ? obtainableOnes[0].member.com2usId : null);
+  }
+
+  let secondAwakeningsFound = 0;
+  for (const c of groupMembers) {
+    const isWinner = winnerComId.get(c.groupKey) === c.member.com2usId;
+    let label;
+    if (isWinner) {
+      label = c.displayName;
+    } else if (c.detail?.confirmed2A) {
+      label = `${c.displayName} 2A`;
+      secondAwakeningsFound++;
+    } else {
+      label = `${c.displayName} (ID ${c.member.com2usId})`;
+    }
+    safeEntries.push({
+      name: label,
+      iconUrl: c.member.iconUrl,
+      com2usId: c.member.com2usId,
+      baseAccuracy: oldByComId.get(c.member.com2usId) ?? null,
       isCollab: c.isCollab,
     });
   }
 
+  const finalList = safeEntries;
   await setSyncedMonsters(finalList);
-  return { count: finalList.length, secondAwakeningsFound: confirmed.length, candidatesChecked: candidates.length };
+  return { count: finalList.length, secondAwakeningsFound, candidatesChecked: groupMembers.length };
 }
 
 export async function GET(request) {
