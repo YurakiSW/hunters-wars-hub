@@ -1,6 +1,9 @@
 "use client";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import NicknameHeart from "./NicknameHeart";
+import Sticker from "./Sticker";
+import { DEVILMON_CAUGHT_EVENT } from "./AmbientSticker";
 
 function NavPill({ href, icon, children, accent = "gold", external, onClick }) {
   const glows = {
@@ -57,6 +60,13 @@ function NavPill({ href, icon, children, accent = "gold", external, onClick }) {
 export default function Header({ user }) {
   const router = useRouter();
   const canManage = user?.role === "admin" || user?.role === "reviewer" || user?.canUploadRoster;
+  const [devilmonCount, setDevilmonCount] = useState(user?.devilmonCount || 0);
+
+  useEffect(() => {
+    function onCaught(e) { setDevilmonCount(e.detail.count); }
+    window.addEventListener(DEVILMON_CAUGHT_EVENT, onCaught);
+    return () => window.removeEventListener(DEVILMON_CAUGHT_EVENT, onCaught);
+  }, []);
 
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -87,6 +97,10 @@ export default function Header({ user }) {
           )}
           <NavPill href="https://sw-guild-site.vercel.app" icon="🎁" accent="gold" external>Redeem codici</NavPill>
           <span className="f-mono" style={{ fontSize: 11, color: "var(--text-faint)", marginLeft: 4 }}><NicknameHeart isOwn>{user?.nickname}</NicknameHeart></span>
+          <span className="f-mono" title="Devilmon catturati" style={{ fontSize: 11, color: "var(--gold)", display: "inline-flex", alignItems: "center", gap: 3 }}>
+            <Sticker name="saltella" size={22} alt="" />
+            x{devilmonCount}
+          </span>
           <NavPill icon="↪" accent="red" onClick={logout}>Esci</NavPill>
         </div>
       </div>
