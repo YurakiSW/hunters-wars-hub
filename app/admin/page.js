@@ -453,6 +453,16 @@ function TwinPairsCard() {
       // come faceva prima anche per i collab a un solo elemento (Frieren,
       // Frodo...).
       const rowsFromFlag = [];
+      // Elenco scritto a mano di collab CONFERMATI in corso, verificati uno
+      // per uno sul nostro elenco vero (mai un'ipotesi) — compaiono in
+      // tabella già pronti anche PRIMA che esista un gemello normale da
+      // abbinare, così quando esce basta scriverlo, non cercarlo da capo.
+      // Aggiornare qui man mano che se ne verificano altri (con
+      // /api/admin/monsters, mai indovinati dal nome).
+      const PENDING_COLLAB_NAMES = ["Frieren", "Dark Fern", "Water Stark"];
+      const pending = PENDING_COLLAB_NAMES
+        .map((n) => all.find((m) => normalizeMonsterName(m.name) === normalizeMonsterName(n))?.name)
+        .filter(Boolean);
       const extra = Object.keys(twins)
         .map((k) => all.find((m) => normalizeMonsterName(m.name) === k)?.name)
         .filter((n) => n && !rowsFromFlag.includes(n));
@@ -464,7 +474,7 @@ function TwinPairsCard() {
       const alreadyTargets = new Set(
         Object.values(twins).map((v) => normalizeMonsterName(v))
       );
-      const found = [...rowsFromFlag, ...extra]
+      const found = [...rowsFromFlag, ...pending, ...extra]
         .filter((name) => {
           const n = normalizeMonsterName(name);
           return !alreadyTargets.has(n) || twins[n]; // resta se è a sua volta abbinato
@@ -583,8 +593,9 @@ function TwinPairsCard() {
               AGGIUNGI A MANO
             </div>
             <p style={{ fontSize: 11.5, color: "var(--text-faint)", marginBottom: 8 }}>
-              Serve solo per i collab usciti in un <strong>unico elemento</strong> (es. Frodo): senza varianti
-              elementali non vengono riconosciuti in automatico. Una volta aggiunta, la coppia resta nell&apos;elenco qui sopra.
+              Nessun collab viene riconosciuto in automatico (il nome ripetuto su più elementi non è un segnale
+              affidabile — vale anche per centinaia di mostri normali). Ogni coppia nuova, anche multi-elemento, va
+              aggiunta qui. Una volta aggiunta, resta nell&apos;elenco qui sopra.
             </p>
             <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 6, flex: 1, minWidth: 230 }}>
@@ -758,6 +769,7 @@ function DiagnosticaTab() {
   const [backfillMsg, setBackfillMsg] = useState("");
   const [syncingMon, setSyncingMon] = useState(false);
   const [syncMonMsg, setSyncMonMsg] = useState("");
+  const [syncNewMonsters, setSyncNewMonsters] = useState([]);
   const [lookupId, setLookupId] = useState("");
   const [lookingUp, setLookingUp] = useState(false);
   const [lookupResult, setLookupResult] = useState(null);
@@ -833,6 +845,7 @@ function DiagnosticaTab() {
     const data = await res.json();
     setSyncingMon(false);
     setSyncMonMsg(res.ok ? `Bestiario aggiornato: ${data.count} mostri sincronizzati da swarfarm.` : data.error);
+    setSyncNewMonsters(res.ok ? (data.newSinceLastSync || []) : []);
     if (res.ok) {
       // Le liste sono in cache condivisa: senza svuotarle, i mostri nuovi non
       // comparirebbero nelle icone e nella tabella collab fino a un reload.
@@ -933,6 +946,16 @@ function DiagnosticaTab() {
           nuovi o dopo un collab, altrimenti i nomi nuovi non vengono riconosciuti nei log.
         </p>
         {syncMonMsg && <p style={{ fontSize: 12.5, color: "var(--green)", marginTop: 8 }}>{syncMonMsg}</p>}
+        {syncNewMonsters.length > 0 && (
+          <div style={{ marginTop: 8 }}>
+            <div className="f-mono" style={{ fontSize: 10.5, color: "var(--gold)", marginBottom: 4 }}>
+              NUOVI RISPETTO ALL&apos;ULTIMO SYNC ({syncNewMonsters.length}) — dagli un'occhiata, potrebbero essere un collab
+            </div>
+            <p style={{ fontSize: 12, color: "var(--text-muted)" }}>
+              {syncNewMonsters.map((m) => m.name).join(", ")}
+            </p>
+          </div>
+        )}
       </div>
       <div className="card" style={{ marginBottom: 10 }}>
         <div className="f-mono" style={{ fontSize: 11, color: "var(--text-faint)", marginBottom: 8 }}>

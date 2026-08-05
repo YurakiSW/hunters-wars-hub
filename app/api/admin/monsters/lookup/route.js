@@ -1,6 +1,32 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser, canManage } from "../../../../../lib/auth";
 
+// Stesso fix di app/api/monsters/sync/route.js — swarfarm a volte
+// restituisce nomi già corrotti da una doppia codifica (byte UTF-8 letti
+// come Windows-1252, es. "Übel" -> "Ãœbel"). Qui è solo per la
+// visualizzazione del tool diagnostico, "raw" sotto resta il dato grezzo
+// intatto per trasparenza.
+const CP1252_CHAR_TO_BYTE = (() => {
+  const dec = new TextDecoder("windows-1252");
+  const map = new Map();
+  for (let b = 0; b < 256; b++) map.set(dec.decode(new Uint8Array([b])), b);
+  return map;
+})();
+function fixMojibake(name) {
+  if (!name || !name.includes("\u00c3")) return name;
+  const bytes = [];
+  for (const ch of name) {
+    const b = CP1252_CHAR_TO_BYTE.get(ch);
+    if (b === undefined) return name;
+    bytes.push(b);
+  }
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(new Uint8Array(bytes));
+  } catch {
+    return name;
+  }
+}
+
 // Strumento diagnostico: cerca UN com2us_id direttamente su swarfarm, in
 // diretta — non dal bestiario sincronizzato (che potrebbe avere buchi),
 // ma dalla fonte vera. Utile ogni volta che salta fuori un "Sconosciuto"
@@ -30,7 +56,7 @@ export async function GET(request) {
   return NextResponse.json({
     ok: true,
     found: true,
-    name: found.name,
+    name: fixMojibake(found.name),
     element: found.element,
     archetype: found.archetype,
     com2usId: found.com2us_id,
@@ -39,3 +65,4 @@ export async function GET(request) {
     raw: found,
   });
 }
+

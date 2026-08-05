@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSyncedMonsters, setSyncedMonsters } from "../../../../lib/monsters";
+import { getSyncedMonsters, setSyncedMonsters, setNewMonstersSinceLastSync } from "../../../../lib/monsters";
 
 // Chiamata da cron-job.org (stesso meccanismo usato per SW Auto Redeemer):
 // GET /api/monsters/sync?secret=CRON_SECRET
@@ -38,14 +38,49 @@ const SWARFARM_BASE = "https://swarfarm.com";
 const ICON_BASE = "https://swarfarm.com/static/herders/images/monsters/";
 
 // Eccezioni scritte a mano, verificate una per una con il tool di lookup
-// prima di essere aggiunte qui — MAI un'ipotesi. com2us_id che non deve
-// MAI tenere il nome pulito del suo gruppo, anche se ha l'ID più basso.
-//   17112 -> "Tesarion" vecchio/ritirato (obtainable:false, verificato
-//   05/08/2026): il vero Fire Ifrit risvegliato è 19212.
-const NEVER_CLEAN_NAME_IDS = new Set([17112]);
+// prima di essere aggiunte qui — MAI un'ipotesi. com2us_id che non devono
+// MAI tenere il nome pulito del loro gruppo, anche se hanno l'ID più
+// basso. Tutta la famiglia Ifrit risvegliata ha una versione vecchia
+// ritirata parallela (blocco 17111-17115), verificate il 05/08/2026:
+//   17111 -> "Theomars" vecchio (obtainable:false) — vero: 19211
+//   17112 -> "Tesarion" vecchio (obtainable:false) — vero: 19212
+//   17113 -> "Akhamamir" vecchio (obtainable:false) — vero: 19213
+//   17114 -> "Elsharion" vecchio (obtainable:false) — vero: 19214
+//   17115 -> "Veromos" vecchio (obtainable:false) — vero: 19215
+const NEVER_CLEAN_NAME_IDS = new Set([17111, 17112, 17113, 17114, 17115]);
+
+// Alcuni nomi su swarfarm arrivano già corrotti da una doppia codifica
+// (i byte veri UTF-8 di un carattere accentato come "Ü" letti come
+// Windows-1252 e ricodificati — es. "Übel" diventa "Ãœbel"). Verificato
+// il 05/08/2026 (Flora, Übel) chiamando direttamente il dettaglio di
+// swarfarm: il difetto è già nei LORO dati, non introdotto da noi — quindi
+// lo ripariamo in lettura. Si attiva SOLO se compare il carattere spia "Ã"
+// (che non fa mai parte di un nome scritto bene), quindi non tocca nessun
+// nome normale. Tabella Windows-1252 costruita una volta sola all'avvio
+// del modulo (non ad ogni chiamata).
+const CP1252_CHAR_TO_BYTE = (() => {
+  const dec = new TextDecoder("windows-1252");
+  const map = new Map();
+  for (let b = 0; b < 256; b++) map.set(dec.decode(new Uint8Array([b])), b);
+  return map;
+})();
+function fixMojibake(name) {
+  if (!name || !name.includes("\u00c3")) return name;
+  const bytes = [];
+  for (const ch of name) {
+    const b = CP1252_CHAR_TO_BYTE.get(ch);
+    if (b === undefined) return name; // carattere fuori tabella: non è questo tipo di corruzione, non toccare
+    bytes.push(b);
+  }
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(new Uint8Array(bytes));
+  } catch {
+    return name; // i byte non formano UTF-8 valido: non era questa la corruzione, non toccare
+  }
+}
 
 function parseRaw(raw) {
-  const name = raw.name;
+  const name = fixMojibake(raw.name);
   const element = raw.element;
   const imageFilename = raw.image_filename;
   const com2usId = raw.com2us_id;
@@ -91,7 +126,9 @@ export async function syncMonstersFromSwarfarm() {
   // perderla o inventarla: si aggiorna sempre nome/icona/ID (quelli sì
   // affidabili dalla lista), l'accuracy resta quella vecchia se già nota.
   const oldByComId = new Map();
+  const oldIds = new Set();
   for (const m of await getSyncedMonsters()) {
+    oldIds.add(m.com2usId);
     if (m.com2usId != null && m.baseAccuracy != null) oldByComId.set(m.com2usId, m.baseAccuracy);
   }
 
@@ -158,7 +195,9 @@ export async function syncMonstersFromSwarfarm() {
   }
 
   await setSyncedMonsters(finalList);
-  return { count: finalList.length, secondAwakeningsFound: confirmed.length, candidatesChecked: candidates.length };
+  const newSinceLastSync = finalList.filter((m) => !oldIds.has(m.com2usId)).map((m) => ({ name: m.name, com2usId: m.com2usId }));
+  await setNewMonstersSinceLastSync(newSinceLastSync);
+  return { count: finalList.length, secondAwakeningsFound: confirmed.length, candidatesChecked: candidates.length, newSinceLastSync };
 }
 
 export async function GET(request) {
