@@ -261,12 +261,12 @@ function DefsPageContent() {
         )}
         {!defsLoaded ? (
           <div style={{ textAlign: "center", marginTop: 30 }}>
-            <Sticker name="totem" size={110} />
+            <Sticker name="totem" size={170} />
             <p style={{ color: "var(--text-faint)", marginTop: 8 }}>Caricamento...</p>
           </div>
         ) : filtered.length === 0 && (
           <div style={{ textAlign: "center", marginTop: 30, color: "var(--text-faint)" }}>
-            <Sticker name="depresso" revealOnClick="emozionato" size={150} />
+            <Sticker name="depresso" revealOnClick="emozionato" size={190} />
             <p>Nessuna difesa trovata.</p>
           </div>
         )}

@@ -25,8 +25,8 @@ export default function NicknameHeart({ isOwn, children }) {
         <img
           src={STICKERS.cuoricini}
           alt=""
-          width={30}
-          height={30}
+          width={42}
+          height={42}
           draggable={false}
           loading="lazy"
           decoding="async"

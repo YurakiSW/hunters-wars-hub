@@ -763,6 +763,8 @@ function BackupTab() {
 function DiagnosticaTab() {
   const [checks, setChecks] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [dataHealth, setDataHealth] = useState(null);
+  const [loadingHealth, setLoadingHealth] = useState(true);
   const [dupInfo, setDupInfo] = useState(null);
   const [cleaning, setCleaning] = useState(false);
   const [syncingMon, setSyncingMon] = useState(false);
@@ -797,7 +799,15 @@ function DiagnosticaTab() {
     fetch("/api/admin/maintenance").then((r) => r.json()).then((d) => setDupInfo(d));
   }
 
-  useEffect(() => { load(); loadDupInfo(); }, []);
+  function loadDataHealth() {
+    setLoadingHealth(true);
+    fetch("/api/admin/data-health").then((r) => r.json()).then((d) => {
+      setDataHealth(d.ok ? d : null);
+      setLoadingHealth(false);
+    });
+  }
+
+  useEffect(() => { load(); loadDupInfo(); loadDataHealth(); }, []);
 
   async function mergeEquivalent() {
     setMerging(true);
@@ -869,6 +879,39 @@ function DiagnosticaTab() {
         </div>
       ))}
 
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 28, marginBottom: 14 }}>
+        <div className="section-label">Salute dati</div>
+        <button className="btn btn-ghost" onClick={loadDataHealth} disabled={loadingHealth}>{loadingHealth ? "Controllo..." : "↻ Ricontrolla"}</button>
+      </div>
+      <p style={{ color: "var(--text-faint)", fontSize: 12.5, marginBottom: 14 }}>
+        Solo conteggio, non modifica nulla — utile per non inciampare per caso in una Difesa senza counter o in un
+        counter senza leader/build, come è già successo.
+      </p>
+      {loadingHealth ? (
+        <p style={{ color: "var(--text-faint)", fontSize: 12.5 }}>Controllo...</p>
+      ) : dataHealth ? (
+        <>
+          <div className="card" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+            <span style={{ fontSize: 13.5 }}>{dataHealth.defsWithoutCounters.length === 0 ? "✅" : "⚠️"} Difese senza counter</span>
+            <span className="f-mono" style={{ fontSize: 11.5, color: dataHealth.defsWithoutCounters.length === 0 ? "var(--green)" : "var(--gold)" }}>
+              {dataHealth.defsWithoutCounters.length}
+            </span>
+          </div>
+          <div className="card" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+            <span style={{ fontSize: 13.5 }}>{dataHealth.countersWithoutLead.length === 0 ? "✅" : "⚠️"} Counter approvati senza leader segnato</span>
+            <span className="f-mono" style={{ fontSize: 11.5, color: dataHealth.countersWithoutLead.length === 0 ? "var(--green)" : "var(--gold)" }}>
+              {dataHealth.countersWithoutLead.length}
+            </span>
+          </div>
+          <div className="card" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+            <span style={{ fontSize: 13.5 }}>{dataHealth.countersWithoutBuild.length === 0 ? "✅" : "⚠️"} Counter approvati senza build (rune/artefatti)</span>
+            <span className="f-mono" style={{ fontSize: 11.5, color: dataHealth.countersWithoutBuild.length === 0 ? "var(--green)" : "var(--gold)" }}>
+              {dataHealth.countersWithoutBuild.length}
+            </span>
+          </div>
+        </>
+      ) : null}
+
       <div className="section-label" style={{ marginTop: 24 }}>Manutenzione contenuti</div>
       <div className="card" style={{ marginBottom: 10 }}>
         <button className="btn btn-danger" disabled={merging} onClick={mergeEquivalent}>
@@ -910,7 +953,7 @@ function DiagnosticaTab() {
         <button className="btn btn-primary" disabled={syncingMon} onClick={syncMonsters}>
           {syncingMon && <Spinner />}🔃 Sincronizza bestiario da swarfarm
         </button>
-        {syncingMon && <Sticker name="letto" size={68} alt="" style={{ marginLeft: 10, verticalAlign: "middle" }} />}
+        {syncingMon && <Sticker name="letto" size={90} alt="" style={{ marginLeft: 10, verticalAlign: "middle" }} />}
         <p style={{ fontSize: 11.5, color: "var(--text-faint)", marginTop: 8 }}>
           Scarica l&apos;elenco aggiornato dei mostri (nomi, icone, accuracy base). Lancialo quando escono mostri
           nuovi o dopo un collab, altrimenti i nomi nuovi non vengono riconosciuti nei log.
@@ -918,7 +961,7 @@ function DiagnosticaTab() {
         {syncMonMsg && <p style={{ fontSize: 12.5, color: "var(--green)", marginTop: 8 }}>{syncMonMsg}</p>}
         {syncNewMonsters.length > 0 && (
           <div style={{ marginTop: 8, display: "flex", alignItems: "flex-start", gap: 8 }}>
-            <Sticker name="saltella" size={36} style={{ flexShrink: 0 }} />
+            <Sticker name="saltella" size={52} style={{ flexShrink: 0 }} />
             <div>
             <div className="f-mono" style={{ fontSize: 10.5, color: "var(--gold)", marginBottom: 4 }}>
               NUOVI RISPETTO ALL&apos;ULTIMO SYNC ({syncNewMonsters.length}) — dagli un'occhiata, potrebbero essere un collab

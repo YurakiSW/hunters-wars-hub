@@ -401,7 +401,7 @@ export default function CounterForm({ defMonsters = [], initial, isEdit, onSubmi
 
       {error && (
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-          <Sticker name="nonoScioccato" size={36} style={{ flexShrink: 0 }} />
+          <Sticker name="nonoScioccato" size={52} style={{ flexShrink: 0 }} />
           <p style={{ color: "var(--red)", fontSize: 13, margin: 0 }}>{error}</p>
         </div>
       )}

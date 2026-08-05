@@ -70,7 +70,7 @@ export default function GuildDefenseArchivePage() {
         <div style={{ marginTop: 16 }}>
           {loading ? (
             <div style={{ textAlign: "center", marginTop: 20 }}>
-              <Sticker name="totem" size={110} />
+              <Sticker name="totem" size={170} />
               <p style={{ color: "var(--text-faint)", marginTop: 8 }}>Caricamento...</p>
             </div>
           ) : archives.length === 0 ? (

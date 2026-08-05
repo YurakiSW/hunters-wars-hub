@@ -194,7 +194,7 @@ function GuildDefensesContent() {
 
         {loading ? (
           <div style={{ textAlign: "center", marginTop: 30 }}>
-            <Sticker name="totem" size={130} />
+            <Sticker name="totem" size={170} />
             <p style={{ color: "var(--text-faint)", marginTop: 8 }}>Caricamento...</p>
           </div>
         ) : includedCount === 0 ? (
@@ -202,7 +202,7 @@ function GuildDefensesContent() {
         ) : mode === "owner" ? (
           defenses.length === 0 ? (
             <div style={{ textAlign: "center", marginTop: 20, color: "var(--text-faint)" }}>
-              <Sticker name="depresso" revealOnClick="emozionato" size={130} />
+              <Sticker name="depresso" revealOnClick="emozionato" size={190} />
               <p>Nessuna difesa trovata per questo nick.</p>
             </div>
           ) : (
@@ -210,7 +210,7 @@ function GuildDefensesContent() {
           )
         ) : teams.length === 0 ? (
           <div style={{ textAlign: "center", marginTop: 20, color: "var(--text-faint)" }}>
-            <Sticker name="depresso" revealOnClick="emozionato" size={130} />
+            <Sticker name="depresso" revealOnClick="emozionato" size={190} />
             <p>{teamQuery ? "Nessun team trovato con questo mostro." : "Nessuna difesa da mostrare."}</p>
           </div>
         ) : (
@@ -319,7 +319,7 @@ function TeamRow({ summary, isTop, user }) {
     <div className="card" style={{ marginBottom: 10, borderColor: isTop ? "var(--gold)" : undefined }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", flexWrap: "wrap" }} onClick={toggle}>
         <span style={{ fontSize: 12, color: "var(--text-faint)" }}>{open ? "▼" : "▶"}</span>
-        {isTop && <Sticker name="re" size={40} alt="La squadra col winrate più alto" />}
+        {isTop && <Sticker name="re" size={56} alt="La squadra col winrate più alto" />}
         <div style={{ display: "flex", gap: 4 }}>
           {summary.monsterNames.map((n, i) => <MonsterCrest key={i} name={n} size={34} />)}
         </div>

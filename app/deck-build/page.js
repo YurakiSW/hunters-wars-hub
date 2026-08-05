@@ -79,20 +79,30 @@ function UnitBuildDetails({ u }) {
 function DeckRow({
   deck, user, canManage, open, onToggleOpen, selected, onToggleSelect,
   onEdit, onDelete, onDuplicate, onAddAgainst, onRemoveAgainst,
-  reorderMode, onMoveUp, onMoveDown, isFirst, isLast,
+  reorderMode, isDragging, isDragOver, onDragStart, onDragOverRow, onDrop, onDragEnd,
 }) {
   const targetCount = deck.against?.length || 0;
   return (
-    <div className="card" style={{ marginBottom: 10, borderColor: open ? "var(--gold)" : undefined }}>
+    <div
+      className="card"
+      draggable={reorderMode}
+      onDragStart={onDragStart}
+      onDragOver={(e) => { if (reorderMode) { e.preventDefault(); onDragOverRow(); } }}
+      onDrop={(e) => { if (reorderMode) { e.preventDefault(); onDrop(); } }}
+      onDragEnd={onDragEnd}
+      style={{
+        marginBottom: 10,
+        borderColor: isDragOver ? "var(--violet)" : open ? "var(--gold)" : undefined,
+        opacity: isDragging ? 0.4 : 1,
+        cursor: reorderMode ? "grab" : undefined,
+      }}
+    >
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
         {canManage && !reorderMode && (
           <input type="checkbox" checked={selected} onChange={onToggleSelect} style={{ width: 16, height: 16, flexShrink: 0 }} />
         )}
         {reorderMode && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-            <button className="btn btn-ghost" style={{ padding: "1px 6px", fontSize: 11 }} disabled={isFirst} onClick={onMoveUp}>▲</button>
-            <button className="btn btn-ghost" style={{ padding: "1px 6px", fontSize: 11 }} disabled={isLast} onClick={onMoveDown}>▼</button>
-          </div>
+          <span style={{ fontSize: 18, color: "var(--text-faint)", cursor: "grab", lineHeight: 1 }} title="Trascina per riordinare">⠿</span>
         )}
         <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
           {deck.units.slice(0, 3).map((u, i) => (
@@ -211,6 +221,8 @@ export default function DeckBuildPage() {
   const [openIds, setOpenIds] = useState(new Set());
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [reorderMode, setReorderMode] = useState(false);
+  const [draggedId, setDraggedId] = useState(null);
+  const [dragOverId, setDragOverId] = useState(null);
   const [showNewForm, setShowNewForm] = useState(false);
   const [editingDeck, setEditingDeck] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
@@ -269,8 +281,8 @@ export default function DeckBuildPage() {
       // la trombetta invece del solito felice — mai annunciato, si scopre
       // da sola. decks.length è ancora il conteggio PRIMA di questo nuovo.
       const newCount = decks.length + 1;
-      setCelebration(newCount % 50 === 0 ? "trombetta" : "felice");
-      setTimeout(() => setCelebration(null), 2600);
+      setCelebration(newCount % 5 === 0 ? "trombetta" : "felice");
+      setTimeout(() => setCelebration(null), 3800);
     }
     return data;
   }
@@ -304,12 +316,17 @@ export default function DeckBuildPage() {
     await fetch(`/api/decks/${deckId}/against/${entryId}`, { method: "DELETE" });
     load();
   }
-  async function move(id, dir) {
-    const idx = decks.findIndex((d) => d.id === id);
-    const swapWith = idx + dir;
-    if (swapWith < 0 || swapWith >= decks.length) return;
+  async function handleDrop(targetId) {
+    const fromId = draggedId;
+    setDraggedId(null);
+    setDragOverId(null);
+    if (!fromId || fromId === targetId) return;
+    const fromIdx = decks.findIndex((d) => d.id === fromId);
+    const toIdx = decks.findIndex((d) => d.id === targetId);
+    if (fromIdx === -1 || toIdx === -1) return;
     const next = [...decks];
-    [next[idx], next[swapWith]] = [next[swapWith], next[idx]];
+    const [moved] = next.splice(fromIdx, 1);
+    next.splice(toIdx, 0, moved);
     setDecks(next);
     await fetch("/api/decks/reorder", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ orderedIds: next.map((d) => d.id) }) });
   }
@@ -318,9 +335,9 @@ export default function DeckBuildPage() {
     <div>
       <Header user={user} />
       {celebration && (
-        <div style={{ position: "fixed", bottom: 20, right: 20, zIndex: 50, background: "var(--bg-soft, #1b1630)", border: "1px solid var(--gold)", borderRadius: 12, padding: "8px 14px 8px 8px", display: "flex", alignItems: "center", gap: 8, boxShadow: "0 8px 24px rgba(0,0,0,.4)" }}>
-          <Sticker name={celebration} revealOnClick={celebration === "felice" ? "nonoPokerface" : undefined} revealCount={6} size={52} />
-          <span style={{ fontSize: 12.5, color: "var(--text)" }}>{celebration === "trombetta" ? "Bel traguardo! 🎉" : "Deck creato!"}</span>
+        <div style={{ position: "fixed", bottom: 20, right: 20, zIndex: 50, background: "var(--bg-soft, #1b1630)", border: "1px solid var(--gold)", borderRadius: 12, padding: "10px 18px 10px 10px", display: "flex", alignItems: "center", gap: 10, boxShadow: "0 8px 24px rgba(0,0,0,.4)" }}>
+          <Sticker name={celebration} revealOnClick={celebration === "felice" ? "nonoPokerface" : undefined} revealCount={6} size={84} />
+          <span style={{ fontSize: 14, color: "var(--text)" }}>{celebration === "trombetta" ? "Bel traguardo! 🎉" : "Deck creato!"}</span>
         </div>
       )}
       <div style={{ maxWidth: 1040, margin: "0 auto", padding: "24px 20px" }}>
@@ -359,20 +376,22 @@ export default function DeckBuildPage() {
             onAddAgainst={() => setAddingAgainstTo(deck.id)}
             onRemoveAgainst={(entryId) => removeAgainst(deck.id, entryId)}
             reorderMode={reorderMode}
-            onMoveUp={() => move(deck.id, -1)}
-            onMoveDown={() => move(deck.id, 1)}
-            isFirst={decks.findIndex((d) => d.id === deck.id) === 0}
-            isLast={decks.findIndex((d) => d.id === deck.id) === decks.length - 1}
+            isDragging={draggedId === deck.id}
+            isDragOver={dragOverId === deck.id && draggedId !== deck.id}
+            onDragStart={() => setDraggedId(deck.id)}
+            onDragOverRow={() => setDragOverId(deck.id)}
+            onDrop={() => handleDrop(deck.id)}
+            onDragEnd={() => { setDraggedId(null); setDragOverId(null); }}
           />
         ))}
         {!decksLoaded ? (
           <div style={{ textAlign: "center", marginTop: 30 }}>
-            <Sticker name="totem" size={110} />
+            <Sticker name="totem" size={170} />
             <p style={{ color: "var(--text-faint)", marginTop: 8 }}>Caricamento...</p>
           </div>
         ) : !filtered.length && (
           <div style={{ textAlign: "center", marginTop: 30, color: "var(--text-faint)" }}>
-            <Sticker name="depresso" revealOnClick="emozionato" size={150} style={{ margin: "0 auto 8px" }} />
+            <Sticker name="depresso" revealOnClick="emozionato" size={190} style={{ margin: "0 auto 8px" }} />
             <p>Nessun deck trovato.</p>
           </div>
         )}

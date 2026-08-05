@@ -6,7 +6,7 @@ export default function ConfirmModal({ message, confirmLabel = "Elimina", onConf
   return (
     <Modal title="Conferma eliminazione" onClose={onCancel}>
       <div style={{ display: "flex", gap: 12, alignItems: "flex-start", marginBottom: 18 }}>
-        <Sticker name="sudaSconvolto" size={48} style={{ flexShrink: 0 }} />
+        <Sticker name="sudaSconvolto" size={68} style={{ flexShrink: 0 }} />
         <p style={{ color: "var(--text-muted)", fontSize: 13.5, lineHeight: 1.5, whiteSpace: "pre-line", margin: 0 }}>{message}</p>
       </div>
       <div style={{ display: "flex", gap: 8 }}>
