@@ -3,6 +3,9 @@ import CookieNotice from "../components/CookieNotice";
 import Footer from "../components/Footer";
 import AmbientSticker from "../components/AmbientSticker";
 import StarrySky from "../components/StarrySky";
+import KonamiCode from "../components/KonamiCode";
+import TabTitleTease from "../components/TabTitleTease";
+import ConsoleEasterEgg from "../components/ConsoleEasterEgg";
 
 export const metadata = {
   title: "Hunters Wars — Counter Siege",
@@ -25,6 +28,9 @@ export default function RootLayout({ children }) {
         <Footer />
         <CookieNotice />
         <AmbientSticker />
+        <KonamiCode />
+        <TabTitleTease />
+        <ConsoleEasterEgg />
       </body>
     </html>
   );

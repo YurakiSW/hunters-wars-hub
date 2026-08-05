@@ -301,6 +301,22 @@ function UsersTab() {
   return (
     <div>
       {emailMsg && <p style={{ fontSize: 12.5, marginBottom: 10 }}>{emailMsg}</p>}
+      {(() => {
+        const finders = users.filter((u) => u.konamiFoundAt).sort((a, b) => a.konamiFoundAt - b.konamiFoundAt);
+        if (!finders.length) return null;
+        return (
+          <div className="card" style={{ marginBottom: 16, borderColor: "var(--gold)" }}>
+            <div className="f-mono" style={{ fontSize: 10.5, color: "var(--gold)", textTransform: "uppercase", marginBottom: 6 }}>
+              🕹️ Ha trovato il Konami code
+            </div>
+            {finders.map((u, i) => (
+              <div key={u.id} style={{ fontSize: 12.5, color: "var(--text-muted)" }}>
+                {i === 0 && "🥇 "}{u.nickname} — {new Date(u.konamiFoundAt).toLocaleDateString("it-IT")}
+              </div>
+            ))}
+          </div>
+        );
+      })()}
       <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
         <thead>
           <tr style={{ background: "var(--bg-soft)" }}>

@@ -1,8 +1,9 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import NicknameHeart from "./NicknameHeart";
 import Sticker from "./Sticker";
+import WhackADevilmon from "./WhackADevilmon";
 import { DEVILMON_CAUGHT_EVENT } from "./AmbientSticker";
 
 function NavPill({ href, icon, children, accent = "gold", external, onClick }) {
@@ -61,12 +62,42 @@ export default function Header({ user }) {
   const router = useRouter();
   const canManage = user?.role === "admin" || user?.role === "reviewer" || user?.canUploadRoster;
   const [devilmonCount, setDevilmonCount] = useState(user?.devilmonCount || 0);
+  const [streak, setStreak] = useState(user?.catchStreak || 0);
 
   useEffect(() => {
-    function onCaught(e) { setDevilmonCount(e.detail.count); }
+    function onCaught(e) {
+      setDevilmonCount(e.detail.count);
+      if (e.detail.streak != null) setStreak(e.detail.streak);
+    }
     window.addEventListener(DEVILMON_CAUGHT_EVENT, onCaught);
     return () => window.removeEventListener(DEVILMON_CAUGHT_EVENT, onCaught);
   }, []);
+
+  // Minigioco nascosto: click ripetuti sul logo entro una finestra breve.
+  // Un click normale ("vai alla home") naviga comunque, solo con un
+  // ritardo minimo (appena percettibile) per poter contare eventuali
+  // click successivi prima che la pagina cambi — nessun indizio scritto
+  // da nessuna parte, nessun avviso, come tutti gli altri easter egg.
+  const [showGame, setShowGame] = useState(false);
+  const logoClicksRef = useRef(0);
+  const logoTimerRef = useRef(null);
+  const LOGO_TRIGGER_CLICKS = 6;
+  const LOGO_WINDOW_MS = 500;
+
+  function handleLogoClick(e) {
+    e.preventDefault();
+    logoClicksRef.current += 1;
+    clearTimeout(logoTimerRef.current);
+    if (logoClicksRef.current >= LOGO_TRIGGER_CLICKS) {
+      logoClicksRef.current = 0;
+      setShowGame(true);
+      return;
+    }
+    logoTimerRef.current = setTimeout(() => {
+      logoClicksRef.current = 0;
+      router.push("/defs");
+    }, LOGO_WINDOW_MS);
+  }
 
   // Soglie basse apposta: lo sticker ambientale è raro (1/6 a caricamento,
   // garantito solo entro 5), quindi anche "Cacciatore" a 3 catture è già
@@ -85,9 +116,10 @@ export default function Header({ user }) {
   }
 
   return (
+    <>
     <div style={{ borderBottom: "1px solid var(--border-soft)", background: "var(--bg-soft)" }}>
       <div style={{ maxWidth: 1040, margin: "0 auto", padding: "16px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
-        <a href="/defs" style={{ display: "flex", alignItems: "center", gap: 12, textDecoration: "none", color: "inherit" }}>
+        <a href="/defs" onClick={handleLogoClick} style={{ display: "flex", alignItems: "center", gap: 12, textDecoration: "none", color: "inherit" }}>
           <img
             src="/logo.jpg"
             alt="Hunters Nux"
@@ -111,9 +143,16 @@ export default function Header({ user }) {
             <Sticker name="saltella" size={32} alt="" />
             x{devilmonCount}
           </span>
+          {streak > 1 && (
+            <span className="f-mono" title={`${streak} giorni di fila`} style={{ fontSize: 11, color: "var(--ember)" }}>
+              🔥{streak}
+            </span>
+          )}
           <NavPill icon="↪" accent="red" onClick={logout}>Esci</NavPill>
         </div>
       </div>
     </div>
+    {showGame && <WhackADevilmon onClose={() => setShowGame(false)} />}
+    </>
   );
 }

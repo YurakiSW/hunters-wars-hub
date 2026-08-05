@@ -37,9 +37,10 @@ const CHANCE = 1 / 6; // probabilità per ogni caricamento pagina, PRIMA del pit
 const PITY_LIMIT = 5; // garantita entro questo tanti caricamenti dall'ultima comparsa
 const MIN_WIDTH = 1150; // sotto questa larghezza non c'è margine laterale vero
 const PITY_KEY = "hwhub_ambient_sticker_pity";
+const SHINY_CHANCE = 1 / 100; // rarissimo, vale 5 catture invece di 1 (vedi API)
 
 export default function AmbientSticker() {
-  const [entry, setEntry] = useState(null); // { name, reveal, spot } | null
+  const [entry, setEntry] = useState(null); // { name, reveal, spot, shiny } | null
   const [caught, setCaught] = useState(false);
   const [confetti, setConfetti] = useState(null); // { x, y } | null
 
@@ -66,9 +67,10 @@ export default function AmbientSticker() {
 
     const chosen = POOL[Math.floor(Math.random() * POOL.length)];
     const spot = SPOTS[Math.floor(Math.random() * SPOTS.length)];
+    const shiny = Math.random() < SHINY_CHANCE;
     const delay = 1000 + Math.random() * 9000; // compare tra 1 e 10 secondi dopo il caricamento
     const showTimer = setTimeout(() => {
-      setEntry({ ...chosen, spot });
+      setEntry({ ...chosen, spot, shiny });
       setCaught(false);
       const hideTimer = setTimeout(() => setEntry(null), 4500);
       return () => clearTimeout(hideTimer);
@@ -81,9 +83,11 @@ export default function AmbientSticker() {
     setCaught(true);
     setConfetti({ x: e.clientX, y: e.clientY });
     try {
-      const res = await fetch("/api/devilmon/catch", { method: "POST" });
+      const res = await fetch("/api/devilmon/catch", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ shiny: !!entry?.shiny }),
+      });
       const data = await res.json();
-      if (res.ok) window.dispatchEvent(new CustomEvent(DEVILMON_CAUGHT_EVENT, { detail: { count: data.count } }));
+      if (res.ok) window.dispatchEvent(new CustomEvent(DEVILMON_CAUGHT_EVENT, { detail: { count: data.count, streak: data.streak } }));
     } catch {
       // easter egg, non deve mai rompere la navigazione se la richiesta fallisce
     }
@@ -101,6 +105,7 @@ export default function AmbientSticker() {
             opacity: 0.92,
             cursor: "pointer",
             animation: "ambientStickerFade 4.5s ease-in-out",
+            filter: entry.shiny ? "drop-shadow(0 0 14px #d3a94f) drop-shadow(0 0 26px #d3a94f)" : undefined,
           }}
         >
           <style>{`
