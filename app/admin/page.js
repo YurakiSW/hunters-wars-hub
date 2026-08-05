@@ -445,17 +445,26 @@ function TwinPairsCard() {
       const all = mon.monsters || [];
       const twins = {};
       for (const p of tw.pairs || []) for (const a of p.alts) twins[normalizeMonsterName(a)] = p.canonical;
-      // TOLTO IL 05/08/2026 (Flora): "stesso nome su più elementi" NON è un
-      // segnale di collab, è il modo normale in cui escono centinaia di
-      // mostri comuni (Amazon, Ifrit, Ancient Giant...). L'automatismo
-      // pescava quasi tutto il bestiario per errore. Ora l'elenco mostra
-      // SOLO le coppie già registrate a mano — nessuna proposta automatica.
+      // TOLTO IL 05/08/2026 (Flora): "stesso nome su più elementi" non è un
+      // segnale di collab, è normale per centinaia di mostri comuni — dava
+      // in automatico quasi tutto il bestiario. rowsFromFlag resta vuoto
+      // apposta (nessun automatismo), il resto della logica sotto è
+      // INVARIATO: mostra le coppie già registrate a mano, esattamente
+      // come faceva prima anche per i collab a un solo elemento (Frieren,
+      // Frodo...).
+      const rowsFromFlag = [];
+      const extra = Object.keys(twins)
+        .map((k) => all.find((m) => normalizeMonsterName(m.name) === k)?.name)
+        .filter((n) => n && !rowsFromFlag.includes(n));
+      // Anche il gemello "normale" riusa lo stesso nome su tutti gli elementi,
+      // quindi la regola automatica pesca ENTRAMBE le facce della coppia. Una
+      // volta che una è stata abbinata, l'altra sparisce dall'elenco:
+      // altrimenti ti ritroveresti a compilare due volte la stessa coppia,
+      // una per verso.
       const alreadyTargets = new Set(
         Object.values(twins).map((v) => normalizeMonsterName(v))
       );
-      const found = Object.keys(twins)
-        .map((k) => all.find((m) => normalizeMonsterName(m.name) === k)?.name)
-        .filter(Boolean)
+      const found = [...rowsFromFlag, ...extra]
         .filter((name) => {
           const n = normalizeMonsterName(name);
           return !alreadyTargets.has(n) || twins[n]; // resta se è a sua volta abbinato
@@ -521,8 +530,8 @@ function TwinPairsCard() {
       <p style={{ fontSize: 12, color: "var(--text-faint)", margin: "6px 0 10px" }}>
         I mostri da collaborazione hanno un &quot;gemello&quot; normale con kit identico. Indicando qui la
         corrispondenza, il sito li tratta come <strong>lo stesso mostro</strong>: i counter non si duplicano più e le
-        statistiche si sommano. L&apos;elenco mostra solo le coppie <strong>già registrate</strong> — quando esce un
-        nuovo collab va aggiunto a mano qui sotto (non c&apos;è modo affidabile di riconoscerlo da solo dal nome).
+        statistiche si sommano. L&apos;elenco mostra le coppie già registrate — quando esce un nuovo collab va
+        aggiunto a mano qui sotto (non c&apos;è modo affidabile di riconoscerlo da solo dal nome).
       </p>
 
       {rows.length === 0 ? (
@@ -538,6 +547,10 @@ function TwinPairsCard() {
             <span className="f-mono" style={{ fontSize: 11.5, color: "var(--text-faint)" }}>
               {compiled} compilate su {rows.length}
             </span>
+            <label style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: "var(--text-muted)", cursor: "pointer" }}>
+              <input type="checkbox" checked={onlyTodo} onChange={(e) => setOnlyTodo(e.target.checked)} />
+              Nascondi già inserite
+            </label>
           </div>
           {msg && <p style={{ fontSize: 12.5, color: "var(--green)", marginBottom: 8 }}>{msg}</p>}
 
