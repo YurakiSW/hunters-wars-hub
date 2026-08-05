@@ -12,11 +12,10 @@ export async function GET() {
   return NextResponse.json({ ok: true, sieges, guildName });
 }
 
-// POST: include/escludi (Admin+Revisori) è diverso da elimina (SOLO Admin)
-// — eliminare una siege è irreversibile e toglie dati per sempre, incluso
-// non è la stessa cosa. Controllato qui per azione, non genericamente
-// all'inizio della funzione, altrimenti un Revisore poteva comunque
-// chiamare "delete" a mano anche col pulsante nascosto in interfaccia.
+// POST: include/escludi è aperto a TUTTI gli approvati (non cambia dati
+// per sempre, solo cosa conta nel riepilogo condiviso — stesso principio
+// di "chiunque può proporre un counter"). Elimina resta SOLO Admin
+// (irreversibile), cambiare il nome gilda resta Admin+Revisori (impostazione).
 export async function POST(request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Non autenticato." }, { status: 401 });
@@ -31,16 +30,20 @@ export async function POST(request) {
     return NextResponse.json({ ok: true, ...result });
   }
 
-  if (!canManage(user)) {
-    return NextResponse.json({ error: "Solo Admin e Revisori possono modificare le siege incluse." }, { status: 403 });
-  }
   if (data.action === "set_included") {
+    if (user.status !== "approved") {
+      return NextResponse.json({ error: "Solo gli utenti approvati possono farlo." }, { status: 403 });
+    }
     try {
       const record = await setSiegeIncluded(data.siegeKey, data.included);
       return NextResponse.json({ ok: true, siege: record });
     } catch (err) {
       return NextResponse.json({ error: String(err.message || err) }, { status: 400 });
     }
+  }
+
+  if (!canManage(user)) {
+    return NextResponse.json({ error: "Solo Admin e Revisori possono farlo." }, { status: 403 });
   }
   if (data.action === "set_guild_name") {
     try {

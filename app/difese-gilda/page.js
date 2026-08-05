@@ -127,7 +127,13 @@ function GuildDefensesContent() {
   }
 
   if (!user) return null;
-  const canToggle = user.role === "admin" || user.role === "reviewer";
+  // Chiunque sia approvato può scegliere quali siege contano per sé — non
+  // cambia dati per gli altri in modo irreversibile, solo la propria vista
+  // (il conteggio condiviso, sì, ma è lo stesso principio di "chiunque può
+  // proporre un counter": aperto a tutti, solo l'eliminazione resta
+  // riservata). Eliminare una siege invece è irreversibile e tocca dati
+  // per sempre — quella resta solo Admin.
+  const canToggle = true;
   const isAdmin = user.role === "admin";
   const includedCount = sieges.filter((s) => s.included).length;
 
@@ -151,7 +157,7 @@ function GuildDefensesContent() {
             {sieges.map((s) => (
               <div key={s.siegeKey} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 0", flexWrap: "wrap" }}>
                 <input
-                  type="checkbox" checked={!!s.included} disabled={!canToggle || busySiege === s.siegeKey}
+                  type="checkbox" checked={!!s.included} disabled={busySiege === s.siegeKey}
                   onChange={(e) => toggleSiege(s.siegeKey, e.target.checked)}
                 />
                 <span style={{ fontSize: 13, flex: 1, minWidth: 160 }}>
@@ -165,11 +171,6 @@ function GuildDefensesContent() {
                 )}
               </div>
             ))}
-            {!canToggle && (
-              <p style={{ fontSize: 11.5, color: "var(--text-faint)", marginTop: 6 }}>
-                Solo Admin e Revisori possono cambiare quali siege sono incluse.
-              </p>
-            )}
           </div>
         )}
 
