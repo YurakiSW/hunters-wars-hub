@@ -13,16 +13,52 @@ import { getSyncedMonsters, setSyncedMonsters } from "../../../../lib/monsters";
 //   dall'inizio. L'endpoint vero è "/api/bestiary".
 // - "/api/bestiary" (lista) NON ha il campo accuracy, solo la pagina di
 //   DETTAGLIO di ogni singolo mostro ce l'ha — vedi gestione sotto.
-// - Le seconde awakening NON si riconoscono in modo affidabile da "stesso
-//   nome+elemento, ID diverso": verificato da Flora che questo criterio
-//   dava falsi positivi su Abellio e Bayek (nessuna seconda awakening).
-//   L'UNICO segnale vero è il campo "awakens_from" della pagina di
-//   dettaglio: per una seconda awakening punta al proprio stesso nome
-//   (confermato su Eshir). Per ogni coppia stesso-nome-stesso-elemento
-//   trovata (un numero contenuto, decine non migliaia) si fa la chiamata
-//   di dettaglio in più per controllarlo DAVVERO, invece di indovinare.
+//
+// STRUTTURA MOSTRI IN SW (confermata da Flora il 05/08/2026, tenerla a
+// mente per non confondere mai più i casi):
+//   - Ogni famiglia ha una forma BASE + una PRIMA awakening (nome diverso,
+//     es. Ifrit -> Tesarion). Nomi diversi -> non generano MAI collisione
+//     nel nostro raggruppamento per nome, nessun problema.
+//   - Una lista ristretta di famiglie ha ANCHE una SECONDA awakening, che
+//     mantiene lo STESSO nome della prima (es. Eshir 1a e Eshir 2A) — è
+//     l'UNICO caso "normale" di stesso-nome-stesso-elemento con più ID.
+//     Famiglie note con vera 2A (lista di Flora, forma base): Inugami,
+//     Griffon, Warbear, High Elemental, Fairy, Pixie, Harpu, Werewolf,
+//     Martial Cat, Living Armor, Frankenstein, Howl, Grim Reaper,
+//     Vagabond, Mystic Witch, Inferno, Hellhound.
+//   - I collab sono SEMPRE già risvegliati, gestiti a parte con la coppia
+//     collab<->normale (tool manuale in Admin, non tocca questo sync).
+//   - Quindi: se un nome+elemento compare più di una volta SENZA che
+//     nessuna delle occorrenze sia una vera 2A confermata, non è uno dei
+//     casi sopra — è un errore/duplicato nei dati di swarfarm (visto con
+//     Abellio/Bayek, e con "Tesarion": com2us_id 17112 è una versione
+//     VECCHIA RITIRATA — "obtainable": false — di un personaggio diverso
+//     dal Tesarion vero, 19212).
+//
+// Il segnale vero per la 2A è "awakens_from" sulla pagina di dettaglio:
+// punta al proprio stesso nome. NON si indovina da "stesso nome, ID
+// diverso" (dava falsi positivi su Abellio/Bayek).
+//
+// PRESTAZIONI/AFFIDABILITÀ (bug corretto il 05/08/2026, Flora — importante):
+// la chiamata di dettaglio va fatta SOLO dove serve davvero. Farla per
+// OGNI membro di OGNI gruppo con nome doppio (anche quelli con una 2A
+// normalissima, che sono centinaia) ha sovraccaricato swarfarm e fatto
+// fallire richieste a caso sotto il carico — risultato: mostri normalissimi
+// hanno perso il nome pulito senza nessun motivo reale, solo perché la
+// LORO chiamata di rete è fallita per throttling. Quindi:
+//   Fase 1 (comportamento originale, affidabile da mesi): il primo/più
+//     basso ID di ogni gruppo tiene il nome pulito SUBITO, senza nessuna
+//     chiamata di rete per lui. Solo gli "extra" (dal secondo in poi)
+//     vengono controllati per la 2A vera.
+//   Fase 2 (nuova, ma attivata SOLO nei pochissimi gruppi ambigui — zero
+//     2A confermate tra gli extra, quindi non è un caso normale): si
+//     rifà il controllo su TUTTO il gruppo, stavolta guardando anche
+//     "obtainable", per scegliere chi tiene il nome pulito tra versioni
+//     vecchie/ritirate e quella vera. Pochissimi gruppi, pochissime
+//     chiamate in più, nessun rischio per tutto il resto del bestiario.
 const SWARFARM_BASE = "https://swarfarm.com";
 const ICON_BASE = "https://swarfarm.com/static/herders/images/monsters/";
+const BATCH = 10; // chiamate di dettaglio parallele per volta — veloce ma senza rischiare i rate limit di swarfarm
 
 function parseRaw(raw) {
   const name = raw.name;
@@ -39,16 +75,9 @@ function parseRaw(raw) {
   return { name, element, iconUrl: `${ICON_BASE}${imageFilename}`, com2usId, pk };
 }
 
-// Chiamata di dettaglio VERA (non un indovinello) per un singolo pk:
-// restituisce se è confermata seconda awakening di se stesso
-// ("awakens_from" punta al proprio stesso nome) e se è "obtainable" —
-// campo aggiunto il 05/08/2026 (Flora, "Tesarion"): quando due mostri
-// diversi condividono nome+elemento non per un errore di database ma
-// perché uno è una versione VECCHIA e RITIRATA dello stesso personaggio
-// (pre-rework, swarfarm la tiene comunque nello storico), "obtainable"
-// distingue in modo affidabile quale delle due è quella vera oggi — molto
-// meglio di indovinare dall'ID più basso/più alto, che non ha alcuna
-// relazione garantita con quale versione sia quella attuale.
+// Chiamata di dettaglio vera per un singolo pk: se è confermata seconda
+// awakening di se stesso ("awakens_from" punta al proprio stesso nome) e
+// se è "obtainable" (serve solo in Fase 2, per i gruppi ambigui).
 async function fetchMonsterDetail(pk, ownName) {
   try {
     const res = await fetch(`${SWARFARM_BASE}/api/bestiary/${pk}?format=json`, { headers: { Accept: "application/json" } });
@@ -60,6 +89,16 @@ async function fetchMonsterDetail(pk, ownName) {
   } catch {
     return { confirmed2A: false, obtainable: null };
   }
+}
+
+async function fetchDetailsBatched(items, pkOf, nameOf) {
+  const out = new Array(items.length);
+  for (let i = 0; i < items.length; i += BATCH) {
+    const batch = items.slice(i, i + BATCH);
+    const results = await Promise.all(batch.map((it) => fetchMonsterDetail(pkOf(it), nameOf(it))));
+    results.forEach((r, j) => { out[i + j] = r; });
+  }
+  return out;
 }
 
 // Logica vera della sincronizzazione, separata dalla route: la usano sia il
@@ -87,90 +126,118 @@ export async function syncMonstersFromSwarfarm() {
     byBareName.get(m.name).push(m);
   }
 
-  // Prima passata: separo i "sicuri" (una sola variante per nome+elemento,
-  // niente da disambiguare) dai "gruppi con più varianti" (per cui serve
-  // la chiamata di dettaglio per capire chi è chi).
-  // BUG CORRETTO IL 05/08/2026 (Flora): prima il primo/più-basso ID di ogni
-  // gruppo teneva SEMPRE il nome pulito, dando per scontato che fosse
-  // sempre quello legittimo. Falso in due modi diversi, entrambi visti
-  // stavolta con "Tesarion": com2us_id 17112 e 19212 condividono nome ed
-  // elemento, ma non sono un errore di database (come Abellio/Bayek) — 17112
-  // è una versione VECCHIA e RITIRATA dello stesso personaggio ("obtainable":
-  // false), 19212 è quella vera oggi. L'ID più basso non ha alcuna relazione
-  // garantita con "quale versione è quella attuale". Ora: per ogni gruppo si
-  // guarda "obtainable" su TUTTI i membri (non solo sugli extra) — chi è
-  // l'unico ottenibile tiene il nome pulito. Se il gruppo non dà una risposta
-  // chiara (zero o più di un ottenibile, o dati mancanti), NESSUNO tiene il
-  // nome pulito: si disambiguano tutti con l'ID, mai un'ipotesi silenziosa.
   const safeEntries = [];
-  const groupMembers = []; // ogni entry di un gruppo con più varianti, in attesa di dettaglio
+  const candidates = []; // { displayName, bareName, extra, groupKey } — dal 2° membro in poi di ogni gruppo
+  const baseByGroupKey = new Map(); // groupKey -> { displayName, base }
   for (const [name, variants] of byBareName) {
     const uniqueElements = new Set(variants.map((v) => v.element));
-    const isCollab = uniqueElements.size > 1 && !/homunculus/i.test(name);
     for (const element of uniqueElements) {
       const sameElement = variants.filter((v) => v.element === element);
+      const sorted = [...sameElement].sort((a, b) => a.com2usId - b.com2usId);
       const elementPrefix = uniqueElements.size > 1 ? element : null;
       const displayName = elementPrefix ? `${elementPrefix} ${name}` : name;
-      if (sameElement.length === 1) {
-        const only = sameElement[0];
-        safeEntries.push({ name: displayName, iconUrl: only.iconUrl, com2usId: only.com2usId, baseAccuracy: oldByComId.get(only.com2usId) ?? null, isCollab });
+      const base = sorted[0];
+      if (sorted.length === 1) {
+        safeEntries.push({ name: displayName, iconUrl: base.iconUrl, com2usId: base.com2usId, baseAccuracy: oldByComId.get(base.com2usId) ?? null });
         continue;
       }
       const groupKey = `${name}|${element}`;
-      for (const m of sameElement) {
-        groupMembers.push({ displayName, bareName: name, member: m, isCollab, groupKey });
+      baseByGroupKey.set(groupKey, { displayName, base });
+      for (let i = 1; i < sorted.length; i++) {
+        candidates.push({ displayName, bareName: name, extra: sorted[i], groupKey });
       }
     }
   }
 
-  // Dettaglio a lotti paralleli (10 alla volta) per OGNI membro di un
-  // gruppo con più varianti: abbastanza per essere veloci, non tanti da
-  // rischiare i rate limit di swarfarm.
-  const BATCH = 10;
-  for (let i = 0; i < groupMembers.length; i += BATCH) {
-    const batch = groupMembers.slice(i, i + BATCH);
-    const results = await Promise.all(batch.map((c) => fetchMonsterDetail(c.member.pk, c.bareName)));
-    batch.forEach((c, j) => { c.detail = results[j]; });
+  // Fase 1: controllo 2A solo sugli extra (comportamento originale).
+  const details1 = await fetchDetailsBatched(candidates, (c) => c.extra.pk, (c) => c.bareName);
+  candidates.forEach((c, i) => { c.detail = details1[i]; });
+  const groupsWithConfirmed2A = new Set(candidates.filter((c) => c.detail.confirmed2A).map((c) => c.groupKey));
+
+  // Fase 2, SOLO per i gruppi senza nessuna 2A confermata (ambigui per
+  // davvero, tipo Tesarion): si riguarda tutto il gruppo con "obtainable".
+  const ambiguousGroupKeys = [...baseByGroupKey.keys()].filter((k) => !groupsWithConfirmed2A.has(k));
+  const ambiguousMembers = []; // { groupKey, com2usId, pk, isBase }
+  for (const groupKey of ambiguousGroupKeys) {
+    const { base } = baseByGroupKey.get(groupKey);
+    ambiguousMembers.push({ groupKey, com2usId: base.com2usId, pk: base.pk, isBase: true });
+    for (const c of candidates.filter((c) => c.groupKey === groupKey)) {
+      ambiguousMembers.push({ groupKey, com2usId: c.extra.com2usId, pk: c.extra.pk, isBase: false });
+    }
+  }
+  const bareNameByGroupKey = new Map([...baseByGroupKey.keys()].map((k) => [k, k.split("|")[0]]));
+  const details2 = await fetchDetailsBatched(ambiguousMembers, (m) => m.pk, (m) => bareNameByGroupKey.get(m.groupKey));
+  ambiguousMembers.forEach((m, i) => { m.detail = details2[i]; });
+
+  const winnerComIdForAmbiguous = new Map(); // groupKey -> com2usId vincitore, o null
+  for (const groupKey of ambiguousGroupKeys) {
+    const members = ambiguousMembers.filter((m) => m.groupKey === groupKey);
+    const obtainableOnes = members.filter((m) => m.detail?.obtainable === true);
+    winnerComIdForAmbiguous.set(groupKey, obtainableOnes.length === 1 ? obtainableOnes[0].com2usId : null);
   }
 
-  // Un vincitore per gruppo: l'unico membro con obtainable===true. Se il
-  // gruppo non ne ha esattamente uno, resta ambiguo -> nessuno tiene il
-  // nome pulito.
-  const byGroupKey = new Map();
-  for (const c of groupMembers) {
-    if (!byGroupKey.has(c.groupKey)) byGroupKey.set(c.groupKey, []);
-    byGroupKey.get(c.groupKey).push(c);
-  }
-  const winnerComId = new Map(); // groupKey -> com2usId del vincitore, o null se ambiguo
-  for (const [groupKey, members] of byGroupKey) {
-    const obtainableOnes = members.filter((m) => m.detail?.obtainable === true);
-    winnerComId.set(groupKey, obtainableOnes.length === 1 ? obtainableOnes[0].member.com2usId : null);
+  // Assemblaggio finale.
+  for (const [groupKey, { displayName, base }] of baseByGroupKey) {
+    if (groupsWithConfirmed2A.has(groupKey)) {
+      // Caso normale: base + 2A vera. Il nome pulito va SEMPRE alla base,
+      // esattamente come da mesi — zero dipendenza da "obtainable" qui.
+      safeEntries.push({ name: displayName, iconUrl: base.iconUrl, com2usId: base.com2usId, baseAccuracy: oldByComId.get(base.com2usId) ?? null });
+    } else {
+      // Caso ambiguo: nome pulito solo a chi "obtainable" indica come
+      // l'unico vero, altrimenti disambiguato come tutti gli altri.
+      const winner = winnerComIdForAmbiguous.get(groupKey);
+      const keepClean = winner === base.com2usId;
+      safeEntries.push({
+        name: keepClean ? displayName : `${displayName} (ID ${base.com2usId})`,
+        iconUrl: base.iconUrl,
+        com2usId: base.com2usId,
+        baseAccuracy: oldByComId.get(base.com2usId) ?? null,
+      });
+    }
   }
 
   let secondAwakeningsFound = 0;
-  for (const c of groupMembers) {
-    const isWinner = winnerComId.get(c.groupKey) === c.member.com2usId;
+  for (const c of candidates) {
     let label;
-    if (isWinner) {
-      label = c.displayName;
-    } else if (c.detail?.confirmed2A) {
+    if (c.detail.confirmed2A) {
       label = `${c.displayName} 2A`;
       secondAwakeningsFound++;
+    } else if (!groupsWithConfirmed2A.has(c.groupKey) && winnerComIdForAmbiguous.get(c.groupKey) === c.extra.com2usId) {
+      // Gruppo ambiguo e QUESTO extra è risultato l'unico "obtainable" —
+      // tiene lui il nome pulito, non la base.
+      label = c.displayName;
     } else {
-      label = `${c.displayName} (ID ${c.member.com2usId})`;
+      label = `${c.displayName} (ID ${c.extra.com2usId})`;
     }
     safeEntries.push({
       name: label,
-      iconUrl: c.member.iconUrl,
-      com2usId: c.member.com2usId,
-      baseAccuracy: oldByComId.get(c.member.com2usId) ?? null,
-      isCollab: c.isCollab,
+      iconUrl: c.extra.iconUrl,
+      com2usId: c.extra.com2usId,
+      baseAccuracy: oldByComId.get(c.extra.com2usId) ?? null,
     });
   }
 
+  // Avviso informativo (non blocca né cambia nulla): se una 2A viene
+  // confermata su un nome che non è nella lista nota di famiglie con
+  // vera seconda awakening, segnala — può voler dire che il controllo ha
+  // dato un falso positivo su un nome nuovo mai visto prima.
+  const KNOWN_2A_FAMILIES = new Set([
+    "inugami", "griffon", "warbear", "high elemental", "fairy", "pixie", "harpu",
+    "werewolf", "martial cat", "living armor", "frankenstein", "howl", "grim reaper",
+    "vagabond", "mystic witch", "inferno", "hellhound",
+  ]);
+  const unexpected2ANames = [...groupsWithConfirmed2A]
+    .map((k) => k.split("|")[0])
+    .filter((n) => !KNOWN_2A_FAMILIES.has(n.trim().toLowerCase()));
+
   const finalList = safeEntries;
   await setSyncedMonsters(finalList);
-  return { count: finalList.length, secondAwakeningsFound, candidatesChecked: groupMembers.length };
+  return {
+    count: finalList.length,
+    secondAwakeningsFound,
+    candidatesChecked: candidates.length,
+    unexpected2ANames: [...new Set(unexpected2ANames)],
+  };
 }
 
 export async function GET(request) {
