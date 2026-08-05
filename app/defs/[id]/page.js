@@ -9,6 +9,7 @@ import CounterTemplatePicker from "../../../components/CounterTemplatePicker";
 import DefForm from "../../../components/DefForm";
 import MonsterCrest from "../../../components/MonsterCrest";
 import VideoPreview from "../../../components/VideoPreview";
+import LoadingScreen from "../../../components/LoadingScreen";
 import { formatNickname, displayAuthorName, counterAuthorLabel } from "../../../lib/textUtils";
 import NicknameHeart from "../../../components/NicknameHeart";
 
@@ -41,7 +42,7 @@ export default function DefDetailPage({ params }) {
     load();
   }, []);
 
-  if (!user || !def) return null;
+  if (!user || !def) return <LoadingScreen />;
   const canManage = user.role === "admin" || user.role === "reviewer";
   const canManageDecks = user.role === "admin" || user.isDeckBuilder === true;
 
@@ -292,10 +293,10 @@ function CounterCard({ counter: c, user, canManage, managerNicknames, onEdit, on
           </span>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-          <span className="f-mono" style={{ fontSize: 11, color: "var(--text-faint)" }}><NicknameHeart>{formatNickname(counterAuthorLabel(c), managerNicknames.includes(c.authorNickname))}</NicknameHeart></span>
+          <span className="f-mono" style={{ fontSize: 11, color: "var(--text-faint)" }}><NicknameHeart isOwn={c.authorId === user.id}>{formatNickname(counterAuthorLabel(c), managerNicknames.includes(c.authorNickname))}</NicknameHeart></span>
           {c.status === "approved" && c.approvedByNickname && c.approvedByNickname !== c.authorNickname && (
             <span className="f-mono" style={{ fontSize: 11, color: "var(--green)" }}>
-              · Appr. da <NicknameHeart>{formatNickname(displayAuthorName(c.approvedByNickname), managerNicknames.includes(c.approvedByNickname))}</NicknameHeart>
+              · Appr. da <NicknameHeart isOwn={c.approvedById === user.id}>{formatNickname(displayAuthorName(c.approvedByNickname), managerNicknames.includes(c.approvedByNickname))}</NicknameHeart>
             </span>
           )}
           {canEdit && <button className="btn btn-ghost" onClick={onEdit}>✎</button>}

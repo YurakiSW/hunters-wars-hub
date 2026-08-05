@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Header from "../../components/Header";
+import LoadingScreen from "../../components/LoadingScreen";
 
 export default function MinePage() {
   const [user, setUser] = useState(null);
@@ -16,7 +17,7 @@ export default function MinePage() {
     });
   }, []);
 
-  if (!user) return null;
+  if (!user) return <LoadingScreen />;
 
   const myDefs = defs.filter((d) => d.authorId === user.id);
   const myCounters = defs.flatMap((d) => d.counters.filter((c) => c.authorId === user.id).map((c) => ({ ...c, defName: d.monsters.join(" / "), defId: d.id })));

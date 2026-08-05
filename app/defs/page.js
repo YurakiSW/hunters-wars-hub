@@ -24,6 +24,7 @@ export default function DefsPage() {
 function DefsPageContent() {
   const [user, setUser] = useState(null);
   const [defs, setDefs] = useState([]);
+  const [defsLoaded, setDefsLoaded] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
   // La ricerca vive nell'URL (?q=...), non solo in memoria — così tornando
@@ -48,7 +49,7 @@ function DefsPageContent() {
   const [twinPairs, setTwinPairs] = useState([]);
 
   function reload() {
-    fetch("/api/defs").then((r) => r.json()).then((d) => setDefs(d.defs || []));
+    fetch("/api/defs").then((r) => r.json()).then((d) => { setDefs(d.defs || []); setDefsLoaded(true); });
   }
 
   useEffect(() => {
@@ -258,7 +259,12 @@ function DefsPageContent() {
             </button>
           </div>
         )}
-        {filtered.length === 0 && (
+        {!defsLoaded ? (
+          <div style={{ textAlign: "center", marginTop: 30 }}>
+            <Sticker name="totem" size={110} />
+            <p style={{ color: "var(--text-faint)", marginTop: 8 }}>Caricamento...</p>
+          </div>
+        ) : filtered.length === 0 && (
           <div style={{ textAlign: "center", marginTop: 30, color: "var(--text-faint)" }}>
             <Sticker name="depresso" revealOnClick="emozionato" size={150} />
             <p>Nessuna difesa trovata.</p>

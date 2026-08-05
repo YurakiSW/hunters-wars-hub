@@ -108,7 +108,7 @@ function DeckRow({
             )}
           </div>
           <p className="f-mono" style={{ fontSize: 11, color: "var(--text-faint)", margin: "2px 0 0" }}>
-            Deck by <NicknameHeart>{formatNickname(deck.authorNickname)}</NicknameHeart>
+            Deck by <NicknameHeart isOwn={deck.authorId === user.id}>{formatNickname(deck.authorNickname)}</NicknameHeart>
           </p>
         </div>
         {!reorderMode && (
@@ -206,6 +206,7 @@ function DeckRow({
 export default function DeckBuildPage() {
   const [user, setUser] = useState(null);
   const [decks, setDecks] = useState([]);
+  const [decksLoaded, setDecksLoaded] = useState(false);
   const [query, setQuery] = useState("");
   const [openIds, setOpenIds] = useState(new Set());
   const [selectedIds, setSelectedIds] = useState(new Set());
@@ -223,6 +224,7 @@ export default function DeckBuildPage() {
     const res = await fetch("/api/decks");
     const data = await res.json();
     setDecks(data.decks || []);
+    setDecksLoaded(true);
   }
 
   useEffect(() => {
@@ -363,7 +365,12 @@ export default function DeckBuildPage() {
             isLast={decks.findIndex((d) => d.id === deck.id) === decks.length - 1}
           />
         ))}
-        {!filtered.length && (
+        {!decksLoaded ? (
+          <div style={{ textAlign: "center", marginTop: 30 }}>
+            <Sticker name="totem" size={110} />
+            <p style={{ color: "var(--text-faint)", marginTop: 8 }}>Caricamento...</p>
+          </div>
+        ) : !filtered.length && (
           <div style={{ textAlign: "center", marginTop: 30, color: "var(--text-faint)" }}>
             <Sticker name="depresso" revealOnClick="emozionato" size={150} style={{ margin: "0 auto 8px" }} />
             <p>Nessun deck trovato.</p>

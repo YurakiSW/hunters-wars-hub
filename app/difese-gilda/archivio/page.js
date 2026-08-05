@@ -2,8 +2,10 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Header from "../../../components/Header";
+import LoadingScreen from "../../../components/LoadingScreen";
 import MonsterCrest from "../../../components/MonsterCrest";
 import ConfirmModal from "../../../components/ConfirmModal";
+import Sticker from "../../../components/Sticker";
 import NicknameHeart from "../../../components/NicknameHeart";
 
 function rateColor(rate) {
@@ -45,7 +47,7 @@ export default function GuildDefenseArchivePage() {
     if (res.ok) load();
   }
 
-  if (!user) return null;
+  if (!user) return <LoadingScreen />;
   const isAdmin = user.role === "admin";
 
   return (
@@ -67,11 +69,14 @@ export default function GuildDefenseArchivePage() {
 
         <div style={{ marginTop: 16 }}>
           {loading ? (
-            <p style={{ color: "var(--text-faint)" }}>Caricamento...</p>
+            <div style={{ textAlign: "center", marginTop: 20 }}>
+              <Sticker name="totem" size={110} />
+              <p style={{ color: "var(--text-faint)", marginTop: 8 }}>Caricamento...</p>
+            </div>
           ) : archives.length === 0 ? (
             <p style={{ color: "var(--text-faint)" }}>Nessuna stagione archiviata ancora.</p>
           ) : (
-            archives.map((a) => <ArchiveSeasonRow key={a.archiveId} meta={a} isAdmin={isAdmin} onDeleted={load} />)
+            archives.map((a) => <ArchiveSeasonRow key={a.archiveId} meta={a} isAdmin={isAdmin} onDeleted={load} user={user} />)
           )}
         </div>
       </div>
@@ -88,7 +93,7 @@ export default function GuildDefenseArchivePage() {
   );
 }
 
-function ArchiveSeasonRow({ meta, isAdmin, onDeleted }) {
+function ArchiveSeasonRow({ meta, isAdmin, onDeleted, user }) {
   const [open, setOpen] = useState(false);
   const [full, setFull] = useState(null);
   const [loadingFull, setLoadingFull] = useState(false);
@@ -144,7 +149,7 @@ function ArchiveSeasonRow({ meta, isAdmin, onDeleted }) {
                   {d.monsterNames.map((n, i) => <MonsterCrest key={i} name={n} size={28} noSplit />)}
                 </div>
                 <div style={{ flex: 1, minWidth: 120 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600 }}><NicknameHeart>{d.ownerNick}</NicknameHeart></div>
+                  <div style={{ fontSize: 13, fontWeight: 600 }}><NicknameHeart isOwn={user?.nickname && d.ownerNick && user.nickname.trim().toLowerCase() === d.ownerNick.trim().toLowerCase()}>{d.ownerNick}</NicknameHeart></div>
                   <div style={{ fontSize: 10.5, color: "var(--text-faint)" }}>{d.monsterNames.join(" / ")}</div>
                 </div>
                 <div style={{ textAlign: "right" }}>

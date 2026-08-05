@@ -2,6 +2,7 @@
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Header from "../../components/Header";
+import LoadingScreen from "../../components/LoadingScreen";
 import ConfirmModal from "../../components/ConfirmModal";
 import Modal from "../../components/Modal";
 import DefForm from "../../components/DefForm";
@@ -58,7 +59,7 @@ function AdminPageContent() {
     });
   }, []);
 
-  if (!user) return null;
+  if (!user) return <LoadingScreen />;
   const isAdmin = user.role === "admin";
   // Chi ha il permesso "canUploadRoster" (di solito grado Vice in game) vede
   // il tab Roster anche senza essere Admin/Revisore — esattamente come

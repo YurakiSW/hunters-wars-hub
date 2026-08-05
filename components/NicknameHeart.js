@@ -1,26 +1,24 @@
 "use client";
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { STICKERS } from "./Sticker";
 
-// Easter egg silenzioso: hover (desktop) o click (mobile) su un nickname
-// fa comparire per un attimo lo sticker coi cuoricini — nessun annuncio,
-// nessuna spiegazione da nessuna parte, chi lo trova lo trova per caso.
-export default function NicknameHeart({ children }) {
+// Easter egg silenzioso: hover SOLO sul proprio nickname (quello
+// dell'utente loggato in quel momento) fa comparire per un attimo lo
+// sticker coi cuoricini — nessun annuncio, nessuna spiegazione da nessuna
+// parte. Ristretto il 05/08/2026 (Flora): prima compariva su QUALSIASI
+// nickname, anche di altri giocatori — troppo. `isOwn` va calcolato dal
+// chiamante (di solito confrontando authorId/ownerNick con l'utente
+// loggato), qui non si indovina nulla.
+export default function NicknameHeart({ isOwn, children }) {
   const [show, setShow] = useState(false);
-  const timerRef = useRef(null);
 
-  function pulse() {
-    setShow(true);
-    clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => setShow(false), 1100);
-  }
+  if (!isOwn) return <>{children}</>;
 
   return (
     <span
       style={{ position: "relative", display: "inline-flex", alignItems: "center", gap: 4 }}
       onMouseEnter={() => setShow(true)}
       onMouseLeave={() => setShow(false)}
-      onClick={pulse}
     >
       {children}
       {show && (
@@ -38,3 +36,4 @@ export default function NicknameHeart({ children }) {
     </span>
   );
 }
+

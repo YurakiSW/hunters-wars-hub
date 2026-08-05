@@ -6,6 +6,7 @@ import MonsterCrest from "../../components/MonsterCrest";
 import ConfirmModal from "../../components/ConfirmModal";
 import Sticker from "../../components/Sticker";
 import NicknameHeart from "../../components/NicknameHeart";
+import LoadingScreen from "../../components/LoadingScreen";
 
 function rateColor(rate) {
   if (rate >= 0.8) return "var(--green)";
@@ -128,7 +129,7 @@ function GuildDefensesContent() {
     if (res.ok) { loadSieges(); loadResults(ownerQuery, teamQuery); }
   }
 
-  if (!user) return null;
+  if (!user) return <LoadingScreen />;
   // Chiunque sia approvato può scegliere quali siege contano per sé — non
   // cambia dati per gli altri in modo irreversibile, solo la propria vista
   // (il conteggio condiviso, sì, ma è lo stesso principio di "chiunque può
@@ -205,7 +206,7 @@ function GuildDefensesContent() {
               <p>Nessuna difesa trovata per questo nick.</p>
             </div>
           ) : (
-            defenses.map((d) => <DefenseRow key={d.defenseKey} summary={d} />)
+            defenses.map((d) => <DefenseRow key={d.defenseKey} summary={d} user={user} />)
           )
         ) : teams.length === 0 ? (
           <div style={{ textAlign: "center", marginTop: 20, color: "var(--text-faint)" }}>
@@ -213,7 +214,7 @@ function GuildDefensesContent() {
             <p>{teamQuery ? "Nessun team trovato con questo mostro." : "Nessuna difesa da mostrare."}</p>
           </div>
         ) : (
-          teams.map((t, i) => <TeamRow key={t.teamKey} summary={t} isTop={i === 0 && !teamQuery} />)
+          teams.map((t, i) => <TeamRow key={t.teamKey} summary={t} isTop={i === 0 && !teamQuery} user={user} />)
         )}
       </div>
 
@@ -231,7 +232,8 @@ function GuildDefensesContent() {
 
 // Riga di una singola difesa (modalità ricerca per proprietario): un
 // giocatore, un team, espandibile per vedere lo stamp per gilda nemica.
-function DefenseRow({ summary }) {
+function DefenseRow({ summary, user }) {
+  const isOwn = user?.nickname && summary.ownerNick && user.nickname.trim().toLowerCase() === summary.ownerNick.trim().toLowerCase();
   const [open, setOpen] = useState(false);
   const [detail, setDetail] = useState(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
@@ -254,7 +256,7 @@ function DefenseRow({ summary }) {
           {summary.monsterNames.map((n, i) => <MonsterCrest key={i} name={n} size={34} />)}
         </div>
         <div style={{ flex: 1, minWidth: 140 }}>
-          <div style={{ fontSize: 14.5, fontWeight: 600 }}><NicknameHeart>{summary.ownerNick}</NicknameHeart></div>
+          <div style={{ fontSize: 14.5, fontWeight: 600 }}><NicknameHeart isOwn={isOwn}>{summary.ownerNick}</NicknameHeart></div>
           <div style={{ fontSize: 11.5, color: "var(--text-faint)" }}>{summary.monsterNames.join(" / ")}</div>
         </div>
         <div style={{ textAlign: "right" }}>
@@ -298,7 +300,7 @@ function DefenseRow({ summary }) {
 // Riga di un TEAM (vista di default e ricerca per mostro): la terna di
 // mostri, sommata su tutti i nostri giocatori che la usano — espandibile
 // per vedere ogni giocatore con le proprie vittorie/sconfitte.
-function TeamRow({ summary, isTop }) {
+function TeamRow({ summary, isTop, user }) {
   const [open, setOpen] = useState(false);
   const [detail, setDetail] = useState(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
@@ -345,7 +347,7 @@ function TeamRow({ summary, isTop }) {
               I NOSTRI GIOCATORI
             </div>
             {detail.players.map((p) => (
-              <PlayerSubRow key={p.defenseKey} player={p} />
+              <PlayerSubRow key={p.defenseKey} player={p} user={user} />
             ))}
           </div>
         ) : (
@@ -358,13 +360,14 @@ function TeamRow({ summary, isTop }) {
 
 // Un giocatore dentro un team aperto — espandibile una seconda volta per lo
 // stamp per gilda nemica di QUELLO specifico giocatore.
-function PlayerSubRow({ player }) {
+function PlayerSubRow({ player, user }) {
+  const isOwn = user?.nickname && player.ownerNick && user.nickname.trim().toLowerCase() === player.ownerNick.trim().toLowerCase();
   const [open, setOpen] = useState(false);
   return (
     <div style={{ background: "var(--bg-soft)", borderRadius: 8, padding: "8px 10px" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }} onClick={() => setOpen((v) => !v)}>
         <span style={{ fontSize: 10, color: "var(--text-faint)" }}>{open ? "▼" : "▶"}</span>
-        <span style={{ fontSize: 13, flex: 1 }}><NicknameHeart>{player.ownerNick}</NicknameHeart></span>
+        <span style={{ fontSize: 13, flex: 1 }}><NicknameHeart isOwn={isOwn}>{player.ownerNick}</NicknameHeart></span>
         <span className="f-mono" style={{ fontSize: 12, fontWeight: 600, color: rateColor(player.winRate) }}>
           {player.wins}V — {player.losses}S ({Math.round(player.winRate * 100)}%)
         </span>
