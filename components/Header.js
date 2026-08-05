@@ -1,5 +1,6 @@
 "use client";
 import { useRouter } from "next/navigation";
+import NicknameHeart from "./NicknameHeart";
 
 function NavPill({ href, icon, children, accent = "gold", external, onClick }) {
   const glows = {
@@ -85,7 +86,7 @@ export default function Header({ user }) {
             <NavPill href="/admin" icon="⚙" accent="ember">{user.role === "admin" ? "Admin" : "Gestione"}</NavPill>
           )}
           <NavPill href="https://sw-guild-site.vercel.app" icon="🎁" accent="gold" external>Redeem codici</NavPill>
-          <span className="f-mono" style={{ fontSize: 11, color: "var(--text-faint)", marginLeft: 4 }}>{user?.nickname}</span>
+          <span className="f-mono" style={{ fontSize: 11, color: "var(--text-faint)", marginLeft: 4 }}><NicknameHeart>{user?.nickname}</NicknameHeart></span>
           <NavPill icon="↪" accent="red" onClick={logout}>Esci</NavPill>
         </div>
       </div>

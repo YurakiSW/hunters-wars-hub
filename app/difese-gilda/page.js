@@ -4,6 +4,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Header from "../../components/Header";
 import MonsterCrest from "../../components/MonsterCrest";
 import ConfirmModal from "../../components/ConfirmModal";
+import Sticker from "../../components/Sticker";
+import NicknameHeart from "../../components/NicknameHeart";
 
 function rateColor(rate) {
   if (rate >= 0.8) return "var(--green)";
@@ -195,14 +197,20 @@ function GuildDefensesContent() {
           <p style={{ color: "var(--text-faint)" }}>Nessuna siege inclusa nel conteggio — includine almeno una qui sopra.</p>
         ) : mode === "owner" ? (
           defenses.length === 0 ? (
-            <p style={{ color: "var(--text-faint)" }}>Nessuna difesa trovata per questo nick.</p>
+            <div style={{ textAlign: "center", marginTop: 20, color: "var(--text-faint)" }}>
+              <Sticker name="depresso" revealOnClick="emozionato" size={64} />
+              <p>Nessuna difesa trovata per questo nick.</p>
+            </div>
           ) : (
             defenses.map((d) => <DefenseRow key={d.defenseKey} summary={d} />)
           )
         ) : teams.length === 0 ? (
-          <p style={{ color: "var(--text-faint)" }}>{teamQuery ? "Nessun team trovato con questo mostro." : "Nessuna difesa da mostrare."}</p>
+          <div style={{ textAlign: "center", marginTop: 20, color: "var(--text-faint)" }}>
+            <Sticker name="depresso" revealOnClick="emozionato" size={64} />
+            <p>{teamQuery ? "Nessun team trovato con questo mostro." : "Nessuna difesa da mostrare."}</p>
+          </div>
         ) : (
-          teams.map((t) => <TeamRow key={t.teamKey} summary={t} />)
+          teams.map((t, i) => <TeamRow key={t.teamKey} summary={t} isTop={i === 0 && !teamQuery} />)
         )}
       </div>
 
@@ -243,7 +251,7 @@ function DefenseRow({ summary }) {
           {summary.monsterNames.map((n, i) => <MonsterCrest key={i} name={n} size={34} />)}
         </div>
         <div style={{ flex: 1, minWidth: 140 }}>
-          <div style={{ fontSize: 14.5, fontWeight: 600 }}>{summary.ownerNick}</div>
+          <div style={{ fontSize: 14.5, fontWeight: 600 }}><NicknameHeart>{summary.ownerNick}</NicknameHeart></div>
           <div style={{ fontSize: 11.5, color: "var(--text-faint)" }}>{summary.monsterNames.join(" / ")}</div>
         </div>
         <div style={{ textAlign: "right" }}>
@@ -287,7 +295,7 @@ function DefenseRow({ summary }) {
 // Riga di un TEAM (vista di default e ricerca per mostro): la terna di
 // mostri, sommata su tutti i nostri giocatori che la usano — espandibile
 // per vedere ogni giocatore con le proprie vittorie/sconfitte.
-function TeamRow({ summary }) {
+function TeamRow({ summary, isTop }) {
   const [open, setOpen] = useState(false);
   const [detail, setDetail] = useState(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
@@ -303,9 +311,10 @@ function TeamRow({ summary }) {
   }
 
   return (
-    <div className="card" style={{ marginBottom: 10 }}>
+    <div className="card" style={{ marginBottom: 10, borderColor: isTop ? "var(--gold)" : undefined }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", flexWrap: "wrap" }} onClick={toggle}>
         <span style={{ fontSize: 12, color: "var(--text-faint)" }}>{open ? "▼" : "▶"}</span>
+        {isTop && <Sticker name="re" size={40} alt="La squadra col winrate più alto" />}
         <div style={{ display: "flex", gap: 4 }}>
           {summary.monsterNames.map((n, i) => <MonsterCrest key={i} name={n} size={34} />)}
         </div>

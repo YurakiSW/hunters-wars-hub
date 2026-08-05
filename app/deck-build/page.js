@@ -8,6 +8,8 @@ import CounterForm from "../../components/CounterForm";
 import AgainstDefPicker from "../../components/AgainstDefPicker";
 import MonsterCrest from "../../components/MonsterCrest";
 import { formatNickname } from "../../lib/textUtils";
+import Sticker from "../../components/Sticker";
+import NicknameHeart from "../../components/NicknameHeart";
 
 function UnitBuildDetails({ u }) {
   return (
@@ -105,7 +107,7 @@ function DeckRow({
             )}
           </div>
           <p className="f-mono" style={{ fontSize: 11, color: "var(--text-faint)", margin: "2px 0 0" }}>
-            Deck by {formatNickname(deck.authorNickname)}
+            Deck by <NicknameHeart>{formatNickname(deck.authorNickname)}</NicknameHeart>
           </p>
         </div>
         {!reorderMode && (
@@ -213,6 +215,7 @@ export default function DeckBuildPage() {
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
   const [addingAgainstTo, setAddingAgainstTo] = useState(null);
   const [error, setError] = useState("");
+  const [celebration, setCelebration] = useState(null); // "felice" | "trombetta" | null
   const router = useRouter();
 
   async function load() {
@@ -256,7 +259,16 @@ export default function DeckBuildPage() {
   async function submitNewDeck(payload) {
     const res = await fetch("/api/decks", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     const data = await res.json();
-    if (data.deck) { setShowNewForm(false); load(); }
+    if (data.deck) {
+      setShowNewForm(false);
+      load();
+      // Traguardo silenzioso: al deck "tondo" (50°, 100°...) festeggia con
+      // la trombetta invece del solito felice — mai annunciato, si scopre
+      // da sola. decks.length è ancora il conteggio PRIMA di questo nuovo.
+      const newCount = decks.length + 1;
+      setCelebration(newCount % 50 === 0 ? "trombetta" : "felice");
+      setTimeout(() => setCelebration(null), 2600);
+    }
     return data;
   }
   async function submitEditDeck(payload) {
@@ -302,6 +314,12 @@ export default function DeckBuildPage() {
   return (
     <div>
       <Header user={user} />
+      {celebration && (
+        <div style={{ position: "fixed", bottom: 20, right: 20, zIndex: 50, background: "var(--bg-soft, #1b1630)", border: "1px solid var(--gold)", borderRadius: 12, padding: "8px 14px 8px 8px", display: "flex", alignItems: "center", gap: 8, boxShadow: "0 8px 24px rgba(0,0,0,.4)" }}>
+          <Sticker name={celebration} revealOnClick={celebration === "felice" ? "nonoPokerface" : undefined} revealCount={6} size={52} />
+          <span style={{ fontSize: 12.5, color: "var(--text)" }}>{celebration === "trombetta" ? "Bel traguardo! 🎉" : "Deck creato!"}</span>
+        </div>
+      )}
       <div style={{ maxWidth: 1040, margin: "0 auto", padding: "24px 20px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
           <h1 className="f-display" style={{ fontSize: 22, margin: 0 }}>ATK Deck</h1>
@@ -344,7 +362,12 @@ export default function DeckBuildPage() {
             isLast={decks.findIndex((d) => d.id === deck.id) === decks.length - 1}
           />
         ))}
-        {!filtered.length && <p style={{ color: "var(--text-faint)", marginTop: 20 }}>Nessun deck trovato.</p>}
+        {!filtered.length && (
+          <div style={{ textAlign: "center", marginTop: 30, color: "var(--text-faint)" }}>
+            <Sticker name="depresso" revealOnClick="emozionato" size={72} style={{ margin: "0 auto 8px" }} />
+            <p>Nessun deck trovato.</p>
+          </div>
+        )}
       </div>
 
       {showNewForm && (

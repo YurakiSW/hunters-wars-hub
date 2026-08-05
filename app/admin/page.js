@@ -10,6 +10,7 @@ import CounterTemplatePicker from "../../components/CounterTemplatePicker";
 import MonsterCrest, { invalidateTwinCache, invalidateMonsterCache } from "../../components/MonsterCrest";
 import MonsterPicker from "../../components/MonsterPicker";
 import { gradeLabel, formatNickname, displayAuthorName, counterAuthorLabel, normalizeMonsterName } from "../../lib/textUtils";
+import Sticker from "../../components/Sticker";
 
 // Evento interno alla pagina: lo lancia il pulsante "Sincronizza bestiario"
 // (tab Diagnostica) e lo ascolta la tabella delle coppie collab (tab Mostri),
@@ -447,12 +448,9 @@ function TwinPairsCard() {
       for (const p of tw.pairs || []) for (const a of p.alts) twins[normalizeMonsterName(a)] = p.canonical;
       // TOLTO IL 05/08/2026 (Flora): "stesso nome su più elementi" non è un
       // segnale di collab, è normale per centinaia di mostri comuni — dava
-      // in automatico quasi tutto il bestiario. rowsFromFlag resta vuoto
-      // apposta (nessun automatismo), il resto della logica sotto è
-      // INVARIATO: mostra le coppie già registrate a mano, esattamente
-      // come faceva prima anche per i collab a un solo elemento (Frieren,
-      // Frodo...).
-      const rowsFromFlag = [];
+      // in automatico quasi tutto il bestiario. Elenco ora costruito SOLO
+      // da: coppie già registrate a mano (`extra`) + collab in corso
+      // confermati a mano (`pending`, sotto) — nessun automatismo.
       // Elenco scritto a mano di collab CONFERMATI in corso — compaiono in
       // tabella già pronti anche PRIMA che esista un gemello normale da
       // abbinare, così quando esce basta scriverlo, non cercarlo da capo.
@@ -467,7 +465,7 @@ function TwinPairsCard() {
         .map((m) => m.name);
       const extra = Object.keys(twins)
         .map((k) => all.find((m) => normalizeMonsterName(m.name) === k)?.name)
-        .filter((n) => n && !rowsFromFlag.includes(n));
+        .filter(Boolean);
       // Anche il gemello "normale" riusa lo stesso nome su tutti gli elementi,
       // quindi la regola automatica pesca ENTRAMBE le facce della coppia. Una
       // volta che una è stata abbinata, l'altra sparisce dall'elenco:
@@ -476,7 +474,7 @@ function TwinPairsCard() {
       const alreadyTargets = new Set(
         Object.values(twins).map((v) => normalizeMonsterName(v))
       );
-      const found = [...rowsFromFlag, ...pending, ...extra]
+      const found = [...new Set([...pending, ...extra])]
         .filter((name) => {
           const n = normalizeMonsterName(name);
           return !alreadyTargets.has(n) || twins[n]; // resta se è a sua volta abbinato
@@ -943,19 +941,23 @@ function DiagnosticaTab() {
         <button className="btn btn-primary" disabled={syncingMon} onClick={syncMonsters}>
           {syncingMon && <Spinner />}🔃 Sincronizza bestiario da swarfarm
         </button>
+        {syncingMon && <Sticker name="letto" size={40} alt="" style={{ marginLeft: 10, verticalAlign: "middle" }} />}
         <p style={{ fontSize: 11.5, color: "var(--text-faint)", marginTop: 8 }}>
           Scarica l&apos;elenco aggiornato dei mostri (nomi, icone, accuracy base). Lancialo quando escono mostri
           nuovi o dopo un collab, altrimenti i nomi nuovi non vengono riconosciuti nei log.
         </p>
         {syncMonMsg && <p style={{ fontSize: 12.5, color: "var(--green)", marginTop: 8 }}>{syncMonMsg}</p>}
         {syncNewMonsters.length > 0 && (
-          <div style={{ marginTop: 8 }}>
+          <div style={{ marginTop: 8, display: "flex", alignItems: "flex-start", gap: 8 }}>
+            <Sticker name="saltella" size={36} style={{ flexShrink: 0 }} />
+            <div>
             <div className="f-mono" style={{ fontSize: 10.5, color: "var(--gold)", marginBottom: 4 }}>
               NUOVI RISPETTO ALL&apos;ULTIMO SYNC ({syncNewMonsters.length}) — dagli un'occhiata, potrebbero essere un collab
             </div>
             <p style={{ fontSize: 12, color: "var(--text-muted)" }}>
               {syncNewMonsters.map((m) => m.name).join(", ")}
             </p>
+            </div>
           </div>
         )}
       </div>

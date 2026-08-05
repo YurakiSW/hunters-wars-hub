@@ -145,7 +145,7 @@ export async function syncMonstersFromSwarfarm() {
   // la chiamata di dettaglio). Le verifiche si fanno poi TUTTE INSIEME a
   // lotti paralleli, non una alla volta.
   const safeEntries = [];
-  const candidates = []; // { name, elementPrefix, extra, isCollab }
+  const candidates = []; // { displayName, bareName, extra }
   for (const [name, variants] of byBareName) {
     const uniqueElements = new Set(variants.map((v) => v.element));
     for (const element of uniqueElements) {

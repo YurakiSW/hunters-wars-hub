@@ -4,6 +4,7 @@ import MonsterPicker from "./MonsterPicker";
 import { RUNE_SETS, SLOT2_OPTIONS, SLOT4_OPTIONS, SLOT6_OPTIONS, ARTIFACT_LEFT_OPTIONS, ARTIFACT_RIGHT_OPTIONS, RELIC_MAIN_STAT_OPTIONS, parseStatsString, serializeStatsSlots } from "../lib/gameData";
 
 import VideoPreview from "./VideoPreview";
+import Sticker from "./Sticker";
 
 function emptyUnit() {
   return {
@@ -385,7 +386,12 @@ export default function CounterForm({ defMonsters = [], initial, isEdit, onSubmi
         <VideoPreview url={video} />
       </label>
 
-      {error && <p style={{ color: "var(--red)", fontSize: 13, marginBottom: 12 }}>{error}</p>}
+      {error && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+          <Sticker name="nonoScioccato" size={36} style={{ flexShrink: 0 }} />
+          <p style={{ color: "var(--red)", fontSize: 13, margin: 0 }}>{error}</p>
+        </div>
+      )}
       <div style={{ display: "flex", gap: 8 }}>
         <button className="btn btn-primary" onClick={submit} disabled={loading}>{submitLabel || (isEdit ? "Salva modifiche" : "Invia per approvazione")}</button>
         <button className="btn btn-ghost" onClick={onCancel}>Annulla</button>

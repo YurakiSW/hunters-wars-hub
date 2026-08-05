@@ -6,6 +6,7 @@ import MonsterCrest from "../../components/MonsterCrest";
 import Modal from "../../components/Modal";
 import ConfirmModal from "../../components/ConfirmModal";
 import DefForm from "../../components/DefForm";
+import Sticker from "../../components/Sticker";
 
 // useSearchParams() richiede un confine <Suspense> attorno, altrimenti la
 // build fallisce in fase di generazione statica ("should be wrapped in a
@@ -256,7 +257,12 @@ function DefsPageContent() {
             </button>
           </div>
         )}
-        {filtered.length === 0 && <p style={{ color: "var(--text-faint)", marginTop: 20 }}>Nessuna difesa trovata.</p>}
+        {filtered.length === 0 && (
+          <div style={{ textAlign: "center", marginTop: 30, color: "var(--text-faint)" }}>
+            <Sticker name="depresso" revealOnClick="emozionato" size={72} />
+            <p>Nessuna difesa trovata.</p>
+          </div>
+        )}
       </div>
 
       {showNewDef && (
