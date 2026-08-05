@@ -68,6 +68,16 @@ export default function Header({ user }) {
     return () => window.removeEventListener(DEVILMON_CAUGHT_EVENT, onCaught);
   }, []);
 
+  // Soglie basse apposta: lo sticker ambientale è raro (1/6 a caricamento,
+  // garantito solo entro 5), quindi anche "Cacciatore" a 3 catture è già
+  // un traguardo vero, non un numero buttato lì a caso.
+  const devilmonRank =
+    devilmonCount >= 25 ? "Maestro Cacciatore di Devilmon"
+    : devilmonCount >= 10 ? "Cacciatore Esperto di Devilmon"
+    : devilmonCount >= 3 ? "Cacciatore di Devilmon"
+    : null;
+  const devilmonColor = devilmonCount >= 25 ? "var(--violet)" : "var(--gold)";
+
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
     router.push("/login");
@@ -97,8 +107,8 @@ export default function Header({ user }) {
           )}
           <NavPill href="https://sw-guild-site.vercel.app" icon="🎁" accent="gold" external>Redeem codici</NavPill>
           <span className="f-mono" style={{ fontSize: 11, color: "var(--text-faint)", marginLeft: 4 }}><NicknameHeart isOwn>{user?.nickname}</NicknameHeart></span>
-          <span className="f-mono" title="Devilmon catturati" style={{ fontSize: 11, color: "var(--gold)", display: "inline-flex", alignItems: "center", gap: 3 }}>
-            <Sticker name="saltella" size={22} alt="" />
+          <span className="f-mono" title={devilmonRank || "Devilmon catturati"} style={{ fontSize: 11, color: devilmonColor, display: "inline-flex", alignItems: "center", gap: 3 }}>
+            <Sticker name="saltella" size={32} alt="" />
             x{devilmonCount}
           </span>
           <NavPill icon="↪" accent="red" onClick={logout}>Esci</NavPill>

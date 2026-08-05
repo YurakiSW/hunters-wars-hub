@@ -66,7 +66,7 @@ export default function AmbientSticker() {
 
     const chosen = POOL[Math.floor(Math.random() * POOL.length)];
     const spot = SPOTS[Math.floor(Math.random() * SPOTS.length)];
-    const delay = 2000 + Math.random() * 12000; // compare tra 2 e 14 secondi dopo il caricamento
+    const delay = 1000 + Math.random() * 9000; // compare tra 1 e 10 secondi dopo il caricamento
     const showTimer = setTimeout(() => {
       setEntry({ ...chosen, spot });
       setCaught(false);

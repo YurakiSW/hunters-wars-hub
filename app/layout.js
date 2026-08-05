@@ -2,6 +2,7 @@ import "./globals.css";
 import CookieNotice from "../components/CookieNotice";
 import Footer from "../components/Footer";
 import AmbientSticker from "../components/AmbientSticker";
+import StarrySky from "../components/StarrySky";
 
 export const metadata = {
   title: "Hunters Wars — Counter Siege",
@@ -19,6 +20,7 @@ export default function RootLayout({ children }) {
         />
       </head>
       <body>
+        <StarrySky />
         {children}
         <Footer />
         <CookieNotice />
