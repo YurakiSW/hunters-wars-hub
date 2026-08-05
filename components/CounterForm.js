@@ -155,7 +155,20 @@ export default function CounterForm({ defMonsters = [], initial, isEdit, onSubmi
   async function submit() {
     setLoading(true);
     setError("");
-    const cleanedUnits = units.map((u) => {
+    // Per convenzione (usata anche da Deck Build e dal picker "Da usare
+    // contro") il leader è SEMPRE la prima unità in ordine di salvataggio,
+    // non solo quella con lead:true — riordino qui prima di inviare, così
+    // vale sempre, non solo quando qualcuno ricorda di controllarlo a
+    // mano. Tocca solo le prime 3 (la squadra vera); il 4° slot
+    // "variante" resta sempre in fondo. Se nessuna unità ha il Lead
+    // spuntato, l'ordine resta quello com'è (nessun leader da mettere avanti).
+    const mainThree = units.slice(0, 3);
+    const rest = units.slice(3);
+    const leadIdx = mainThree.findIndex((u) => u.lead);
+    const orderedUnits = leadIdx > 0
+      ? [...[mainThree[leadIdx]], ...mainThree.filter((_, i) => i !== leadIdx), ...rest]
+      : units;
+    const cleanedUnits = orderedUnits.map((u) => {
       if (!u.combatStats) return u;
       const cs = {};
       let anyFilled = false;

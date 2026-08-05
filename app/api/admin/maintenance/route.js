@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser, isAdmin } from "../../../../lib/auth";
 import { findDuplicateCounters, cleanupDuplicateCounters, findEquivalentDefs, mergeEquivalentDefs } from "../../../../lib/defs";
-import { resyncApprovedCounters, backfillLogOwnerNicknames } from "../../../../lib/siegeStats";
 import { syncMonstersFromSwarfarm } from "../../monsters/sync/route";
 import { safeJson } from "../../../../lib/apiUtils";
 
@@ -39,10 +38,6 @@ export async function POST(request) {
     const result = await cleanupDuplicateCounters();
     return NextResponse.json({ ok: true, ...result });
   }
-  if (data.action === "resync_from_variants") {
-    const result = await resyncApprovedCounters();
-    return NextResponse.json({ ok: true, ...result });
-  }
   if (data.action === "sync_monsters") {
     try {
       const result = await syncMonstersFromSwarfarm();
@@ -50,10 +45,6 @@ export async function POST(request) {
     } catch (err) {
       return NextResponse.json({ error: `Sincronizzazione fallita: ${String(err.message || err)}` }, { status: 502 });
     }
-  }
-  if (data.action === "backfill_log_nicknames") {
-    const result = await backfillLogOwnerNicknames();
-    return NextResponse.json({ ok: true, ...result });
   }
   return NextResponse.json({ error: "Azione non valida." }, { status: 400 });
 }

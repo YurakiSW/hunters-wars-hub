@@ -765,9 +765,6 @@ function DiagnosticaTab() {
   const [loading, setLoading] = useState(true);
   const [dupInfo, setDupInfo] = useState(null);
   const [cleaning, setCleaning] = useState(false);
-  const [resyncing, setResyncing] = useState(false);
-  const [backfilling, setBackfilling] = useState(false);
-  const [backfillMsg, setBackfillMsg] = useState("");
   const [syncingMon, setSyncingMon] = useState(false);
   const [syncMonMsg, setSyncMonMsg] = useState("");
   const [syncNewMonsters, setSyncNewMonsters] = useState([]);
@@ -786,7 +783,6 @@ function DiagnosticaTab() {
   const [merging, setMerging] = useState(false);
   const [mergeMsg, setMergeMsg] = useState("");
   const [reviewGroups, setReviewGroups] = useState([]);
-  const [resyncExamples, setResyncExamples] = useState([]);
   const [maintMsg, setMaintMsg] = useState("");
 
   function load() {
@@ -854,34 +850,6 @@ function DiagnosticaTab() {
       invalidateTwinCache();
       window.dispatchEvent(new Event(MONSTERS_SYNCED_EVENT));
     }
-  }
-
-  async function backfillNicknames() {
-    setBackfilling(true);
-    setBackfillMsg("");
-    const res = await fetch("/api/admin/maintenance", {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "backfill_log_nicknames" }),
-    });
-    const data = await res.json();
-    setBackfilling(false);
-    if (!res.ok) return setBackfillMsg(data.error);
-    setBackfillMsg(
-      data.checked === 0
-        ? "Nessun counter da Siege Log trovato."
-        : `${data.updated} counter aggiornati col nick su ${data.checked} da Siege Log. ${data.noData} senza nick disponibile (serve reimportare il log con la versione nuova del sito).`
-    );
-  }
-
-  async function resyncFromVariants() {
-    setResyncing(true);
-    const res = await fetch("/api/admin/maintenance", {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "resync_from_variants" }),
-    });
-    const data = await res.json();
-    setResyncing(false);
-    if (!res.ok) return setMaintMsg(data.error);
-    setMaintMsg(`${data.updated} counter aggiornati su ${data.checked} controllati (${data.foundData} avevano dati grezzi disponibili).`);
-    setResyncExamples(data.examples || []);
   }
 
   return (
@@ -990,35 +958,6 @@ function DiagnosticaTab() {
               <span>
                 ID {lookupResult.com2usId} = <strong>{lookupResult.name}</strong> ({lookupResult.element}, {lookupResult.archetype})
               </span>
-            )}
-          </div>
-        )}
-      </div>
-      <div className="card" style={{ marginBottom: 10 }}>
-        <button className="btn btn-gold" disabled={resyncing} onClick={resyncFromVariants}>
-          {resyncing && <Spinner />}🔄 Recupera stat rune/artefatti nei counter già approvati
-        </button>
-        <button className="btn btn-gold" disabled={backfilling} onClick={backfillNicknames} style={{ marginTop: 8 }}>
-          {backfilling && <Spinner />}👤 Aggiungi il nick del proprietario ai counter da Siege Log
-        </button>
-        {backfillMsg && <p style={{ fontSize: 12.5, color: "var(--green)", marginTop: 8 }}>{backfillMsg}</p>}
-        <p style={{ fontSize: 11.5, color: "var(--red)", marginTop: 8 }}>
-          ⚠️ Finestra di tempo limitata: funziona solo finché non fai "Fine Season" (che cancella i dati grezzi da
-          cui recuperare). Usalo dopo ogni aggiornamento del sito per riportare i counter già approvati
-          alle stat più aggiornate — dopo Fine Season non sarà più possibile.
-        </p>
-        {maintMsg.includes("controllati") && (
-          <div style={{ marginTop: 8 }}>
-            <p style={{ fontSize: 12.5, color: "var(--green)" }}>{maintMsg}</p>
-            {resyncExamples.length > 0 && (
-              <div style={{ marginTop: 6, fontSize: 11.5, color: "var(--text-faint)" }}>
-                <div>Esempi di cosa è successo (max 5):</div>
-                {resyncExamples.map((ex, i) => (
-                  <div key={i} style={{ marginTop: 4, padding: "4px 8px", background: "var(--bg-soft)", borderRadius: 4 }}>
-                    {ex.offense?.join("/")} contro {ex.defense?.join("/")} — {ex.reason}
-                  </div>
-                ))}
-              </div>
             )}
           </div>
         )}
