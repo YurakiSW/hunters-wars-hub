@@ -457,11 +457,14 @@ function TwinPairsCard() {
       // per uno sul nostro elenco vero (mai un'ipotesi) — compaiono in
       // tabella già pronti anche PRIMA che esista un gemello normale da
       // abbinare, così quando esce basta scriverlo, non cercarlo da capo.
+      // Cerca per com2usId (stabile) e non per nome (che può cambiare da
+      // un sync all'altro se compaiono altri elementi dello stesso
+      // personaggio e scatta il prefisso — bug corretto il 05/08/2026).
       // Aggiornare qui man mano che se ne verificano altri (con
       // /api/admin/monsters, mai indovinati dal nome).
-      const PENDING_COLLAB_NAMES = ["Frieren", "Dark Fern", "Water Stark"];
-      const pending = PENDING_COLLAB_NAMES
-        .map((n) => all.find((m) => normalizeMonsterName(m.name) === normalizeMonsterName(n))?.name)
+      const PENDING_COLLAB_IDS = [35705, 35805, 35901]; // Frieren, Dark Fern, Water Stark
+      const pending = PENDING_COLLAB_IDS
+        .map((id) => all.find((m) => m.com2usId === id)?.name)
         .filter(Boolean);
       const extra = Object.keys(twins)
         .map((k) => all.find((m) => normalizeMonsterName(m.name) === k)?.name)
