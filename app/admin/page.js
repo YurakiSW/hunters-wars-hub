@@ -941,7 +941,7 @@ function DiagnosticaTab() {
         <button className="btn btn-primary" disabled={syncingMon} onClick={syncMonsters}>
           {syncingMon && <Spinner />}🔃 Sincronizza bestiario da swarfarm
         </button>
-        {syncingMon && <Sticker name="letto" size={40} alt="" style={{ marginLeft: 10, verticalAlign: "middle" }} />}
+        {syncingMon && <Sticker name="letto" size={68} alt="" style={{ marginLeft: 10, verticalAlign: "middle" }} />}
         <p style={{ fontSize: 11.5, color: "var(--text-faint)", marginTop: 8 }}>
           Scarica l&apos;elenco aggiornato dei mostri (nomi, icone, accuracy base). Lancialo quando escono mostri
           nuovi o dopo un collab, altrimenti i nomi nuovi non vengono riconosciuti nei log.

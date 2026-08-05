@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import Header from "../../../components/Header";
 import MonsterCrest from "../../../components/MonsterCrest";
 import ConfirmModal from "../../../components/ConfirmModal";
+import NicknameHeart from "../../../components/NicknameHeart";
 
 function rateColor(rate) {
   if (rate >= 0.8) return "var(--green)";
@@ -143,7 +144,7 @@ function ArchiveSeasonRow({ meta, isAdmin, onDeleted }) {
                   {d.monsterNames.map((n, i) => <MonsterCrest key={i} name={n} size={28} noSplit />)}
                 </div>
                 <div style={{ flex: 1, minWidth: 120 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600 }}>{d.ownerNick}</div>
+                  <div style={{ fontSize: 13, fontWeight: 600 }}><NicknameHeart>{d.ownerNick}</NicknameHeart></div>
                   <div style={{ fontSize: 10.5, color: "var(--text-faint)" }}>{d.monsterNames.join(" / ")}</div>
                 </div>
                 <div style={{ textAlign: "right" }}>

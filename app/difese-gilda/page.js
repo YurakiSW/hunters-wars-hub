@@ -192,13 +192,16 @@ function GuildDefensesContent() {
         </div>
 
         {loading ? (
-          <p style={{ color: "var(--text-faint)" }}>Caricamento...</p>
+          <div style={{ textAlign: "center", marginTop: 30 }}>
+            <Sticker name="totem" size={130} />
+            <p style={{ color: "var(--text-faint)", marginTop: 8 }}>Caricamento...</p>
+          </div>
         ) : includedCount === 0 ? (
           <p style={{ color: "var(--text-faint)" }}>Nessuna siege inclusa nel conteggio — includine almeno una qui sopra.</p>
         ) : mode === "owner" ? (
           defenses.length === 0 ? (
             <div style={{ textAlign: "center", marginTop: 20, color: "var(--text-faint)" }}>
-              <Sticker name="depresso" revealOnClick="emozionato" size={64} />
+              <Sticker name="depresso" revealOnClick="emozionato" size={130} />
               <p>Nessuna difesa trovata per questo nick.</p>
             </div>
           ) : (
@@ -206,7 +209,7 @@ function GuildDefensesContent() {
           )
         ) : teams.length === 0 ? (
           <div style={{ textAlign: "center", marginTop: 20, color: "var(--text-faint)" }}>
-            <Sticker name="depresso" revealOnClick="emozionato" size={64} />
+            <Sticker name="depresso" revealOnClick="emozionato" size={130} />
             <p>{teamQuery ? "Nessun team trovato con questo mostro." : "Nessuna difesa da mostrare."}</p>
           </div>
         ) : (
@@ -361,7 +364,7 @@ function PlayerSubRow({ player }) {
     <div style={{ background: "var(--bg-soft)", borderRadius: 8, padding: "8px 10px" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }} onClick={() => setOpen((v) => !v)}>
         <span style={{ fontSize: 10, color: "var(--text-faint)" }}>{open ? "▼" : "▶"}</span>
-        <span style={{ fontSize: 13, flex: 1 }}>{player.ownerNick}</span>
+        <span style={{ fontSize: 13, flex: 1 }}><NicknameHeart>{player.ownerNick}</NicknameHeart></span>
         <span className="f-mono" style={{ fontSize: 12, fontWeight: 600, color: rateColor(player.winRate) }}>
           {player.wins}V — {player.losses}S ({Math.round(player.winRate * 100)}%)
         </span>

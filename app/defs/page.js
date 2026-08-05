@@ -7,6 +7,7 @@ import Modal from "../../components/Modal";
 import ConfirmModal from "../../components/ConfirmModal";
 import DefForm from "../../components/DefForm";
 import Sticker from "../../components/Sticker";
+import LoadingScreen from "../../components/LoadingScreen";
 
 // useSearchParams() richiede un confine <Suspense> attorno, altrimenti la
 // build fallisce in fase di generazione statica ("should be wrapped in a
@@ -65,7 +66,7 @@ function DefsPageContent() {
     fetch("/api/admin/monsters/twins").then((r) => r.json()).then((d) => setTwinPairs(d.pairs || []));
   }, []);
 
-  if (!user) return null;
+  if (!user) return <LoadingScreen />;
   const canManage = user.role === "admin" || user.role === "reviewer";
   const sorted = [...defs].sort((a, b) => {
     if (Boolean(a.pinned) !== Boolean(b.pinned)) return a.pinned ? -1 : 1;
@@ -259,7 +260,7 @@ function DefsPageContent() {
         )}
         {filtered.length === 0 && (
           <div style={{ textAlign: "center", marginTop: 30, color: "var(--text-faint)" }}>
-            <Sticker name="depresso" revealOnClick="emozionato" size={72} />
+            <Sticker name="depresso" revealOnClick="emozionato" size={150} />
             <p>Nessuna difesa trovata.</p>
           </div>
         )}

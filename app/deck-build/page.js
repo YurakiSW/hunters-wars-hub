@@ -10,6 +10,7 @@ import MonsterCrest from "../../components/MonsterCrest";
 import { formatNickname } from "../../lib/textUtils";
 import Sticker from "../../components/Sticker";
 import NicknameHeart from "../../components/NicknameHeart";
+import LoadingScreen from "../../components/LoadingScreen";
 
 function UnitBuildDetails({ u }) {
   return (
@@ -233,7 +234,7 @@ export default function DeckBuildPage() {
     load();
   }, []);
 
-  if (!user) return null;
+  if (!user) return <LoadingScreen />;
   const canManage = user.role === "admin" || user.isDeckBuilder === true;
 
   const qTokens = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
@@ -364,7 +365,7 @@ export default function DeckBuildPage() {
         ))}
         {!filtered.length && (
           <div style={{ textAlign: "center", marginTop: 30, color: "var(--text-faint)" }}>
-            <Sticker name="depresso" revealOnClick="emozionato" size={72} style={{ margin: "0 auto 8px" }} />
+            <Sticker name="depresso" revealOnClick="emozionato" size={150} style={{ margin: "0 auto 8px" }} />
             <p>Nessun deck trovato.</p>
           </div>
         )}
