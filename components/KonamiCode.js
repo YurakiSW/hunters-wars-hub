@@ -42,8 +42,10 @@ function PerfectFlash() {
 
 export default function KonamiCode() {
   const [raining, setRaining] = useState(false);
+  const [rainKey, setRainKey] = useState(0);
   const [showPerfect, setShowPerfect] = useState(false);
   const bufferRef = useRef([]);
+  const perfectTimerRef = useRef(null);
 
   useEffect(() => {
     function onKeyDown(e) {
@@ -51,9 +53,15 @@ export default function KonamiCode() {
       bufferRef.current = [...bufferRef.current, e.key].slice(-SEQUENCE.length);
       if (bufferRef.current.join(",") === SEQUENCE.join(",")) {
         bufferRef.current = [];
+        // key diverso ad ogni trigger: forza un rimontaggio vero della
+        // pioggia anche se una era già in corso (senza questo, ripetere la
+        // sequenza a raffica non faceva ripartire nulla di visibile —
+        // React vedeva raining già a true e non toccava il componente).
+        setRainKey((k) => k + 1);
         setRaining(true);
         setShowPerfect(true);
-        setTimeout(() => setShowPerfect(false), 2400);
+        clearTimeout(perfectTimerRef.current);
+        perfectTimerRef.current = setTimeout(() => setShowPerfect(false), 2400);
         fetch("/api/konami/found", { method: "POST" }).catch(() => {});
       }
     }
@@ -63,7 +71,7 @@ export default function KonamiCode() {
 
   return (
     <>
-      {raining && <DevilmonRain onDone={() => setRaining(false)} />}
+      {raining && <DevilmonRain key={rainKey} onDone={() => setRaining(false)} />}
       {showPerfect && <PerfectFlash />}
     </>
   );
