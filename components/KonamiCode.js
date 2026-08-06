@@ -8,9 +8,10 @@ import DevilmonRain from "./DevilmonRain";
 // registrata lato server (vedi /api/konami/found), poi in Admin.
 const SEQUENCE = ["ArrowUp", "ArrowUp", "ArrowDown", "ArrowDown", "ArrowLeft", "ArrowRight", "ArrowLeft", "ArrowRight"];
 
-// "PERFECT!" in stile Tekken (font Orbitron, il più vicino gratuito al
-// logo originale — quello vero è proprietario) — piccola strizzata
-// d'occhio in più, doppio riferimento Konami+Tekken sulla stessa scoperta.
+// "PERFECT!" in stile Tekken — font Tarrget vero (Iconian Fonts, ispirato
+// al logo di Tekken Tag Tournament, donationware/gratis per uso non
+// commerciale), file caricato da Flora e messo in public/fonts, non
+// dipende da nessun servizio esterno.
 function PerfectFlash() {
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 1000, pointerEvents: "none", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -24,10 +25,9 @@ function PerfectFlash() {
       `}</style>
       <span
         style={{
-          fontFamily: "'Orbitron', sans-serif",
-          fontWeight: 900,
-          fontSize: "clamp(40px, 9vw, 110px)",
-          letterSpacing: ".06em",
+          fontFamily: "'Tarrget', sans-serif",
+          fontSize: "clamp(46px, 10vw, 130px)",
+          letterSpacing: ".04em",
           color: "#f7d774",
           WebkitTextStroke: "2px #3a2a0a",
           textShadow: "0 0 18px rgba(247,215,116,.9), 0 0 40px rgba(247,215,116,.5)",

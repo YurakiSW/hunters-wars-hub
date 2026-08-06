@@ -1,3 +1,11 @@
+@font-face {
+  font-family: "Tarrget";
+  src: url("/fonts/tarrgetacadital.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   --bg: #0a0716;
   --bg-soft: #140f24;
