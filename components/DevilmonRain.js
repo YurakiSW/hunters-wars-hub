@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { STICKERS } from "./Sticker";
 
-const RAIN_NAMES = ["trombetta", "felice", "sconvolto", "letto", "cuoricini", "re", "confuso"];
+const RAIN_NAMES = Object.keys(STICKERS); // tutti, mescolati
 const PIECE_COUNT = 28;
 const MAX_END_MS = 5500; // copre il pezzo più lento (durata + ritardo massimi) con margine
 
@@ -11,7 +11,7 @@ export default function DevilmonRain({ onDone }) {
     Array.from({ length: PIECE_COUNT }, (_, i) => ({
       id: i,
       left: `${Math.random() * 100}%`,
-      size: 40 + Math.random() * 40,
+      size: 32 + Math.random() * 78,
       duration: 2.2 + Math.random() * 1.8,
       delay: Math.random() * 1.2,
       rotation: Math.random() * 360,
