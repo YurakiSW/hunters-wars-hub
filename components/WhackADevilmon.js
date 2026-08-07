@@ -20,6 +20,8 @@ export default function WhackADevilmon({ onClose }) {
   const [ended, setEnded] = useState(false);
   const scoreRef = useRef(0);
   const activeRef = useRef({});
+  const endedRef = useRef(false);
+  const spawnerRef = useRef(null);
 
   useEffect(() => {
     const countdown = setInterval(() => {
@@ -33,7 +35,12 @@ export default function WhackADevilmon({ onClose }) {
       });
     }, 1000);
 
-    const spawner = setInterval(() => {
+    spawnerRef.current = setInterval(() => {
+      // Guardia vera: senza questa, il generatore continuava a far
+      // comparire devilmon (e ogni click continuava a contare) anche dopo
+      // la fine del round finché non si chiudeva a mano — bug corretto il
+      // 06/08/2026 (Flora).
+      if (endedRef.current) return;
       const freeHoles = Array.from({ length: HOLE_COUNT }, (_, i) => i).filter((i) => activeRef.current[i] == null);
       if (!freeHoles.length) return;
       const hole = freeHoles[Math.floor(Math.random() * freeHoles.length)];
@@ -49,11 +56,16 @@ export default function WhackADevilmon({ onClose }) {
       }, MOLE_UP_MS);
     }, SPAWN_EVERY_MS);
 
-    return () => { clearInterval(countdown); clearInterval(spawner); };
+    return () => { clearInterval(countdown); clearInterval(spawnerRef.current); };
   }, []);
 
   async function finish() {
+    endedRef.current = true;
     setEnded(true);
+    clearInterval(spawnerRef.current);
+    activeRef.current = {};
+    setActive({}); // toglie subito ogni devilmon rimasto a schermo, niente più da colpire
+
     const finalScore = scoreRef.current;
     if (finalScore > 0) {
       try {
@@ -66,10 +78,13 @@ export default function WhackADevilmon({ onClose }) {
         // minigioco, non deve mai rompere altro se la chiamata fallisce
       }
     }
+    // Sparisce da sola dopo aver mostrato il punteggio finale — "Chiudi"
+    // resta comunque disponibile per chi non vuole aspettare.
+    setTimeout(onClose, 2600);
   }
 
   function whack(hole) {
-    if (activeRef.current[hole] == null) return;
+    if (endedRef.current || activeRef.current[hole] == null) return;
     activeRef.current = { ...activeRef.current };
     delete activeRef.current[hole];
     setActive({ ...activeRef.current });

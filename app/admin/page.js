@@ -80,10 +80,10 @@ function AdminPageContent() {
             <button className={`btn ${tab === "users" ? "btn-primary" : "btn-ghost"}`} onClick={() => setTab("users")}>Utenti & ruoli</button>
           )}
           <button className={`btn ${tab === "monsters" ? "btn-primary" : "btn-ghost"}`} onClick={() => setTab("monsters")}>Mostri</button>
+          {isAdmin && <button className={`btn ${tab === "import" ? "btn-primary" : "btn-ghost"}`} onClick={() => setTab("import")}>Import Log ATK Siege</button>}
           {canManageContent && (
             <button className={`btn ${tab === "content" ? "btn-primary" : "btn-ghost"}`} onClick={() => setTab("content")}>Gestione def/counter</button>
           )}
-          {isAdmin && <button className={`btn ${tab === "import" ? "btn-primary" : "btn-ghost"}`} onClick={() => setTab("import")}>Importa dati</button>}
           {canManageContent && <button className={`btn ${tab === "siegeStats" ? "btn-primary" : "btn-ghost"}`} onClick={() => setTab("siegeStats")}>Approvazioni Siege Log</button>}
           {isAdmin && <button className={`btn ${tab === "backup" ? "btn-primary" : "btn-ghost"}`} onClick={() => setTab("backup")}>Backup</button>}
           {isAdmin && <button className={`btn ${tab === "diagnostica" ? "btn-primary" : "btn-ghost"}`} onClick={() => setTab("diagnostica")}>Diagnostica</button>}
@@ -415,6 +415,7 @@ function MonstersTab() {
       ))}
 
       <AliasUploadCard />
+      <DuplicateCollabCard />
       <TwinPairsCard />
     </div>
   );
@@ -425,6 +426,86 @@ function MonstersTab() {
 // tratta come UN solo mostro — così un counter giocato con la versione
 // collab e uno con la versione normale finiscono nello stesso counter invece
 // di duplicarsi, e le statistiche si sommano.
+// Scanner "doppioni" (07/08/2026, Flora): quando due mostri diversi hanno
+// lo STESSO nome+elemento su swarfarm senza essere una vera 2A, il sync li
+// disambigua con "(ID xxxxx)" — MAI a caso su chi tiene il nome pulito
+// (vedi sync/route.js). Questo tool controlla "obtainable" su entrambi i
+// gemelli di ogni coppia già disambiguata e segnala solo quelle sospette
+// (il nome pulito sembra quello sbagliato) — SOLO LETTURA finché non premi
+// "Conferma ed escludi" su una riga specifica, una alla volta.
+function DuplicateCollabCard() {
+  const [candidates, setCandidates] = useState(null); // null = non ancora controllato
+  const [checking, setChecking] = useState(false);
+  const [excluding, setExcluding] = useState(null);
+  const [excluded, setExcluded] = useState(new Set());
+
+  async function check() {
+    setChecking(true);
+    const res = await fetch("/api/admin/monsters/check-duplicates");
+    const data = await res.json();
+    setChecking(false);
+    if (res.ok) setCandidates(data.candidates);
+  }
+
+  async function exclude(dupId) {
+    setExcluding(dupId);
+    const res = await fetch("/api/admin/monsters/exclude-id", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ com2usId: dupId }),
+    });
+    setExcluding(null);
+    if (res.ok) setExcluded((prev) => new Set([...prev, dupId]));
+  }
+
+  return (
+    <div className="card" style={{ marginBottom: 18 }}>
+      <div className="section-label">Controlla doppioni collab</div>
+      <p style={{ color: "var(--text-faint)", fontSize: 11.5, marginBottom: 10 }}>
+        Cerca tra i mostri già disambiguati ("Nome (ID xxxxx)") quelli dove il nome pulito sembra tenuto dal
+        mostro SBAGLIATO (non ottenibile) invece di quello vero. Sola lettura finché non confermi riga per riga —
+        nessuna esclusione applicata da sola. Dopo aver confermato, serve un resync bestiario perché l'effetto
+        compaia sul sito.
+      </p>
+      <button className="btn btn-gold" onClick={check} disabled={checking}>
+        {checking && <Spinner />}🔍 Controlla ora
+      </button>
+      {candidates && candidates.length === 0 && (
+        <p style={{ color: "var(--green)", fontSize: 12.5, marginTop: 10 }}>Nessun doppione disambiguato trovato al momento.</p>
+      )}
+      {candidates && candidates.length > 0 && (
+        <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 8 }}>
+          {candidates.map((c) => (
+            <div key={c.dupId} className="card" style={{ borderColor: c.suspicious ? "var(--red)" : "var(--border-soft)" }}>
+              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>{c.baseName}</div>
+              <div className="f-mono" style={{ fontSize: 11.5, color: "var(--text-muted)", marginBottom: 4 }}>
+                Nome pulito (ID {c.cleanId}): obtainable = {c.cleanObtainable === null ? "?" : String(c.cleanObtainable)}
+              </div>
+              <div className="f-mono" style={{ fontSize: 11.5, color: "var(--text-muted)", marginBottom: 8 }}>
+                Disambiguato (ID {c.dupId}): obtainable = {c.dupObtainable === null ? "?" : String(c.dupObtainable)}
+              </div>
+              {c.suspicious ? (
+                <p style={{ fontSize: 12, color: "var(--red)", marginBottom: 8 }}>
+                  ⚠️ Il nome pulito (ID {c.cleanId}) NON è ottenibile, mentre quello disambiguato SÌ — sembra invertito.
+                </p>
+              ) : (
+                <p style={{ fontSize: 12, color: "var(--text-faint)", marginBottom: 8 }}>
+                  Non chiaro chi dei due sia quello giusto solo da "obtainable" — controlla a mano prima di escludere.
+                </p>
+              )}
+              {excluded.has(c.dupId) ? (
+                <p style={{ fontSize: 12, color: "var(--green)" }}>✅ ID {c.cleanId} escluso — lancia un resync per applicarlo.</p>
+              ) : (
+                <button className="btn btn-danger" disabled={excluding === c.dupId} onClick={() => exclude(c.cleanId)}>
+                  {excluding === c.dupId ? "..." : `Conferma: escludi ID ${c.cleanId} dal nome pulito`}
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function TwinPairsCard() {
   const [pairs, setPairs] = useState([]);
   const [rows, setRows] = useState([]);       // [{ name, canonical }]

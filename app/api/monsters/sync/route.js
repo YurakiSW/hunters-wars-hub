@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSyncedMonsters, setSyncedMonsters, setNewMonstersSinceLastSync } from "../../../../lib/monsters";
+import { getSyncedMonsters, setSyncedMonsters, setNewMonstersSinceLastSync, getNeverCleanIds } from "../../../../lib/monsters";
 
 // Chiamata da cron-job.org (stesso meccanismo usato per SW Auto Redeemer):
 // GET /api/monsters/sync?secret=CRON_SECRET
@@ -38,16 +38,20 @@ const SWARFARM_BASE = "https://swarfarm.com";
 const ICON_BASE = "https://swarfarm.com/static/herders/images/monsters/";
 
 // Eccezioni scritte a mano, verificate una per una con il tool di lookup
-// prima di essere aggiunte qui — MAI un'ipotesi. com2us_id che non devono
+// prima di essere aggiunte — MAI un'ipotesi. com2us_id che non devono
 // MAI tenere il nome pulito del loro gruppo, anche se hanno l'ID più
-// basso. Tutta la famiglia Ifrit risvegliata ha una versione vecchia
-// ritirata parallela (blocco 17111-17115), verificate il 05/08/2026:
+// basso. Questo blocco fisso è solo lo "storico" (Ifrit, verificate il
+// 05/08/2026):
 //   17111 -> "Theomars" vecchio (obtainable:false) — vero: 19211
 //   17112 -> "Tesarion" vecchio (obtainable:false) — vero: 19212
 //   17113 -> "Akhamamir" vecchio (obtainable:false) — vero: 19213
 //   17114 -> "Elsharion" vecchio (obtainable:false) — vero: 19214
 //   17115 -> "Veromos" vecchio (obtainable:false) — vero: 19215
-const NEVER_CLEAN_NAME_IDS = new Set([17111, 17112, 17113, 17114, 17115]);
+// Le eccezioni AGGIUNTE DOPO (es. dal tool "Controlla doppioni collab" in
+// Admin, dal 07/08/2026) vivono su Redis (getNeverCleanIds), non qui —
+// così aggiungerne una nuova ha effetto dal sync successivo, senza
+// bisogno di un pacchetto nuovo.
+const NEVER_CLEAN_NAME_IDS_SEED = [17111, 17112, 17113, 17114, 17115];
 
 // Alcuni nomi su swarfarm arrivano già corrotti da una doppia codifica
 // (i byte veri UTF-8 di un carattere accentato come "Ü" letti come
@@ -120,6 +124,8 @@ export async function syncMonstersFromSwarfarm() {
   const items = await res.json(); // niente paginazione su questo endpoint: tutto in un colpo solo
   const raws = (Array.isArray(items) ? items : []).map(parseRaw).filter(Boolean);
 
+  const neverCleanIds = new Set([...NEVER_CLEAN_NAME_IDS_SEED, ...(await getNeverCleanIds())]);
+
   // L'accuracy base non è nella lista, solo nel dettaglio di ogni mostro —
   // richiederebbe migliaia di chiamate per tutti. Nel dubbio si preserva
   // quella già salvata da una sincronizzazione precedente, invece di
@@ -156,7 +162,7 @@ export async function syncMonstersFromSwarfarm() {
       // Il primo/più basso ID tiene il nome pulito, a meno che non sia
       // nella lista di esclusione scritta a mano: in quel caso si passa
       // al successivo (che se non è a sua volta escluso, vince lui).
-      const baseIndex = sorted.findIndex((v) => !NEVER_CLEAN_NAME_IDS.has(v.com2usId));
+      const baseIndex = sorted.findIndex((v) => !neverCleanIds.has(v.com2usId));
       const base = baseIndex === -1 ? sorted[0] : sorted[baseIndex];
       safeEntries.push({ name: displayName, iconUrl: base.iconUrl, com2usId: base.com2usId, baseAccuracy: oldByComId.get(base.com2usId) ?? null });
       for (let i = 0; i < sorted.length; i++) {

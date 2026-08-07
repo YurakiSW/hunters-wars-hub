@@ -6,6 +6,7 @@ import Modal from "../../components/Modal";
 import ConfirmModal from "../../components/ConfirmModal";
 import CounterForm from "../../components/CounterForm";
 import AgainstDefPicker from "../../components/AgainstDefPicker";
+import CounterToDeckPicker from "../../components/CounterToDeckPicker";
 import MonsterCrest from "../../components/MonsterCrest";
 import { formatNickname } from "../../lib/textUtils";
 import Sticker from "../../components/Sticker";
@@ -78,7 +79,7 @@ function UnitBuildDetails({ u }) {
 
 function DeckRow({
   deck, user, canManage, open, onToggleOpen, selected, onToggleSelect,
-  onEdit, onDelete, onDuplicate, onAddAgainst, onRemoveAgainst,
+  onEdit, onDelete, onDuplicate, onAddAgainst, onRemoveAgainst, onRefreshAgainst, refreshing,
   reorderMode, isDragging, isDragOver, onDragStart, onDragOverRow, onDrop, onDragEnd,
 }) {
   const targetCount = deck.against?.length || 0;
@@ -191,7 +192,14 @@ function DeckRow({
 
           <div className="section-label" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             Da usare contro
-            {canManage && <button className="btn btn-gold" style={{ padding: "3px 10px", fontSize: 11.5 }} onClick={onAddAgainst}>+ Aggiungi difesa</button>}
+            {canManage && (
+              <div style={{ display: "flex", gap: 6 }}>
+                <button className="btn btn-ghost" style={{ padding: "3px 10px", fontSize: 11.5 }} onClick={onRefreshAgainst} disabled={refreshing}>
+                  {refreshing ? "..." : "🔄 Aggiorna da Counter"}
+                </button>
+                <button className="btn btn-gold" style={{ padding: "3px 10px", fontSize: 11.5 }} onClick={onAddAgainst}>+ Aggiungi difesa</button>
+              </div>
+            )}
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 8 }}>
             {(deck.against || []).map((a) => (
@@ -224,10 +232,12 @@ export default function DeckBuildPage() {
   const [draggedId, setDraggedId] = useState(null);
   const [dragOverId, setDragOverId] = useState(null);
   const [showNewForm, setShowNewForm] = useState(false);
+  const [showCounterPicker, setShowCounterPicker] = useState(false);
   const [editingDeck, setEditingDeck] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
   const [addingAgainstTo, setAddingAgainstTo] = useState(null);
+  const [refreshingId, setRefreshingId] = useState(null);
   const [error, setError] = useState("");
   const [celebration, setCelebration] = useState(null); // "felice" | "trombetta" | null
   const router = useRouter();
@@ -286,6 +296,19 @@ export default function DeckBuildPage() {
     }
     return data;
   }
+  async function createFromCounter(counterId) {
+    const res = await fetch("/api/decks/from-counter", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ counterId }) });
+    const data = await res.json();
+    if (data.deck) {
+      setShowCounterPicker(false);
+      load();
+      const newCount = decks.length + 1;
+      setCelebration(newCount % 5 === 0 ? "trombetta" : "felice");
+      setTimeout(() => setCelebration(null), 3800);
+    } else if (data.error) {
+      alert(data.error);
+    }
+  }
   async function submitEditDeck(payload) {
     const res = await fetch(`/api/decks/${editingDeck.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     const data = await res.json();
@@ -315,6 +338,18 @@ export default function DeckBuildPage() {
   async function removeAgainst(deckId, entryId) {
     await fetch(`/api/decks/${deckId}/against/${entryId}`, { method: "DELETE" });
     load();
+  }
+  async function refreshAgainst(deckId) {
+    setRefreshingId(deckId);
+    const res = await fetch(`/api/decks/${deckId}/refresh-against`, { method: "POST" });
+    const data = await res.json();
+    setRefreshingId(null);
+    if (res.ok) {
+      load();
+      if (data.added === 0) alert("Nessuna Difesa nuova trovata per questa squadra.");
+    } else if (data.error) {
+      alert(data.error);
+    }
   }
   async function handleDrop(targetId) {
     const fromId = draggedId;
@@ -347,6 +382,7 @@ export default function DeckBuildPage() {
             <div style={{ display: "flex", gap: 8 }}>
               <button className="btn btn-ghost" onClick={() => setReorderMode((r) => !r)}>{reorderMode ? "Fine riordino" : "Riordina"}</button>
               <button className="btn btn-primary" onClick={() => setShowNewForm(true)}>+ Nuovo deck</button>
+              <button className="btn btn-ghost" onClick={() => setShowCounterPicker(true)}>+ Deck da counter</button>
             </div>
           )}
         </div>
@@ -375,6 +411,8 @@ export default function DeckBuildPage() {
             onDuplicate={() => duplicateDeck(deck.id)}
             onAddAgainst={() => setAddingAgainstTo(deck.id)}
             onRemoveAgainst={(entryId) => removeAgainst(deck.id, entryId)}
+            onRefreshAgainst={() => refreshAgainst(deck.id)}
+            refreshing={refreshingId === deck.id}
             reorderMode={reorderMode}
             isDragging={draggedId === deck.id}
             isDragOver={dragOverId === deck.id && draggedId !== deck.id}
@@ -400,6 +438,11 @@ export default function DeckBuildPage() {
       {showNewForm && (
         <Modal title="Nuovo deck" onClose={() => setShowNewForm(false)} wide>
           <CounterForm noApprovalFlow submitLabel="Crea deck" onSubmit={submitNewDeck} onCancel={() => setShowNewForm(false)} />
+        </Modal>
+      )}
+      {showCounterPicker && (
+        <Modal title="Crea deck da counter (Siege Log approvati)" onClose={() => setShowCounterPicker(false)}>
+          <CounterToDeckPicker onSelect={createFromCounter} onCancel={() => setShowCounterPicker(false)} />
         </Modal>
       )}
       {editingDeck && (
