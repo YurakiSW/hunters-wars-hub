@@ -438,6 +438,7 @@ function DuplicateCollabCard() {
   const [checking, setChecking] = useState(false);
   const [excluding, setExcluding] = useState(null);
   const [excluded, setExcluded] = useState(new Set());
+  const [bulkExcluding, setBulkExcluding] = useState(false);
 
   async function check() {
     setChecking(true);
@@ -447,13 +448,30 @@ function DuplicateCollabCard() {
     if (res.ok) setCandidates(data.candidates);
   }
 
-  async function exclude(dupId) {
-    setExcluding(dupId);
+  async function exclude(id) {
+    setExcluding(id);
     const res = await fetch("/api/admin/monsters/exclude-id", {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ com2usId: dupId }),
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ com2usId: id }),
     });
     setExcluding(null);
-    if (res.ok) setExcluded((prev) => new Set([...prev, dupId]));
+    if (res.ok) setExcluded((prev) => new Set([...prev, id]));
+  }
+
+  // Conferma in blocco SOLO quelle "sembra invertito" (dati chiari,
+  // stesso identico pattern già verificato a mano più volte oggi — Ifrit,
+  // Tesarion, Übel). Quelle "non chiaro" restano fuori apposta, quelle
+  // vanno guardate una per una, non è sicuro decidere da un bulk.
+  async function bulkExcludeSuspicious() {
+    const toExclude = (candidates || []).filter((c) => c.suspicious && !excluded.has(c.cleanId));
+    if (!toExclude.length) return;
+    setBulkExcluding(true);
+    for (const c of toExclude) {
+      const res = await fetch("/api/admin/monsters/exclude-id", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ com2usId: c.cleanId }),
+      });
+      if (res.ok) setExcluded((prev) => new Set([...prev, c.cleanId]));
+    }
+    setBulkExcluding(false);
   }
 
   return (
@@ -468,6 +486,12 @@ function DuplicateCollabCard() {
       <button className="btn btn-gold" onClick={check} disabled={checking}>
         {checking && <Spinner />}🔍 Controlla ora
       </button>
+      {candidates && candidates.some((c) => c.suspicious && !excluded.has(c.cleanId)) && (
+        <button className="btn btn-danger" style={{ marginLeft: 8 }} onClick={bulkExcludeSuspicious} disabled={bulkExcluding}>
+          {bulkExcluding && <Spinner />}
+          ⚠️ Conferma tutti i "sembra invertito" ({candidates.filter((c) => c.suspicious && !excluded.has(c.cleanId)).length})
+        </button>
+      )}
       {candidates && candidates.length === 0 && (
         <p style={{ color: "var(--green)", fontSize: 12.5, marginTop: 10 }}>Nessun doppione disambiguato trovato al momento.</p>
       )}
@@ -491,11 +515,11 @@ function DuplicateCollabCard() {
                   Non chiaro chi dei due sia quello giusto solo da "obtainable" — controlla a mano prima di escludere.
                 </p>
               )}
-              {excluded.has(c.dupId) ? (
+              {excluded.has(c.cleanId) ? (
                 <p style={{ fontSize: 12, color: "var(--green)" }}>✅ ID {c.cleanId} escluso — lancia un resync per applicarlo.</p>
               ) : (
-                <button className="btn btn-danger" disabled={excluding === c.dupId} onClick={() => exclude(c.cleanId)}>
-                  {excluding === c.dupId ? "..." : `Conferma: escludi ID ${c.cleanId} dal nome pulito`}
+                <button className="btn btn-danger" disabled={excluding === c.cleanId} onClick={() => exclude(c.cleanId)}>
+                  {excluding === c.cleanId ? "..." : `Conferma: escludi ID ${c.cleanId} dal nome pulito`}
                 </button>
               )}
             </div>

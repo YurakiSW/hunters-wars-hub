@@ -53,6 +53,25 @@ export async function GET(request) {
   const target = Number(com2usId);
   const found = (Array.isArray(items) ? items : []).find((m) => m.com2us_id === target);
   if (!found) return NextResponse.json({ ok: true, found: false });
+
+  // "obtainable" e "awakens_from" non sono nella lista, solo nel dettaglio
+  // del singolo mostro — seconda chiamata, una sola, solo quando serve
+  // (questo tool è usato a mano ogni tanto, non in un ciclo su tutto il
+  // bestiario, quindi va benissimo).
+  let obtainable = null;
+  let awakensFrom = null;
+  try {
+    const detailRes = await fetch(`https://swarfarm.com/api/bestiary/${found.pk}?format=json`, { headers: { Accept: "application/json" } });
+    if (detailRes.ok) {
+      const detail = await detailRes.json();
+      obtainable = typeof detail?.obtainable === "boolean" ? detail.obtainable : null;
+      awakensFrom = detail?.awakens_from?.name ?? null;
+    }
+  } catch {
+    // il dettaglio è un extra rispetto al dato base della lista, se fallisce
+    // non deve rompere il resto della risposta
+  }
+
   return NextResponse.json({
     ok: true,
     found: true,
@@ -62,6 +81,8 @@ export async function GET(request) {
     com2usId: found.com2us_id,
     iconUrl: found.image_filename ? `https://swarfarm.com/static/herders/images/monsters/${found.image_filename}` : null,
     pk: found.pk,
+    obtainable,
+    awakensFrom,
     raw: found,
   });
 }
