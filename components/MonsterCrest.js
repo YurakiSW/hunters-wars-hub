@@ -71,7 +71,16 @@ export default function MonsterCrest({ name, size = 40, lead = false, noSplit = 
       if (!alive) return;
       const target = normalize(name);
       const iconOf = (n) => list.find((m) => normalize(m.name) === normalize(n))?.iconUrl || null;
-      setIcon(iconOf(name));
+      // Fallback (07/08/2026, Flora): un counter/difesa già approvato tiene
+      // il nome congelato a quando è stato creato — se quel giorno il sync
+      // aveva quel mostro come "Nome (ID xxxxx)" (disambiguato) e poi
+      // abbiamo confermato che il nome pulito spetta a lui, la stringa
+      // esatta "Nome (ID xxxxx)" sparisce dall'elenco e l'icona smette di
+      // trovarsi — pur restando lo stesso identico mostro. Se la ricerca
+      // esatta fallisce, si riprova senza il suffisso "(ID...)": stessa
+      // icona, senza dover toccare i dati salvati del counter.
+      const iconOfWithFallback = (n) => iconOf(n) || iconOf(n.replace(/ \(ID \d+\)$/, ""));
+      setIcon(iconOfWithFallback(name));
       // Se questo mostro fa parte di una coppia collab <-> normale, mostriamo
       // metà faccia per ciascuna versione: si capisce a colpo d'occhio che il
       // counter vale per entrambe, senza doverlo scrivere.
