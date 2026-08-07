@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser, isAdmin } from "../../../../../lib/auth";
-import { getSyncedMonsters } from "../../../../../lib/monsters";
+import { getSyncedMonsters, getNeverCleanIds } from "../../../../../lib/monsters";
 
 const SWARFARM_BASE = "https://swarfarm.com";
 const BATCH = 10;
@@ -34,6 +34,7 @@ export async function GET() {
   }
 
   const synced = await getSyncedMonsters();
+  const alreadyExcluded = new Set(await getNeverCleanIds());
   const dupPattern = / \(ID (\d+)\)$/;
   const pairs = [];
   for (const m of synced) {
@@ -42,6 +43,7 @@ export async function GET() {
     const baseName = m.name.replace(dupPattern, "");
     const clean = synced.find((x) => x.name === baseName);
     if (!clean) continue; // il nome pulito non esiste (raro, ma possibile se anche lui è "2A" o sparito)
+    if (alreadyExcluded.has(clean.com2usId)) continue; // già confermato in una sessione precedente — niente da rifare
     pairs.push({ baseName, cleanId: clean.com2usId, dupId: Number(match[1]) });
   }
   if (!pairs.length) return NextResponse.json({ ok: true, candidates: [] });
@@ -60,12 +62,21 @@ export async function GET() {
     batch.forEach((id, j) => detailById.set(id, results[j]));
   }
 
-  const candidates = pairs.map((p) => {
-    const cleanObtainable = detailById.get(p.cleanId)?.obtainable ?? null;
-    const dupObtainable = detailById.get(p.dupId)?.obtainable ?? null;
-    const suspicious = cleanObtainable === false && dupObtainable === true; // il "pulito" sembra quello sbagliato
-    return { ...p, cleanObtainable, dupObtainable, suspicious };
-  });
+  const candidates = pairs
+    .map((p) => {
+      const cleanObtainable = detailById.get(p.cleanId)?.obtainable ?? null;
+      const dupObtainable = detailById.get(p.dupId)?.obtainable ?? null;
+      const suspicious = cleanObtainable === false && dupObtainable === true; // il "pulito" sembra quello sbagliato
+      const alreadyCorrect = cleanObtainable === true && dupObtainable === false; // il pulito è già quello giusto
+      return { ...p, cleanObtainable, dupObtainable, suspicious, alreadyCorrect };
+    })
+    // Bug corretto il 07/08/2026 (Flora): mancava proprio questo caso — una
+    // coppia già nello stato giusto (pulito obtainable, disambiguato no)
+    // veniva comunque rimostrata come "da decidere", con un bottone che se
+    // premuto avrebbe RIROTTO quello che era già corretto. Ora se è già a
+    // posto sparisce dall'elenco, punto — niente più da fare, niente da
+    // poter sbagliare per sbaglio.
+    .filter((c) => !c.alreadyCorrect);
 
   return NextResponse.json({ ok: true, candidates });
 }
