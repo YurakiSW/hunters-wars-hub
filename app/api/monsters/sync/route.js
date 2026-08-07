@@ -94,6 +94,15 @@ function parseRaw(raw) {
   // Armor") senza nome localizzato in inglese: swarfarm restituisce il nome
   // in coreano. Non sono mostri giocabili in una Difesa/Counter, li scartiamo.
   if (/[\u3131-\uD79D\u4E00-\u9FFF]/.test(name)) return null;
+  // Verificato il 07/08/2026 (Flora): il bestiario di swarfarm include anche
+  // oggetti di gioco che non sono mostri giocabili — torri, cristalli, boss
+  // di raid/world boss ecc. (es. "Tower", "Small Crystal", "Twisted
+  // Wraithlord", "Legion Commander of..."). Hanno tutti archetype:"none",
+  // mentre un mostro vero ha sempre Attack/Defense/HP/Support — MAI potresti
+  // giocarli in un Counter/Difesa, quindi li scartiamo qui, stesso punto dei
+  // nomi coreani. Anche il campo già presente nella lista, zero chiamate in
+  // più.
+  if (raw.archetype === "none") return null;
 
   return { name, element, iconUrl: `${ICON_BASE}${imageFilename}`, com2usId, pk };
 }
