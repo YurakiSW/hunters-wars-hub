@@ -886,6 +886,8 @@ function DiagnosticaTab() {
   const [loading, setLoading] = useState(true);
   const [dataHealth, setDataHealth] = useState(null);
   const [loadingHealth, setLoadingHealth] = useState(true);
+  const [fixingLeader, setFixingLeader] = useState(null);
+  const [fixedLeaders, setFixedLeaders] = useState(new Set());
   const [dupInfo, setDupInfo] = useState(null);
   const [cleaning, setCleaning] = useState(false);
   const [syncingMon, setSyncingMon] = useState(false);
@@ -926,6 +928,15 @@ function DiagnosticaTab() {
       setDataHealth(d.ok ? d : null);
       setLoadingHealth(false);
     });
+  }
+
+  async function fixLeader(counterId) {
+    setFixingLeader(counterId);
+    const res = await fetch("/api/admin/counters/fix-lead", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ counterId }),
+    });
+    setFixingLeader(null);
+    if (res.ok) setFixedLeaders((prev) => new Set([...prev, counterId]));
   }
 
   useEffect(() => { load(); loadDupInfo(); loadDataHealth(); }, []);
@@ -1018,11 +1029,31 @@ function DiagnosticaTab() {
               {dataHealth.defsWithoutCounters.length}
             </span>
           </div>
-          <div className="card" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-            <span style={{ fontSize: 13.5 }}>{dataHealth.countersWithoutLead.length === 0 ? "✅" : "⚠️"} Counter approvati senza leader segnato</span>
-            <span className="f-mono" style={{ fontSize: 11.5, color: dataHealth.countersWithoutLead.length === 0 ? "var(--green)" : "var(--gold)" }}>
-              {dataHealth.countersWithoutLead.length}
-            </span>
+          <div className="card" style={{ marginBottom: 8 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontSize: 13.5 }}>{dataHealth.countersWithoutLead.length === 0 ? "✅" : "⚠️"} Counter approvati senza leader segnato</span>
+              <span className="f-mono" style={{ fontSize: 11.5, color: dataHealth.countersWithoutLead.length === 0 ? "var(--green)" : "var(--gold)" }}>
+                {dataHealth.countersWithoutLead.length}
+              </span>
+            </div>
+            {dataHealth.countersWithoutLead.length > 0 && (
+              <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 6 }}>
+                {dataHealth.countersWithoutLead.map((c) => (
+                  <div key={c.counterId} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "var(--bg-soft)", borderRadius: 6, padding: "6px 10px" }}>
+                    <span style={{ fontSize: 12 }}>
+                      {c.offense.join(" / ")} <span style={{ color: "var(--text-faint)" }}>contro {c.defense.join(" / ")}</span>
+                    </span>
+                    {fixedLeaders.has(c.counterId) ? (
+                      <span style={{ fontSize: 11.5, color: "var(--green)" }}>✅ Fatto</span>
+                    ) : (
+                      <button className="btn btn-gold" style={{ padding: "3px 10px", fontSize: 11.5 }} disabled={fixingLeader === c.counterId} onClick={() => fixLeader(c.counterId)}>
+                        {fixingLeader === c.counterId ? "..." : "Sistema"}
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
           <div className="card" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
             <span style={{ fontSize: 13.5 }}>{dataHealth.countersWithoutBuild.length === 0 ? "✅" : "⚠️"} Counter approvati senza build (rune/artefatti)</span>
