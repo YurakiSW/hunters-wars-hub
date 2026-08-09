@@ -389,6 +389,11 @@ export default function DeckBuildPage() {
   return (
     <div>
       <Header user={user} />
+      {refreshingAll && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 60, background: "var(--gold)", color: "#1a1408", textAlign: "center", padding: "8px 12px", fontSize: 13, fontWeight: 600 }}>
+          Aggiornamento "Da usare contro" su tutti i deck in corso... non ricaricare la pagina, attendi che finisca.
+        </div>
+      )}
       {celebration && (
         <div style={{ position: "fixed", bottom: 20, right: 20, zIndex: 50, background: "var(--bg-soft, #1b1630)", border: "1px solid var(--gold)", borderRadius: 12, padding: "10px 18px 10px 10px", display: "flex", alignItems: "center", gap: 10, boxShadow: "0 8px 24px rgba(0,0,0,.4)" }}>
           <Sticker name={celebration} revealOnClick={celebration === "felice" ? "nonoPokerface" : undefined} revealCount={6} size={84} />
