@@ -450,14 +450,30 @@ export default function DeckBuildPage() {
           )}
         </div>
 
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
-          <input placeholder="Cerca per mostro..." value={query} onChange={(e) => setQuery(e.target.value)} style={{ maxWidth: 320 }} />
-          <select value={sortMode} onChange={(e) => setSortMode(e.target.value)} disabled={reorderMode} title={reorderMode ? "Non disponibile durante il riordino manuale" : ""}>
-            <option value="none">Ordine normale</option>
-            <option value="against_desc">Più difese nemiche prima</option>
-            <option value="stars_asc">4★ prima</option>
-            <option value="stars_desc">5★ prima</option>
-          </select>
+        <div style={{ display: "flex", gap: 14, flexWrap: "wrap", alignItems: "flex-end", marginBottom: 14 }}>
+          <div>
+            <div className="f-mono" style={{ fontSize: 10, color: "var(--text-faint)", textTransform: "uppercase", marginBottom: 4 }}>
+              Cerca
+            </div>
+            <input placeholder="Cerca per mostro..." value={query} onChange={(e) => setQuery(e.target.value)} style={{ maxWidth: 320 }} />
+          </div>
+          <div>
+            <div className="f-mono" style={{ fontSize: 10, color: "var(--text-faint)", textTransform: "uppercase", marginBottom: 4 }}>
+              Ordina per
+            </div>
+            <select
+              value={sortMode}
+              onChange={(e) => setSortMode(e.target.value)}
+              disabled={reorderMode}
+              title={reorderMode ? "Non disponibile durante il riordino manuale" : ""}
+              style={{ minWidth: 220, borderColor: sortMode !== "none" ? "var(--gold)" : undefined }}
+            >
+              <option value="none">Nessuno</option>
+              <option value="against_desc">🛡 Più difese nemiche prima</option>
+              <option value="stars_asc">★ 4★ prima</option>
+              <option value="stars_desc">★★ 5★ prima</option>
+            </select>
+          </div>
         </div>
 
         {canManage && selectedIds.size > 0 && !reorderMode && (
