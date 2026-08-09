@@ -8,7 +8,7 @@ import CounterForm from "../../components/CounterForm";
 import AgainstDefPicker from "../../components/AgainstDefPicker";
 import CounterToDeckPicker from "../../components/CounterToDeckPicker";
 import MonsterCrest from "../../components/MonsterCrest";
-import { formatNickname } from "../../lib/textUtils";
+import { formatNickname, normalizeMonsterName } from "../../lib/textUtils";
 import Sticker from "../../components/Sticker";
 import NicknameHeart from "../../components/NicknameHeart";
 import LoadingScreen from "../../components/LoadingScreen";
@@ -226,6 +226,8 @@ export default function DeckBuildPage() {
   const [decks, setDecks] = useState([]);
   const [decksLoaded, setDecksLoaded] = useState(false);
   const [query, setQuery] = useState("");
+  const [sortMode, setSortMode] = useState("none"); // none | against_desc | stars_asc | stars_desc
+  const [starsByName, setStarsByName] = useState(new Map());
   const [openIds, setOpenIds] = useState(new Set());
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [reorderMode, setReorderMode] = useState(false);
@@ -257,15 +259,48 @@ export default function DeckBuildPage() {
       setUser(d.user);
     });
     load();
+    // Stelle NATURALI per mostro, per l'ordinamento "4★/5★ prima" — stesso
+    // elenco che MonsterCrest usa già per le icone, nessuna richiesta in più.
+    fetch("/api/admin/monsters").then((r) => r.json()).then((d) => {
+      const map = new Map();
+      for (const m of d.monsters || []) {
+        if (m.naturalStars != null) map.set(normalizeMonsterName(m.name), m.naturalStars);
+      }
+      setStarsByName(map);
+    });
   }, []);
 
   if (!user) return <LoadingScreen />;
   const canManage = user.role === "admin" || user.isDeckBuilder === true;
 
   const qTokens = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
-  const filtered = qTokens.length
+  const searched = qTokens.length
     ? decks.filter((d) => qTokens.every((t) => d.units.slice(0, 3).some((u) => u.name.toLowerCase().includes(t))))
     : decks;
+
+  // Stelle che "comandano" per un deck: la regola è che basta UN 5★
+  // naturale su tre a far contare tutto il deck come 5★ (in game si può
+  // usare quel deck solo contro torri 5★) — quindi si prende sempre la
+  // stella più alta tra le tre unità principali, mai una media.
+  function deckMaxStars(d) {
+    const stars = d.units.slice(0, 3).map((u) => starsByName.get(normalizeMonsterName(u.name)));
+    const known = stars.filter((s) => s != null);
+    return known.length ? Math.max(...known) : null;
+  }
+
+  const filtered = [...searched];
+  if (sortMode === "against_desc") {
+    filtered.sort((a, b) => (b.against?.length || 0) - (a.against?.length || 0));
+  } else if (sortMode === "stars_asc" || sortMode === "stars_desc") {
+    filtered.sort((a, b) => {
+      const sa = deckMaxStars(a);
+      const sb = deckMaxStars(b);
+      if (sa == null && sb == null) return 0;
+      if (sa == null) return 1; // sconosciute in fondo, mai in cima a caso
+      if (sb == null) return -1;
+      return sortMode === "stars_asc" ? sa - sb : sb - sa;
+    });
+  }
 
   function toggleOpen(id) {
     setOpenIds((prev) => {
@@ -415,7 +450,15 @@ export default function DeckBuildPage() {
           )}
         </div>
 
-        <input placeholder="Cerca per mostro..." value={query} onChange={(e) => setQuery(e.target.value)} style={{ maxWidth: 320, marginBottom: 14 }} />
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
+          <input placeholder="Cerca per mostro..." value={query} onChange={(e) => setQuery(e.target.value)} style={{ maxWidth: 320 }} />
+          <select value={sortMode} onChange={(e) => setSortMode(e.target.value)} disabled={reorderMode} title={reorderMode ? "Non disponibile durante il riordino manuale" : ""}>
+            <option value="none">Ordine normale</option>
+            <option value="against_desc">Più difese nemiche prima</option>
+            <option value="stars_asc">4★ prima</option>
+            <option value="stars_desc">5★ prima</option>
+          </select>
+        </div>
 
         {canManage && selectedIds.size > 0 && !reorderMode && (
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "var(--violet-soft)", border: "1px solid var(--violet)", borderRadius: 10, padding: "8px 12px", marginBottom: 12 }}>

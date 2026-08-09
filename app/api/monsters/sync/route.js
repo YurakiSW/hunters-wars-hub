@@ -103,8 +103,15 @@ function parseRaw(raw) {
   // nomi coreani. Anche il campo già presente nella lista, zero chiamate in
   // più.
   if (raw.archetype === "none") return null;
+  // Stelle NATURALI (quelle di partenza al summon, es. Tetsuya nasce 4★ —
+  // diverse da quelle "attuali/da risvegliata"). Provo a leggerlo dalla
+  // stessa lista di massa già scaricata: se swarfarm non lo mette lì,
+  // resta vuoto per tutti e lo vediamo subito dopo un resync — MAI
+  // aggiungere una richiesta per-mostro solo per questo (vedi lezione
+  // del 05/08/2026).
+  const naturalStars = typeof raw.natural_stars === "number" ? raw.natural_stars : null;
 
-  return { name, element, iconUrl: `${ICON_BASE}${imageFilename}`, com2usId, pk };
+  return { name, element, iconUrl: `${ICON_BASE}${imageFilename}`, com2usId, pk, naturalStars };
 }
 
 // Verifica VERA (non un indovinello) se un mostro è una seconda awakening:
@@ -173,7 +180,7 @@ export async function syncMonstersFromSwarfarm() {
       // al successivo (che se non è a sua volta escluso, vince lui).
       const baseIndex = sorted.findIndex((v) => !neverCleanIds.has(v.com2usId));
       const base = baseIndex === -1 ? sorted[0] : sorted[baseIndex];
-      safeEntries.push({ name: displayName, iconUrl: base.iconUrl, com2usId: base.com2usId, baseAccuracy: oldByComId.get(base.com2usId) ?? null });
+      safeEntries.push({ name: displayName, iconUrl: base.iconUrl, com2usId: base.com2usId, baseAccuracy: oldByComId.get(base.com2usId) ?? null, naturalStars: base.naturalStars });
       for (let i = 0; i < sorted.length; i++) {
         if (i === baseIndex || (baseIndex === -1 && i === 0)) continue;
         candidates.push({ displayName, bareName: name, extra: sorted[i] });
@@ -206,6 +213,7 @@ export async function syncMonstersFromSwarfarm() {
       iconUrl: c.extra.iconUrl,
       com2usId: c.extra.com2usId,
       baseAccuracy: oldByComId.get(c.extra.com2usId) ?? null,
+      naturalStars: c.extra.naturalStars,
     });
   }
 
