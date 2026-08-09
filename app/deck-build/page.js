@@ -295,10 +295,14 @@ export default function DeckBuildPage() {
     filtered.sort((a, b) => {
       const sa = deckMaxStars(a);
       const sb = deckMaxStars(b);
-      if (sa == null && sb == null) return 0;
+      if (sa == null && sb == null) return (b.against?.length || 0) - (a.against?.length || 0);
       if (sa == null) return 1; // sconosciute in fondo, mai in cima a caso
       if (sb == null) return -1;
-      return sortMode === "stars_asc" ? sa - sb : sb - sa;
+      if (sa !== sb) return sortMode === "stars_asc" ? sa - sb : sb - sa;
+      // A parità di stelle, il più versatile (più difese nemiche coperte)
+      // viene prima — utile a chi cerca "un buon deck a 4★" senza dover
+      // scorrere a caso tra quelli con la stessa stella.
+      return (b.against?.length || 0) - (a.against?.length || 0);
     });
   }
 
@@ -461,18 +465,24 @@ export default function DeckBuildPage() {
             <div className="f-mono" style={{ fontSize: 10, color: "var(--text-faint)", textTransform: "uppercase", marginBottom: 4 }}>
               Ordina per
             </div>
-            <select
-              value={sortMode}
-              onChange={(e) => setSortMode(e.target.value)}
-              disabled={reorderMode}
-              title={reorderMode ? "Non disponibile durante il riordino manuale" : ""}
-              style={{ minWidth: 220, borderColor: sortMode !== "none" ? "var(--gold)" : undefined }}
-            >
-              <option value="none">Nessuno</option>
-              <option value="against_desc">🛡 Più difese nemiche prima</option>
-              <option value="stars_asc">★ 4★ prima</option>
-              <option value="stars_desc">★★ 5★ prima</option>
-            </select>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {[
+                { value: "against_desc", label: "🛡 Più difese nemiche" },
+                { value: "stars_asc", label: "4★ prima" },
+                { value: "stars_desc", label: "5★ prima" },
+              ].map((opt) => (
+                <button
+                  key={opt.value}
+                  className={`btn ${sortMode === opt.value ? "btn-primary" : "btn-ghost"}`}
+                  style={{ padding: "6px 12px", fontSize: 12.5 }}
+                  disabled={reorderMode}
+                  title={reorderMode ? "Non disponibile durante il riordino manuale" : ""}
+                  onClick={() => setSortMode((prev) => (prev === opt.value ? "none" : opt.value))}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
