@@ -81,6 +81,7 @@ function DeckRow({
   deck, user, canManage, open, onToggleOpen, selected, onToggleSelect,
   onEdit, onDelete, onDuplicate, onAddAgainst, onRemoveAgainst, onRefreshAgainst, refreshing,
   reorderMode, isDragging, isDragOver, onDragStart, onDragOverRow, onDrop, onDragEnd,
+  isFavorite, onToggleFavorite, onCopyDiscord,
 }) {
   const targetCount = deck.against?.length || 0;
   return (
@@ -124,6 +125,10 @@ function DeckRow({
         </div>
         {!reorderMode && (
           <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+            <button className="btn btn-ghost" title={isFavorite ? "Togli dai preferiti" : "Aggiungi ai preferiti"} onClick={onToggleFavorite} style={{ color: isFavorite ? "var(--gold)" : undefined }}>
+              {isFavorite ? "★" : "☆"}
+            </button>
+            <button className="btn btn-ghost" title="Copia su chat esterna" onClick={onCopyDiscord}>📋</button>
             <button className="btn btn-ghost" onClick={onToggleOpen}>{open ? "Nascondi dettagli ▲" : "Mostra dettagli completi ▼"}</button>
             {canManage && <button className="btn btn-ghost" onClick={onEdit}>✎</button>}
             {canManage && <button className="btn btn-ghost" onClick={onDuplicate}>⧉</button>}
@@ -223,6 +228,7 @@ function DeckRow({
 
 export default function DeckBuildPage() {
   const [user, setUser] = useState(null);
+  const [favoriteDeckIds, setFavoriteDeckIds] = useState(new Set());
   const [decks, setDecks] = useState([]);
   const [decksLoaded, setDecksLoaded] = useState(false);
   const [query, setQuery] = useState("");
@@ -257,6 +263,7 @@ export default function DeckBuildPage() {
       if (!d.user) return router.push("/login");
       if (d.user.status !== "approved") return router.push("/pending");
       setUser(d.user);
+      setFavoriteDeckIds(new Set(d.user.favoriteDeckIds || []));
     });
     load();
     // Stelle NATURALI per mostro, per l'ordinamento "4★/5★ prima" — stesso
@@ -304,6 +311,14 @@ export default function DeckBuildPage() {
       // scorrere a caso tra quelli con la stessa stella.
       return (b.against?.length || 0) - (a.against?.length || 0);
     });
+  }
+  // I preferiti vengono sempre prima, qualunque sia il criterio scelto
+  // sopra (o nessuno) — personali per account, non spostano l'ordine per
+  // nessun altro. Mai durante il riordino manuale, altrimenti confonde il
+  // trascinamento (l'ordine visivo non corrisponderebbe a dove stai
+  // trascinando davvero).
+  if (!reorderMode) {
+    filtered.sort((a, b) => (favoriteDeckIds.has(b.id) ? 1 : 0) - (favoriteDeckIds.has(a.id) ? 1 : 0));
   }
 
   function toggleOpen(id) {
@@ -398,6 +413,42 @@ export default function DeckBuildPage() {
       alert(data.error);
     }
   }
+  async function toggleFavoriteDeck(deckId) {
+    const res = await fetch("/api/me/favorites", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: "deck", id: deckId }),
+    });
+    const data = await res.json();
+    if (res.ok) setFavoriteDeckIds(new Set(data.favoriteDeckIds));
+  }
+
+  function formatDeckForDiscord(deck) {
+    const main = deck.units.slice(0, 3);
+    const leadUnit = main.find((u) => u.lead);
+    const lines = [`⚔️ ${main.map((u) => u.name).join(" / ")}`];
+    if (leadUnit) lines.push(`👑 Lead: ${leadUnit.name}`);
+    lines.push("");
+    for (const u of main) {
+      const runes = u.statsFlexible ? "Set libero" : u.runes || null;
+      const stats = u.statsFlexible ? (u.statsMinText ? `+ ${u.statsMinText}` : null) : u.stats || null;
+      const parts = [u.name, runes, stats].filter(Boolean);
+      lines.push(parts.join(" — "));
+    }
+    if (deck.against?.length) {
+      lines.push("");
+      lines.push(`🎯 Funziona contro: ${deck.against.map((a) => a.monsters.join("/")).join(" | ")}`);
+    }
+    return lines.join("\n");
+  }
+
+  async function copyDeckToDiscord(deck) {
+    const text = formatDeckForDiscord(deck);
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      alert(`Impossibile copiare in automatico, eccolo:\n\n${text}`);
+    }
+  }
+
   async function refreshAllAgainst() {
     setRefreshingAll(true);
     const res = await fetch("/api/decks/refresh-all-against", { method: "POST" });
@@ -509,6 +560,9 @@ export default function DeckBuildPage() {
             onAddAgainst={() => setAddingAgainstTo(deck.id)}
             onRemoveAgainst={(entryId) => removeAgainst(deck.id, entryId)}
             onRefreshAgainst={() => refreshAgainst(deck.id)}
+            isFavorite={favoriteDeckIds.has(deck.id)}
+            onToggleFavorite={() => toggleFavoriteDeck(deck.id)}
+            onCopyDiscord={() => copyDeckToDiscord(deck)}
             refreshing={refreshingId === deck.id}
             reorderMode={reorderMode}
             isDragging={draggedId === deck.id}

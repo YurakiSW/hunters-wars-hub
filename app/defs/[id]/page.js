@@ -24,6 +24,7 @@ export default function DefDetailPage({ params }) {
   const [editingDef, setEditingDef] = useState(false);
   const [confirmDeleteCounter, setConfirmDeleteCounter] = useState(null);
   const [confirmDeleteDef, setConfirmDeleteDef] = useState(false);
+  const [favoriteCounterIds, setFavoriteCounterIds] = useState(new Set());
   const router = useRouter();
 
   async function load() {
@@ -37,6 +38,7 @@ export default function DefDetailPage({ params }) {
       if (!d.user) return router.push("/login");
       if (d.user.status !== "approved") return router.push("/pending");
       setUser(d.user);
+      setFavoriteCounterIds(new Set(d.user.favoriteCounterIds || []));
     });
     fetch("/api/managers").then((r) => r.json()).then((d) => setManagerNicknames(d.nicknames || [])).catch(() => {});
     load();
@@ -51,6 +53,39 @@ export default function DefDetailPage({ params }) {
     const data = await res.json();
     if (data.deck) router.push("/deck-build");
     else if (data.error) alert(data.error);
+  }
+
+  async function toggleFavoriteCounter(counterId) {
+    const res = await fetch("/api/me/favorites", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: "counter", id: counterId }),
+    });
+    const data = await res.json();
+    if (res.ok) setFavoriteCounterIds(new Set(data.favoriteCounterIds));
+  }
+
+  function formatCounterForDiscord(c) {
+    const main = c.units.slice(0, 3);
+    const lines = [`⚔️ ${c.offense.join(" / ")}`];
+    if (c.lead) lines.push(`👑 Lead: ${c.lead}`);
+    lines.push("");
+    for (const u of main) {
+      const runes = u.statsFlexible ? "Set libero" : u.runes || null;
+      const stats = u.statsFlexible ? (u.statsMinText ? `+ ${u.statsMinText}` : null) : u.stats || null;
+      const parts = [u.name, runes, stats].filter(Boolean);
+      lines.push(parts.join(" — "));
+    }
+    lines.push("");
+    lines.push(`🎯 Funziona contro: ${def.monsters.join("/")}`);
+    return lines.join("\n");
+  }
+
+  async function copyCounterToDiscord(c) {
+    const text = formatCounterForDiscord(c);
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      alert(`Impossibile copiare in automatico, eccolo:\n\n${text}`);
+    }
   }
 
   async function submitNewCounter(payload) {
@@ -135,7 +170,7 @@ export default function DefDetailPage({ params }) {
           </div>
         </div>
 
-        {def.counters.map((c) => (
+        {[...def.counters].sort((a, b) => (favoriteCounterIds.has(b.id) ? 1 : 0) - (favoriteCounterIds.has(a.id) ? 1 : 0)).map((c) => (
           <CounterCard
             canManageDecks={canManageDecks}
             onCopyToDeck={() => copyToDeck(c.id)}
@@ -149,6 +184,9 @@ export default function DefDetailPage({ params }) {
             onApprove={() => approveCounter(c.id, "approved")}
             onReject={() => setConfirmDeleteCounter(c)}
             onUnapprove={() => approveCounter(c.id, "pending")}
+            isFavorite={favoriteCounterIds.has(c.id)}
+            onToggleFavorite={() => toggleFavoriteCounter(c.id)}
+            onCopyDiscord={() => copyCounterToDiscord(c)}
           />
         ))}
         {def.counters.length === 0 && <p style={{ color: "var(--text-faint)" }}>Nessun counter ancora per questa difesa.</p>}
@@ -276,7 +314,7 @@ function UnitBuildDetails({ u }) {
   );
 }
 
-function CounterCard({ counter: c, user, canManage, managerNicknames, onEdit, onDelete, onApprove, onReject, onUnapprove, canManageDecks, onCopyToDeck }) {
+function CounterCard({ counter: c, user, canManage, managerNicknames, onEdit, onDelete, onApprove, onReject, onUnapprove, canManageDecks, onCopyToDeck, isFavorite, onToggleFavorite, onCopyDiscord }) {
   const [open, setOpen] = useState(false);
   const canEdit = canManage || (c.authorId === user.id && c.status === "pending");
 
@@ -300,6 +338,10 @@ function CounterCard({ counter: c, user, canManage, managerNicknames, onEdit, on
             </span>
           )}
           {canEdit && <button className="btn btn-ghost" onClick={onEdit}>✎</button>}
+          <button className="btn btn-ghost" title={isFavorite ? "Togli dai preferiti" : "Aggiungi ai preferiti"} onClick={onToggleFavorite} style={{ color: isFavorite ? "var(--gold)" : undefined }}>
+            {isFavorite ? "★" : "☆"}
+          </button>
+          <button className="btn btn-ghost" title="Copia su chat esterna" onClick={onCopyDiscord}>📋</button>
           {canManageDecks && c.status === "approved" && (
             <button className="btn btn-ghost" title="Crea una copia indipendente su ATK Deck" onClick={onCopyToDeck}>⧉ Copia su Deck</button>
           )}
