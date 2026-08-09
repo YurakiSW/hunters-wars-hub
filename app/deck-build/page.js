@@ -238,6 +238,7 @@ export default function DeckBuildPage() {
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
   const [addingAgainstTo, setAddingAgainstTo] = useState(null);
   const [refreshingId, setRefreshingId] = useState(null);
+  const [refreshingAll, setRefreshingAll] = useState(false);
   const [error, setError] = useState("");
   const [celebration, setCelebration] = useState(null); // "felice" | "trombetta" | null
   const router = useRouter();
@@ -346,7 +347,26 @@ export default function DeckBuildPage() {
     setRefreshingId(null);
     if (res.ok) {
       load();
-      if (data.added === 0) alert("Nessuna Difesa nuova trovata per questa squadra.");
+      if (data.added === 0 && !data.removed) {
+        alert("Nessuna Difesa nuova trovata per questa squadra.");
+      } else {
+        const parts = [];
+        if (data.added) parts.push(`${data.added} nuova/e aggiunta/e`);
+        if (data.removed) parts.push(`${data.removed} ritirata/e (counter di origine non più valido)`);
+        alert(parts.join(", ") + ".");
+      }
+    } else if (data.error) {
+      alert(data.error);
+    }
+  }
+  async function refreshAllAgainst() {
+    setRefreshingAll(true);
+    const res = await fetch("/api/decks/refresh-all-against", { method: "POST" });
+    const data = await res.json();
+    setRefreshingAll(false);
+    if (res.ok) {
+      load();
+      alert(`${data.decksChecked} deck controllati, ${data.decksChanged} aggiornati — ${data.added} aggiunta/e, ${data.removed} ritirata/e in totale.`);
     } else if (data.error) {
       alert(data.error);
     }
@@ -383,6 +403,9 @@ export default function DeckBuildPage() {
               <button className="btn btn-ghost" onClick={() => setReorderMode((r) => !r)}>{reorderMode ? "Fine riordino" : "Riordina"}</button>
               <button className="btn btn-primary" onClick={() => setShowNewForm(true)}>+ Nuovo deck</button>
               <button className="btn btn-ghost" onClick={() => setShowCounterPicker(true)}>+ Deck da counter</button>
+              <button className="btn btn-ghost" onClick={refreshAllAgainst} disabled={refreshingAll}>
+                {refreshingAll ? "..." : "🔄 Aggiorna tutti"}
+              </button>
             </div>
           )}
         </div>
