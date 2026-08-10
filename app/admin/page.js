@@ -441,24 +441,40 @@ function DuplicateCollabCard() {
   const [bulkExcluding, setBulkExcluding] = useState(false);
   const [excludedIds, setExcludedIds] = useState(null);
   const [loadingExcludedIds, setLoadingExcludedIds] = useState(false);
+  const [excludedIdsError, setExcludedIdsError] = useState("");
   const [removingId, setRemovingId] = useState(null);
   const [removeInput, setRemoveInput] = useState("");
 
   async function loadExcludedIds() {
     setLoadingExcludedIds(true);
-    const res = await fetch("/api/admin/monsters/excluded-ids");
-    const data = await res.json();
-    setLoadingExcludedIds(false);
-    if (res.ok) setExcludedIds(data.ids);
+    setExcludedIdsError("");
+    try {
+      const res = await fetch("/api/admin/monsters/excluded-ids");
+      const data = await res.json();
+      if (res.ok) setExcludedIds(data.ids);
+      else setExcludedIdsError(data.error || `Errore ${res.status}`);
+    } catch (err) {
+      setExcludedIdsError(`Richiesta fallita: ${String(err.message || err)}`);
+    } finally {
+      setLoadingExcludedIds(false);
+    }
   }
 
   async function removeExclusion(id) {
     setRemovingId(id);
-    const res = await fetch("/api/admin/monsters/exclude-id", {
-      method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ com2usId: id }),
-    });
-    setRemovingId(null);
-    if (res.ok) loadExcludedIds();
+    setExcludedIdsError("");
+    try {
+      const res = await fetch("/api/admin/monsters/exclude-id", {
+        method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ com2usId: id }),
+      });
+      const data = await res.json();
+      if (res.ok) loadExcludedIds();
+      else setExcludedIdsError(data.error || `Errore ${res.status}`);
+    } catch (err) {
+      setExcludedIdsError(`Richiesta fallita: ${String(err.message || err)}`);
+    } finally {
+      setRemovingId(null);
+    }
   }
 
   async function check() {
@@ -557,6 +573,7 @@ function DuplicateCollabCard() {
         <button className="btn btn-ghost" onClick={loadExcludedIds} disabled={loadingExcludedIds}>
           {loadingExcludedIds && <Spinner />}👁 Mostra lista esclusioni
         </button>
+        {excludedIdsError && <p style={{ color: "var(--red)", fontSize: 12.5, marginTop: 8 }}>⚠️ {excludedIdsError}</p>}
         {excludedIds && (
           <div style={{ marginTop: 10 }}>
             {excludedIds.length === 0 ? (
