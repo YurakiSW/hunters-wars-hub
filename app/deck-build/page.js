@@ -456,10 +456,6 @@ export default function DeckBuildPage() {
       lines.push("");
       lines.push(`⏱ Speed Tuning: ${deck.turnOrder.join(" → ")}`);
     }
-    if (deck.against?.length) {
-      lines.push("");
-      lines.push(`🎯 Funziona contro: ${deck.against.map((a) => a.monsters.join("/")).join(" | ")}`);
-    }
     return lines.join("\n");
   }
 

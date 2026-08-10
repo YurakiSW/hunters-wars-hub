@@ -100,8 +100,6 @@ export default function DefDetailPage({ params }) {
     if (c.focus?.length) {
       lines.push(`🔥 Focus priority: ${c.focus.join(" → ")}`);
     }
-    lines.push("");
-    lines.push(`🎯 Funziona contro: ${def.monsters.join("/")}`);
     return lines.join("\n");
   }
 
