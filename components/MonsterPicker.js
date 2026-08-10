@@ -14,12 +14,19 @@ export default function MonsterPicker({ value, onChange, placeholder }) {
   }, []);
 
   const q = normalize(value);
+  // Le versioni "(ID xxxxx)" (doppioni collab vecchi/sbagliati, esclusi dal
+  // nome pulito — vedi Admin → Mostri → Controlla doppioni collab) restano
+  // nella lista SOLO per riconoscere ancora le Difese/Counter vecchi che le
+  // hanno già salvate nel testo — non hanno senso come suggerimento per una
+  // scelta NUOVA, quindi si tolgono qui dai suggerimenti (ma non da isValid,
+  // altrimenti un valore vecchio già salvato sembrerebbe "sconosciuto").
+  const suggestable = allNames.filter((n) => !/ \(ID \d+\)$/.test(n));
   // Chi INIZIA col testo scritto viene prima di chi lo contiene solo in
   // mezzo — altrimenti con liste lunghe (2000+ mostri) il nome giusto
   // rischia di restare fuori dai primi risultati mostrati.
   const matches = !q
-    ? allNames.slice(0, 8)
-    : allNames
+    ? suggestable.slice(0, 8)
+    : suggestable
         .filter((n) => normalize(n).includes(q))
         .sort((a, b) => {
           const aStarts = normalize(a).startsWith(q) ? 0 : 1;
