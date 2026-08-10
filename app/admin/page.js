@@ -380,6 +380,12 @@ function MonstersTab() {
   const [manual, setManual] = useState([]);
   const [name, setName] = useState("");
   const [iconUrl, setIconUrl] = useState("");
+  const [syncingMon, setSyncingMon] = useState(false);
+  const [syncMonMsg, setSyncMonMsg] = useState("");
+  const [syncNewMonsters, setSyncNewMonsters] = useState([]);
+  const [lookupId, setLookupId] = useState("");
+  const [lookingUp, setLookingUp] = useState(false);
+  const [lookupResult, setLookupResult] = useState(null);
 
   useEffect(() => { fetch("/api/admin/monsters?manualOnly=1").then((r) => r.json()).then((d) => setManual(d.manual || [])); }, []);
 
@@ -394,8 +400,96 @@ function MonstersTab() {
     if (res.ok) setManual(data.manual);
   }
 
+  // Spostati qui dentro l'08/08/2026 (Flora): prima "Sincronizza bestiario"
+  // stava in Diagnostica mentre "Controlla doppioni collab" stava qui —
+  // due tab diverse per due cose strettamente collegate (serve un resync
+  // subito dopo aver confermato un'esclusione). Ora tutto quello che
+  // riguarda il bestiario vive in un solo posto.
+  async function syncMonsters() {
+    setSyncingMon(true);
+    setSyncMonMsg("");
+    const res = await fetch("/api/admin/maintenance", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "sync_monsters" }),
+    });
+    const data = await res.json();
+    setSyncingMon(false);
+    setSyncMonMsg(res.ok ? `Bestiario aggiornato: ${data.count} mostri sincronizzati da swarfarm.` : data.error);
+    setSyncNewMonsters(res.ok ? (data.newSinceLastSync || []) : []);
+    if (res.ok) {
+      invalidateMonsterCache();
+      invalidateTwinCache();
+      window.dispatchEvent(new Event(MONSTERS_SYNCED_EVENT));
+    }
+  }
+
+  async function doLookup() {
+    setLookingUp(true);
+    setLookupResult(null);
+    const res = await fetch(`/api/admin/monsters/lookup?id=${lookupId}`);
+    const data = await res.json();
+    setLookingUp(false);
+    setLookupResult(res.ok ? data : { error: data.error });
+  }
+
   return (
     <div>
+      <div className="card" style={{ marginBottom: 10 }}>
+        <button className="btn btn-primary" disabled={syncingMon} onClick={syncMonsters}>
+          {syncingMon && <Spinner />}🔃 Sincronizza bestiario da swarfarm
+        </button>
+        {syncingMon && <Sticker name="letto" size={90} alt="" style={{ marginLeft: 10, verticalAlign: "middle" }} />}
+        <p style={{ fontSize: 11.5, color: "var(--text-faint)", marginTop: 8 }}>
+          Scarica l&apos;elenco aggiornato dei mostri (nomi, icone, accuracy base). Lancialo quando escono mostri
+          nuovi o dopo un collab, altrimenti i nomi nuovi non vengono riconosciuti nei log.
+        </p>
+        {syncMonMsg && <p style={{ fontSize: 12.5, color: "var(--green)", marginTop: 8 }}>{syncMonMsg}</p>}
+        {syncNewMonsters.length > 0 && (
+          <div style={{ marginTop: 8, display: "flex", alignItems: "flex-start", gap: 8 }}>
+            <Sticker name="saltella" size={52} style={{ flexShrink: 0 }} />
+            <div>
+            <div className="f-mono" style={{ fontSize: 10.5, color: "var(--gold)", marginBottom: 4 }}>
+              NUOVI RISPETTO ALL&apos;ULTIMO SYNC ({syncNewMonsters.length}) — dagli un'occhiata, potrebbero essere un collab
+            </div>
+            <p style={{ fontSize: 12, color: "var(--text-muted)" }}>
+              {syncNewMonsters.map((m) => m.name).join(", ")}
+            </p>
+            </div>
+          </div>
+        )}
+      </div>
+      <div className="card" style={{ marginBottom: 18 }}>
+        <div className="f-mono" style={{ fontSize: 11, color: "var(--text-faint)", marginBottom: 8 }}>
+          🔍 CERCA UN ID MOSTRO SU SWARFARM (in diretta, senza aspettare un sync)
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <input
+            value={lookupId} onChange={(e) => setLookupId(e.target.value.replace(/\D/g, ""))}
+            placeholder="es. 14034" style={{ width: 140 }}
+            onKeyDown={(e) => e.key === "Enter" && doLookup()}
+          />
+          <button className="btn btn-ghost" disabled={lookingUp || !lookupId} onClick={doLookup}>
+            {lookingUp && <Spinner />}Cerca
+          </button>
+        </div>
+        <p style={{ fontSize: 11.5, color: "var(--text-faint)", marginTop: 8 }}>
+          Utile quando un ID resta &quot;Sconosciuto&quot; e vuoi sapere subito di che mostro si tratta, senza
+          dover rifare un resync completo.
+        </p>
+        {lookupResult && (
+          <div style={{ marginTop: 8, padding: "8px 10px", background: "var(--bg-soft)", borderRadius: 6, fontSize: 12.5 }}>
+            {lookupResult.error ? (
+              <span style={{ color: "var(--red)" }}>{lookupResult.error}</span>
+            ) : !lookupResult.found ? (
+              <span style={{ color: "var(--text-faint)" }}>Nessun mostro trovato con questo ID su swarfarm.</span>
+            ) : (
+              <span>
+                ID {lookupResult.com2usId} = <strong>{lookupResult.name}</strong> ({lookupResult.element}, {lookupResult.archetype})
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+
       <div className="card" style={{ marginBottom: 18 }}>
         <div className="section-label">Aggiungi mostro a mano</div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
@@ -972,21 +1066,7 @@ function DiagnosticaTab() {
   const [fixedLeaders, setFixedLeaders] = useState(new Set());
   const [dupInfo, setDupInfo] = useState(null);
   const [cleaning, setCleaning] = useState(false);
-  const [syncingMon, setSyncingMon] = useState(false);
-  const [syncMonMsg, setSyncMonMsg] = useState("");
-  const [syncNewMonsters, setSyncNewMonsters] = useState([]);
-  const [lookupId, setLookupId] = useState("");
-  const [lookingUp, setLookingUp] = useState(false);
-  const [lookupResult, setLookupResult] = useState(null);
 
-  async function doLookup() {
-    setLookingUp(true);
-    setLookupResult(null);
-    const res = await fetch(`/api/admin/monsters/lookup?id=${lookupId}`);
-    const data = await res.json();
-    setLookingUp(false);
-    setLookupResult(res.ok ? data : { error: data.error });
-  }
   const [merging, setMerging] = useState(false);
   const [mergeMsg, setMergeMsg] = useState("");
   const [reviewGroups, setReviewGroups] = useState([]);
@@ -1055,25 +1135,6 @@ function DiagnosticaTab() {
     );
     setReviewGroups(review);
     loadDupInfo();
-  }
-
-  async function syncMonsters() {
-    setSyncingMon(true);
-    setSyncMonMsg("");
-    const res = await fetch("/api/admin/maintenance", {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "sync_monsters" }),
-    });
-    const data = await res.json();
-    setSyncingMon(false);
-    setSyncMonMsg(res.ok ? `Bestiario aggiornato: ${data.count} mostri sincronizzati da swarfarm.` : data.error);
-    setSyncNewMonsters(res.ok ? (data.newSinceLastSync || []) : []);
-    if (res.ok) {
-      // Le liste sono in cache condivisa: senza svuotarle, i mostri nuovi non
-      // comparirebbero nelle icone e nella tabella collab fino a un reload.
-      invalidateMonsterCache();
-      invalidateTwinCache();
-      window.dispatchEvent(new Event(MONSTERS_SYNCED_EVENT));
-    }
   }
 
   return (
@@ -1183,63 +1244,6 @@ function DiagnosticaTab() {
           </div>
         )}
       </div>
-      <div className="card" style={{ marginBottom: 10 }}>
-        <button className="btn btn-primary" disabled={syncingMon} onClick={syncMonsters}>
-          {syncingMon && <Spinner />}🔃 Sincronizza bestiario da swarfarm
-        </button>
-        {syncingMon && <Sticker name="letto" size={90} alt="" style={{ marginLeft: 10, verticalAlign: "middle" }} />}
-        <p style={{ fontSize: 11.5, color: "var(--text-faint)", marginTop: 8 }}>
-          Scarica l&apos;elenco aggiornato dei mostri (nomi, icone, accuracy base). Lancialo quando escono mostri
-          nuovi o dopo un collab, altrimenti i nomi nuovi non vengono riconosciuti nei log.
-        </p>
-        {syncMonMsg && <p style={{ fontSize: 12.5, color: "var(--green)", marginTop: 8 }}>{syncMonMsg}</p>}
-        {syncNewMonsters.length > 0 && (
-          <div style={{ marginTop: 8, display: "flex", alignItems: "flex-start", gap: 8 }}>
-            <Sticker name="saltella" size={52} style={{ flexShrink: 0 }} />
-            <div>
-            <div className="f-mono" style={{ fontSize: 10.5, color: "var(--gold)", marginBottom: 4 }}>
-              NUOVI RISPETTO ALL&apos;ULTIMO SYNC ({syncNewMonsters.length}) — dagli un'occhiata, potrebbero essere un collab
-            </div>
-            <p style={{ fontSize: 12, color: "var(--text-muted)" }}>
-              {syncNewMonsters.map((m) => m.name).join(", ")}
-            </p>
-            </div>
-          </div>
-        )}
-      </div>
-      <div className="card" style={{ marginBottom: 10 }}>
-        <div className="f-mono" style={{ fontSize: 11, color: "var(--text-faint)", marginBottom: 8 }}>
-          🔍 CERCA UN ID MOSTRO SU SWARFARM (in diretta, senza aspettare un sync)
-        </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <input
-            value={lookupId} onChange={(e) => setLookupId(e.target.value.replace(/\D/g, ""))}
-            placeholder="es. 14034" style={{ width: 140 }}
-            onKeyDown={(e) => e.key === "Enter" && doLookup()}
-          />
-          <button className="btn btn-ghost" disabled={lookingUp || !lookupId} onClick={doLookup}>
-            {lookingUp && <Spinner />}Cerca
-          </button>
-        </div>
-        <p style={{ fontSize: 11.5, color: "var(--text-faint)", marginTop: 8 }}>
-          Utile quando un ID resta &quot;Sconosciuto&quot; e vuoi sapere subito di che mostro si tratta, senza
-          dover rifare un resync completo.
-        </p>
-        {lookupResult && (
-          <div style={{ marginTop: 8, padding: "8px 10px", background: "var(--bg-soft)", borderRadius: 6, fontSize: 12.5 }}>
-            {lookupResult.error ? (
-              <span style={{ color: "var(--red)" }}>{lookupResult.error}</span>
-            ) : !lookupResult.found ? (
-              <span style={{ color: "var(--text-faint)" }}>Nessun mostro trovato con questo ID su swarfarm.</span>
-            ) : (
-              <span>
-                ID {lookupResult.com2usId} = <strong>{lookupResult.name}</strong> ({lookupResult.element}, {lookupResult.archetype})
-              </span>
-            )}
-          </div>
-        )}
-      </div>
-
       <div className="section-label" style={{ marginTop: 28 }}>🛡️ Difese Gilda — import log</div>
       <SiegeDefenseImportCard />
     </div>
