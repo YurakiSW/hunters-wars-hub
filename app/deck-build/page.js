@@ -11,6 +11,7 @@ import MonsterCrest from "../../components/MonsterCrest";
 import { formatNickname, normalizeMonsterName } from "../../lib/textUtils";
 import Sticker from "../../components/Sticker";
 import NicknameHeart from "../../components/NicknameHeart";
+import WhatsAppIcon from "../../components/WhatsAppIcon";
 import LoadingScreen from "../../components/LoadingScreen";
 
 function UnitBuildDetails({ u }) {
@@ -128,7 +129,7 @@ function DeckRow({
             <button className="btn btn-ghost" title={isFavorite ? "Togli dai preferiti" : "Aggiungi ai preferiti"} onClick={onToggleFavorite} style={{ color: isFavorite ? "var(--gold)" : undefined }}>
               {isFavorite ? "★" : "☆"}
             </button>
-            <button className="btn btn-ghost" title="Copia su chat esterna" onClick={onCopyDiscord}>📋</button>
+            <button className="btn btn-ghost" title="Copia su chat esterna" onClick={onCopyDiscord}><WhatsAppIcon /></button>
             <button className="btn btn-ghost" onClick={onToggleOpen}>{open ? "Nascondi dettagli ▲" : "Mostra dettagli completi ▼"}</button>
             {canManage && <button className="btn btn-ghost" onClick={onEdit}>✎</button>}
             {canManage && <button className="btn btn-ghost" onClick={onDuplicate}>⧉</button>}
@@ -427,11 +428,12 @@ export default function DeckBuildPage() {
     const lines = [`⚔️ ${main.map((u) => u.name).join(" / ")}`];
     if (leadUnit) lines.push(`👑 Lead: ${leadUnit.name}`);
     lines.push("");
-    for (const u of main) {
+    main.forEach((u, i) => {
       const runes = u.statsFlexible ? "Set libero" : u.runes || null;
-      const stats = u.statsFlexible ? (u.statsMinText ? `+ ${u.statsMinText}` : null) : u.stats || null;
-      const parts = [u.name, runes, stats].filter(Boolean);
-      lines.push(parts.join(" — "));
+      const rawStats = u.statsFlexible ? (u.statsMinText ? `+ ${u.statsMinText}` : null) : u.stats || null;
+      const stats = rawStats ? rawStats.replace(/Accuracy%/g, "ACC%") : null;
+      const line = [runes, stats].filter(Boolean).join(" — ");
+      lines.push(line ? `*${u.name}*: ${line}` : `*${u.name}*`);
       const cs = u.combatStats;
       if (cs && Object.values(cs).some((v) => v != null)) {
         const bits = [
@@ -441,7 +443,8 @@ export default function DeckBuildPage() {
         ].filter(Boolean);
         if (bits.length) lines.push(`   ${bits.join(" · ")}`);
       }
-    }
+      if (i < main.length - 1) lines.push("");
+    });
     if (deck.against?.length) {
       lines.push("");
       lines.push(`🎯 Funziona contro: ${deck.against.map((a) => a.monsters.join("/")).join(" | ")}`);

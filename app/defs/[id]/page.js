@@ -12,6 +12,7 @@ import VideoPreview from "../../../components/VideoPreview";
 import LoadingScreen from "../../../components/LoadingScreen";
 import { formatNickname, displayAuthorName, counterAuthorLabel } from "../../../lib/textUtils";
 import NicknameHeart from "../../../components/NicknameHeart";
+import WhatsAppIcon from "../../../components/WhatsAppIcon";
 
 export default function DefDetailPage({ params }) {
   const [managerNicknames, setManagerNicknames] = useState([]);
@@ -68,11 +69,12 @@ export default function DefDetailPage({ params }) {
     const lines = [`⚔️ ${c.offense.join(" / ")}`];
     if (c.lead) lines.push(`👑 Lead: ${c.lead}`);
     lines.push("");
-    for (const u of main) {
+    main.forEach((u, i) => {
       const runes = u.statsFlexible ? "Set libero" : u.runes || null;
-      const stats = u.statsFlexible ? (u.statsMinText ? `+ ${u.statsMinText}` : null) : u.stats || null;
-      const parts = [u.name, runes, stats].filter(Boolean);
-      lines.push(parts.join(" — "));
+      const rawStats = u.statsFlexible ? (u.statsMinText ? `+ ${u.statsMinText}` : null) : u.stats || null;
+      const stats = rawStats ? rawStats.replace(/Accuracy%/g, "ACC%") : null;
+      const line = [runes, stats].filter(Boolean).join(" — ");
+      lines.push(line ? `*${u.name}*: ${line}` : `*${u.name}*`);
       const cs = u.combatStats;
       if (cs && Object.values(cs).some((v) => v != null)) {
         const bits = [
@@ -82,7 +84,8 @@ export default function DefDetailPage({ params }) {
         ].filter(Boolean);
         if (bits.length) lines.push(`   ${bits.join(" · ")}`);
       }
-    }
+      if (i < main.length - 1) lines.push("");
+    });
     lines.push("");
     lines.push(`🎯 Funziona contro: ${def.monsters.join("/")}`);
     return lines.join("\n");
@@ -350,7 +353,7 @@ function CounterCard({ counter: c, user, canManage, managerNicknames, onEdit, on
           <button className="btn btn-ghost" title={isFavorite ? "Togli dai preferiti" : "Aggiungi ai preferiti"} onClick={onToggleFavorite} style={{ color: isFavorite ? "var(--gold)" : undefined }}>
             {isFavorite ? "★" : "☆"}
           </button>
-          <button className="btn btn-ghost" title="Copia su chat esterna" onClick={onCopyDiscord}>📋</button>
+          <button className="btn btn-ghost" title="Copia su chat esterna" onClick={onCopyDiscord}><WhatsAppIcon /></button>
           {canManageDecks && c.status === "approved" && (
             <button className="btn btn-ghost" title="Crea una copia indipendente su ATK Deck" onClick={onCopyToDeck}>⧉ Copia su Deck</button>
           )}
