@@ -73,6 +73,15 @@ export default function DefDetailPage({ params }) {
       const stats = u.statsFlexible ? (u.statsMinText ? `+ ${u.statsMinText}` : null) : u.stats || null;
       const parts = [u.name, runes, stats].filter(Boolean);
       lines.push(parts.join(" — "));
+      const cs = u.combatStats;
+      if (cs && Object.values(cs).some((v) => v != null)) {
+        const bits = [
+          cs.hp != null && `HP ${cs.hp}`, cs.atk != null && `ATK ${cs.atk}`, cs.def != null && `DEF ${cs.def}`, cs.spd != null && `SPD ${cs.spd}`,
+          cs.critRate != null && `CRI Rate ${cs.critRate}%`, cs.critDmg != null && `CRI Dmg ${cs.critDmg}%`,
+          cs.resistance != null && `Resistance ${cs.resistance}%`, cs.accuracy != null && `Accuracy ${cs.accuracy}%`,
+        ].filter(Boolean);
+        if (bits.length) lines.push(`   ${bits.join(" · ")}`);
+      }
     }
     lines.push("");
     lines.push(`🎯 Funziona contro: ${def.monsters.join("/")}`);
