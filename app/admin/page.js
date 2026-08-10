@@ -439,6 +439,27 @@ function DuplicateCollabCard() {
   const [excluding, setExcluding] = useState(null);
   const [excluded, setExcluded] = useState(new Set());
   const [bulkExcluding, setBulkExcluding] = useState(false);
+  const [excludedIds, setExcludedIds] = useState(null);
+  const [loadingExcludedIds, setLoadingExcludedIds] = useState(false);
+  const [removingId, setRemovingId] = useState(null);
+  const [removeInput, setRemoveInput] = useState("");
+
+  async function loadExcludedIds() {
+    setLoadingExcludedIds(true);
+    const res = await fetch("/api/admin/monsters/excluded-ids");
+    const data = await res.json();
+    setLoadingExcludedIds(false);
+    if (res.ok) setExcludedIds(data.ids);
+  }
+
+  async function removeExclusion(id) {
+    setRemovingId(id);
+    const res = await fetch("/api/admin/monsters/exclude-id", {
+      method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ com2usId: id }),
+    });
+    setRemovingId(null);
+    if (res.ok) loadExcludedIds();
+  }
 
   async function check() {
     setChecking(true);
@@ -526,6 +547,50 @@ function DuplicateCollabCard() {
           ))}
         </div>
       )}
+
+      <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid var(--border-soft)" }}>
+        <div className="section-label">Esclusioni attive (correggi un errore)</div>
+        <p style={{ color: "var(--text-faint)", fontSize: 11.5, marginBottom: 10 }}>
+          Se un ID giusto è finito escluso per sbaglio (invertendo il nome pulito con quello sbagliato, come è
+          successo con Theomars l'08/08/2026), toglilo qui. Serve un resync bestiario dopo per vedere l'effetto.
+        </p>
+        <button className="btn btn-ghost" onClick={loadExcludedIds} disabled={loadingExcludedIds}>
+          {loadingExcludedIds && <Spinner />}👁 Mostra lista esclusioni
+        </button>
+        {excludedIds && (
+          <div style={{ marginTop: 10 }}>
+            {excludedIds.length === 0 ? (
+              <p style={{ color: "var(--text-faint)", fontSize: 12.5 }}>Nessuna esclusione dinamica attiva al momento.</p>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {excludedIds.map((id) => (
+                  <div key={id} className="f-mono" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "var(--bg-soft)", borderRadius: 6, padding: "6px 10px", fontSize: 12.5 }}>
+                    <span>ID {id}</span>
+                    <button className="btn btn-ghost" style={{ padding: "2px 8px", fontSize: 11.5 }} disabled={removingId === id} onClick={() => removeExclusion(id)}>
+                      {removingId === id ? "..." : "Rimuovi"}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+        <div style={{ marginTop: 12, display: "flex", gap: 8, alignItems: "center" }}>
+          <input
+            placeholder="com2usId da rimuovere (es. 19211)"
+            value={removeInput}
+            onChange={(e) => setRemoveInput(e.target.value)}
+            style={{ maxWidth: 220 }}
+          />
+          <button
+            className="btn btn-danger"
+            disabled={!removeInput.trim() || removingId != null}
+            onClick={() => { const id = Number(removeInput.trim()); if (Number.isFinite(id)) { removeExclusion(id); setRemoveInput(""); } }}
+          >
+            Rimuovi ID
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

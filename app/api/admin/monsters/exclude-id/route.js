@@ -1,17 +1,16 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser, isAdmin } from "../../../../../lib/auth";
-import { addNeverCleanId } from "../../../../../lib/monsters";
-import { safeJson } from "../../../../../lib/apiUtils";
+import { getNeverCleanIds } from "../../../../../lib/monsters";
 
-export async function POST(request) {
+// Sola lettura — mostra la lista DINAMICA (quella aggiunta da Admin nel
+// tempo, salvata su Redis). Non include lo storico Ifrit scritto a mano
+// nel codice (NEVER_CLEAN_NAME_IDS_SEED in sync/route.js), quello è fisso
+// e non serve vederlo/toccarlo qui.
+export async function GET() {
   const user = await getCurrentUser();
   if (!user || !isAdmin(user)) {
     return NextResponse.json({ error: "Solo Admin." }, { status: 403 });
   }
-  const { data } = await safeJson(request);
-  const com2usId = Number(data?.com2usId);
-  if (!Number.isFinite(com2usId)) return NextResponse.json({ error: "com2usId mancante o non valido." }, { status: 400 });
-
-  const list = await addNeverCleanId(com2usId);
-  return NextResponse.json({ ok: true, list });
+  const ids = await getNeverCleanIds();
+  return NextResponse.json({ ok: true, ids });
 }
