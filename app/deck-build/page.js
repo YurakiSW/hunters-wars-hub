@@ -247,6 +247,7 @@ export default function DeckBuildPage() {
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
   const [addingAgainstTo, setAddingAgainstTo] = useState(null);
   const [refreshingId, setRefreshingId] = useState(null);
+  const [copyToast, setCopyToast] = useState(null);
   const [refreshingAll, setRefreshingAll] = useState(false);
   const [error, setError] = useState("");
   const [celebration, setCelebration] = useState(null); // "felice" | "trombetta" | null
@@ -434,6 +435,12 @@ export default function DeckBuildPage() {
       const stats = rawStats ? rawStats.replace(/Accuracy%/g, "ACC%") : null;
       const line = [runes, stats].filter(Boolean).join(" — ");
       lines.push(line ? `*${u.name}*: ${line}` : `*${u.name}*`);
+      if (u.artifactLeft?.length) {
+        lines.push(`   Art. Attributo${u.artifactLeftMainStat ? ` (${u.artifactLeftMainStat})` : ""}: ${u.artifactLeft.join(", ")}`);
+      }
+      if (u.artifactRight?.length) {
+        lines.push(`   Art. Tipo${u.artifactRightMainStat ? ` (${u.artifactRightMainStat})` : ""}: ${u.artifactRight.join(", ")}`);
+      }
       const cs = u.combatStats;
       if (cs && Object.values(cs).some((v) => v != null)) {
         const bits = [
@@ -445,6 +452,10 @@ export default function DeckBuildPage() {
       }
       if (i < main.length - 1) lines.push("");
     });
+    if (deck.turnOrder?.length) {
+      lines.push("");
+      lines.push(`⏱ Speed Tuning: ${deck.turnOrder.join(" → ")}`);
+    }
     if (deck.against?.length) {
       lines.push("");
       lines.push(`🎯 Funziona contro: ${deck.against.map((a) => a.monsters.join("/")).join(" | ")}`);
@@ -456,6 +467,8 @@ export default function DeckBuildPage() {
     const text = formatDeckForDiscord(deck);
     try {
       await navigator.clipboard.writeText(text);
+      setCopyToast("Deck copiato per WhatsApp");
+      setTimeout(() => setCopyToast(null), 2200);
     } catch {
       alert(`Impossibile copiare in automatico, eccolo:\n\n${text}`);
     }
@@ -494,6 +507,11 @@ export default function DeckBuildPage() {
       {refreshingAll && (
         <div style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 60, background: "var(--gold)", color: "#1a1408", textAlign: "center", padding: "8px 12px", fontSize: 13, fontWeight: 600 }}>
           Aggiornamento "Da usare contro" su tutti i deck in corso... non ricaricare la pagina, attendi che finisca.
+        </div>
+      )}
+      {copyToast && (
+        <div style={{ position: "fixed", bottom: 90, right: 20, zIndex: 60, background: "var(--bg-soft, #1b1630)", border: "1px solid var(--green)", borderRadius: 12, padding: "10px 16px", fontSize: 13, color: "var(--text)", boxShadow: "0 8px 24px rgba(0,0,0,.4)" }}>
+          ✅ {copyToast}
         </div>
       )}
       {celebration && (

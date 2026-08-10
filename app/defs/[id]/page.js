@@ -26,6 +26,7 @@ export default function DefDetailPage({ params }) {
   const [confirmDeleteCounter, setConfirmDeleteCounter] = useState(null);
   const [confirmDeleteDef, setConfirmDeleteDef] = useState(false);
   const [favoriteCounterIds, setFavoriteCounterIds] = useState(new Set());
+  const [copyToast, setCopyToast] = useState(null);
   const router = useRouter();
 
   async function load() {
@@ -75,6 +76,12 @@ export default function DefDetailPage({ params }) {
       const stats = rawStats ? rawStats.replace(/Accuracy%/g, "ACC%") : null;
       const line = [runes, stats].filter(Boolean).join(" — ");
       lines.push(line ? `*${u.name}*: ${line}` : `*${u.name}*`);
+      if (u.artifactLeft?.length) {
+        lines.push(`   Art. Attributo${u.artifactLeftMainStat ? ` (${u.artifactLeftMainStat})` : ""}: ${u.artifactLeft.join(", ")}`);
+      }
+      if (u.artifactRight?.length) {
+        lines.push(`   Art. Tipo${u.artifactRightMainStat ? ` (${u.artifactRightMainStat})` : ""}: ${u.artifactRight.join(", ")}`);
+      }
       const cs = u.combatStats;
       if (cs && Object.values(cs).some((v) => v != null)) {
         const bits = [
@@ -86,6 +93,13 @@ export default function DefDetailPage({ params }) {
       }
       if (i < main.length - 1) lines.push("");
     });
+    if (c.turnOrder?.length) {
+      lines.push("");
+      lines.push(`⏱ Speed Tuning: ${c.turnOrder.join(" → ")}`);
+    }
+    if (c.focus?.length) {
+      lines.push(`🔥 Focus priority: ${c.focus.join(" → ")}`);
+    }
     lines.push("");
     lines.push(`🎯 Funziona contro: ${def.monsters.join("/")}`);
     return lines.join("\n");
@@ -95,6 +109,8 @@ export default function DefDetailPage({ params }) {
     const text = formatCounterForDiscord(c);
     try {
       await navigator.clipboard.writeText(text);
+      setCopyToast("Counter copiato per WhatsApp");
+      setTimeout(() => setCopyToast(null), 2200);
     } catch {
       alert(`Impossibile copiare in automatico, eccolo:\n\n${text}`);
     }
@@ -153,6 +169,11 @@ export default function DefDetailPage({ params }) {
   return (
     <div>
       <Header user={user} />
+      {copyToast && (
+        <div style={{ position: "fixed", bottom: 20, right: 20, zIndex: 60, background: "var(--bg-soft, #1b1630)", border: "1px solid var(--green)", borderRadius: 12, padding: "10px 16px", fontSize: 13, color: "var(--text)", boxShadow: "0 8px 24px rgba(0,0,0,.4)" }}>
+          ✅ {copyToast}
+        </div>
+      )}
       <div style={{ maxWidth: 1040, margin: "0 auto", padding: "24px 20px 60px" }}>
         <button onClick={() => router.back()} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", color: "var(--text-muted)", fontSize: 13 }}>← Torna alle Difese</button>
 
