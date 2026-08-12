@@ -2000,6 +2000,30 @@ function SiegeStatsProposalsTab({ isAdmin }) {
                       </>
                     )}
                   </p>
+                  {p.variantSummary?.length > 1 && (
+                    <div style={{ marginTop: 6, marginBottom: 4 }}>
+                      <div className="f-mono" style={{ fontSize: 10, color: "var(--text-faint)", marginBottom: 4 }}>
+                        CONFRONTO BUILD ({p.variantSummary.length} viste dai replay aperti)
+                      </div>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                        {p.variantSummary.map((v) => (
+                          <span
+                            key={v.buildHash}
+                            title={v.isBest ? "Build scelta come migliore" : "Altra build vista per questo matchup"}
+                            style={{
+                              fontSize: 11.5, padding: "3px 8px", borderRadius: 6,
+                              background: v.isBest ? "var(--gold)" : "var(--bg-soft)",
+                              color: v.isBest ? "#1a1408" : "var(--text-muted)",
+                              fontWeight: v.isBest ? 600 : 400,
+                            }}
+                          >
+                            {v.isBest && "★ "}
+                            {v.ownerNick || "sconosciuto"}: {v.wins}/{v.total}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   {p.bestVariant.units?.some((u) => u.runes || u.artifactLeft?.length || u.artifactRight?.length) ? (
                     <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 6 }}>
                       {p.bestVariant.units.map((u, i) => (

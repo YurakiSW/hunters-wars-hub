@@ -8,7 +8,7 @@ import CounterForm from "../../components/CounterForm";
 import AgainstDefPicker from "../../components/AgainstDefPicker";
 import CounterToDeckPicker from "../../components/CounterToDeckPicker";
 import MonsterCrest from "../../components/MonsterCrest";
-import { formatNickname, normalizeMonsterName } from "../../lib/textUtils";
+import { formatNickname, normalizeMonsterName, formatTeamForChat } from "../../lib/textUtils";
 import Sticker from "../../components/Sticker";
 import NicknameHeart from "../../components/NicknameHeart";
 import WhatsAppIcon from "../../components/WhatsAppIcon";
@@ -424,39 +424,7 @@ export default function DeckBuildPage() {
   }
 
   function formatDeckForDiscord(deck) {
-    const main = deck.units.slice(0, 3);
-    const leadUnit = main.find((u) => u.lead);
-    const lines = [`⚔️ ${main.map((u) => u.name).join(" / ")}`];
-    if (leadUnit) lines.push(`👑 Lead: ${leadUnit.name}`);
-    lines.push("");
-    main.forEach((u, i) => {
-      const runes = u.statsFlexible ? "Set libero" : u.runes || null;
-      const rawStats = u.statsFlexible ? (u.statsMinText ? `+ ${u.statsMinText}` : null) : u.stats || null;
-      const stats = rawStats ? rawStats.replace(/Accuracy%/g, "ACC%") : null;
-      const line = [runes, stats].filter(Boolean).join(" — ");
-      lines.push(line ? `*${u.name}*: ${line}` : `*${u.name}*`);
-      if (u.artifactLeft?.length) {
-        lines.push(`   Art. Attributo${u.artifactLeftMainStat ? ` (${u.artifactLeftMainStat})` : ""}: ${u.artifactLeft.join(", ")}`);
-      }
-      if (u.artifactRight?.length) {
-        lines.push(`   Art. Tipo${u.artifactRightMainStat ? ` (${u.artifactRightMainStat})` : ""}: ${u.artifactRight.join(", ")}`);
-      }
-      const cs = u.combatStats;
-      if (cs && Object.values(cs).some((v) => v != null)) {
-        const bits = [
-          cs.hp != null && `HP ${cs.hp}`, cs.atk != null && `ATK ${cs.atk}`, cs.def != null && `DEF ${cs.def}`, cs.spd != null && `SPD ${cs.spd}`,
-          cs.critRate != null && `CRI Rate ${cs.critRate}%`, cs.critDmg != null && `CRI Dmg ${cs.critDmg}%`,
-          cs.resistance != null && `Resistance ${cs.resistance}%`, cs.accuracy != null && `Accuracy ${cs.accuracy}%`,
-        ].filter(Boolean);
-        if (bits.length) lines.push(`   ${bits.join(" · ")}`);
-      }
-      if (i < main.length - 1) lines.push("");
-    });
-    if (deck.turnOrder?.length) {
-      lines.push("");
-      lines.push(`⏱ Speed Tuning: ${deck.turnOrder.join(" → ")}`);
-    }
-    return lines.join("\n");
+    return formatTeamForChat(deck);
   }
 
   async function copyDeckToDiscord(deck) {

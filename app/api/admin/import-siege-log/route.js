@@ -61,41 +61,57 @@ export async function POST(request) {
   // Log"): OGNI battaglia di questo log, vinta o persa, si somma a quelle
   // gia' viste da altri caricamenti -- non solo quelle sopra il 90% (serve
   // il conteggio completo per calcolare il winRate reale).
+  //
+  // Corretto l'11/08/2026 (Flora): ogni coppia Difesa/Counter ora tiene un
+  // ARRAY di TUTTE le build viste (una per giocatore/replay), non più una
+  // sola scelta a caso — così ogni giocatore vota per la propria build
+  // specifica invece che tutte le vittorie finire spalmate su "quella
+  // trovata per prima nel file". Deduplicato per composizione: ogni
+  // coppia offense+defense viene processata una sola volta anche se
+  // compare in decine di matchup identici.
   const richUnitsByOffenseDefenseKey = new Map();
+  const seenCompositions = new Set();
   for (const m of matchups) {
     const offenseIds = m.offense.map((n) => comIdByName.get(n)).filter(Boolean);
     const defenseIds = m.defense.map((n) => comIdByName.get(n)).filter(Boolean);
-    const rich = richByIdsKey.get(`${idsKey(offenseIds)}::${idsKey(defenseIds)}`);
-    if (!rich) continue;
-    // L'abbinamento dei dati grezzi va fatto per unit_master_id, MAI per
-    // posizione: idsKey() ordina gli ID per trovare la coppia giusta, ma
-    // l'ordine dei mostri nel replay può differire da quello della squadra
-    // "semplice" (m.offense). Con l'indice posizionale, rune/artefatti/
-    // relic finivano sul mostro sbagliato (~1 caso su 8 in un log reale).
-    const richIndexByUnitId = new Map();
-    rich.offenseIds.forEach((id, idx) => { if (!richIndexByUnitId.has(id)) richIndexByUnitId.set(id, idx); });
-    // Salviamo i dati GREZZI (set_id delle rune, sec_effects degli
-    // artefatti), non il testo gia' tradotto: cosi' se in futuro
-    // decodifichiamo altri codici, le proposal gia' in coda si aggiornano
-    // da sole quando le guardi -- non serve ricaricare lo stesso log da capo.
-    const units = m.offense.map((name, i) => {
-      const richIdx = richIndexByUnitId.get(offenseIds[i]);
-      if (richIdx == null) {
-        return { name: canon(name), rawRunes: null, rawArtifacts: null, rawRelics: null, rawSpd: null, rawCombatBase: null };
-      }
-      return {
-        name: canon(name),
-        rawRunes: rich.offenseRunes[richIdx],
-        rawArtifacts: rich.offenseArtifacts[richIdx],
-        rawRelics: rich.offenseRelics?.[richIdx] ?? null,
-        rawSpd: rich.offenseSpd?.[richIdx] ?? null,
-        rawCombatBase: rich.offenseCombatBase?.[richIdx] ?? null,
-      };
-    });
-    richUnitsByOffenseDefenseKey.set(`${orderedTeamKey(m.offense.map(canon))}::${defenseKey(m.defense.map(canon))}`, {
-      units,
-      ownerNick: rich.offenseWizardName || null,
-    });
+    const rawKey = `${idsKey(offenseIds)}::${idsKey(defenseIds)}`;
+    if (seenCompositions.has(rawKey)) continue;
+    seenCompositions.add(rawKey);
+
+    const richList = richByIdsKey.get(rawKey);
+    if (!richList || !richList.length) continue;
+
+    const canonKey = `${orderedTeamKey(m.offense.map(canon))}::${defenseKey(m.defense.map(canon))}`;
+    const captures = [];
+    for (const rich of richList) {
+      // L'abbinamento dei dati grezzi va fatto per unit_master_id, MAI per
+      // posizione: idsKey() ordina gli ID per trovare la coppia giusta, ma
+      // l'ordine dei mostri nel replay può differire da quello della squadra
+      // "semplice" (m.offense). Con l'indice posizionale, rune/artefatti/
+      // relic finivano sul mostro sbagliato (~1 caso su 8 in un log reale).
+      const richIndexByUnitId = new Map();
+      rich.offenseIds.forEach((id, idx) => { if (!richIndexByUnitId.has(id)) richIndexByUnitId.set(id, idx); });
+      // Salviamo i dati GREZZI (set_id delle rune, sec_effects degli
+      // artefatti), non il testo gia' tradotto: cosi' se in futuro
+      // decodifichiamo altri codici, le proposal gia' in coda si aggiornano
+      // da sole quando le guardi -- non serve ricaricare lo stesso log da capo.
+      const units = m.offense.map((name, i) => {
+        const richIdx = richIndexByUnitId.get(offenseIds[i]);
+        if (richIdx == null) {
+          return { name: canon(name), rawRunes: null, rawArtifacts: null, rawRelics: null, rawSpd: null, rawCombatBase: null };
+        }
+        return {
+          name: canon(name),
+          rawRunes: rich.offenseRunes[richIdx],
+          rawArtifacts: rich.offenseArtifacts[richIdx],
+          rawRelics: rich.offenseRelics?.[richIdx] ?? null,
+          rawSpd: rich.offenseSpd?.[richIdx] ?? null,
+          rawCombatBase: rich.offenseCombatBase?.[richIdx] ?? null,
+        };
+      });
+      captures.push({ units, ownerNick: rich.offenseWizardName || null, captureId: rich.captureId || null });
+    }
+    if (captures.length) richUnitsByOffenseDefenseKey.set(canonKey, captures);
   }
   // Da qui in poi si ragiona solo su nomi canonici.
   const canonicalMatchups = matchups.map((m) => ({

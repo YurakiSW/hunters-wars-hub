@@ -10,7 +10,7 @@ import DefForm from "../../../components/DefForm";
 import MonsterCrest from "../../../components/MonsterCrest";
 import VideoPreview from "../../../components/VideoPreview";
 import LoadingScreen from "../../../components/LoadingScreen";
-import { formatNickname, displayAuthorName, counterAuthorLabel } from "../../../lib/textUtils";
+import { formatNickname, displayAuthorName, counterAuthorLabel, formatTeamForChat } from "../../../lib/textUtils";
 import NicknameHeart from "../../../components/NicknameHeart";
 import WhatsAppIcon from "../../../components/WhatsAppIcon";
 
@@ -66,41 +66,7 @@ export default function DefDetailPage({ params }) {
   }
 
   function formatCounterForDiscord(c) {
-    const main = c.units.slice(0, 3);
-    const lines = [`⚔️ ${c.offense.join(" / ")}`];
-    if (c.lead) lines.push(`👑 Lead: ${c.lead}`);
-    lines.push("");
-    main.forEach((u, i) => {
-      const runes = u.statsFlexible ? "Set libero" : u.runes || null;
-      const rawStats = u.statsFlexible ? (u.statsMinText ? `+ ${u.statsMinText}` : null) : u.stats || null;
-      const stats = rawStats ? rawStats.replace(/Accuracy%/g, "ACC%") : null;
-      const line = [runes, stats].filter(Boolean).join(" — ");
-      lines.push(line ? `*${u.name}*: ${line}` : `*${u.name}*`);
-      if (u.artifactLeft?.length) {
-        lines.push(`   Art. Attributo${u.artifactLeftMainStat ? ` (${u.artifactLeftMainStat})` : ""}: ${u.artifactLeft.join(", ")}`);
-      }
-      if (u.artifactRight?.length) {
-        lines.push(`   Art. Tipo${u.artifactRightMainStat ? ` (${u.artifactRightMainStat})` : ""}: ${u.artifactRight.join(", ")}`);
-      }
-      const cs = u.combatStats;
-      if (cs && Object.values(cs).some((v) => v != null)) {
-        const bits = [
-          cs.hp != null && `HP ${cs.hp}`, cs.atk != null && `ATK ${cs.atk}`, cs.def != null && `DEF ${cs.def}`, cs.spd != null && `SPD ${cs.spd}`,
-          cs.critRate != null && `CRI Rate ${cs.critRate}%`, cs.critDmg != null && `CRI Dmg ${cs.critDmg}%`,
-          cs.resistance != null && `Resistance ${cs.resistance}%`, cs.accuracy != null && `Accuracy ${cs.accuracy}%`,
-        ].filter(Boolean);
-        if (bits.length) lines.push(`   ${bits.join(" · ")}`);
-      }
-      if (i < main.length - 1) lines.push("");
-    });
-    if (c.turnOrder?.length) {
-      lines.push("");
-      lines.push(`⏱ Speed Tuning: ${c.turnOrder.join(" → ")}`);
-    }
-    if (c.focus?.length) {
-      lines.push(`🔥 Focus priority: ${c.focus.join(" → ")}`);
-    }
-    return lines.join("\n");
+    return formatTeamForChat(c);
   }
 
   async function copyCounterToDiscord(c) {
