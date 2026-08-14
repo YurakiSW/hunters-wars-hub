@@ -2019,6 +2019,9 @@ function SiegeStatsProposalsTab({ isAdmin }) {
                           >
                             {v.isBest && "★ "}
                             {v.ownerNick || "sconosciuto"}: {v.wins}/{v.total}
+                            {v.teamEff != null && (
+                              <span style={{ opacity: 0.75 }}> · eff {v.teamEff}%</span>
+                            )}
                           </span>
                         ))}
                       </div>
@@ -2029,6 +2032,12 @@ function SiegeStatsProposalsTab({ isAdmin }) {
                       {p.bestVariant.units.map((u, i) => (
                         <div key={i} style={{ fontSize: 12, background: "var(--bg-soft)", borderRadius: 6, padding: "6px 8px" }}>
                           <strong>{u.name}</strong>
+                          {/* SPD reale in battaglia (torre gilda +15% già
+                              inclusa): serve a scartare al volo i counter
+                              troppo lenti che hanno vinto per fortuna. */}
+                          {u.combatStats?.spdCombat != null && (
+                            <span className="f-mono" style={{ color: "var(--gold)", fontSize: 11.5 }}> ⚡{u.combatStats.spdCombat}</span>
+                          )}
                           <span style={{ color: "var(--text-faint)" }}> — Rune: </span>{u.runes || "—"}
                           {u.artifactLeft?.length > 0 && <span style={{ color: "var(--text-faint)" }}> · Attributo: {u.artifactLeft.join(", ")}</span>}
                           {u.artifactRight?.length > 0 && <span style={{ color: "var(--text-faint)" }}> · Tipo: {u.artifactRight.join(", ")}</span>}
