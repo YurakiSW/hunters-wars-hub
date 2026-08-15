@@ -28,6 +28,27 @@ function splitElement(fullName) {
   return { element: ELEMENT_ORDER[idx], base: fullName.slice(ELEMENT_ORDER[idx].length + 1), order: idx };
 }
 
+// Date formattate in modo IDENTICO sul server e nel browser.
+// `toLocaleDateString`/`toLocaleString` usano lingua e fuso di CHI le esegue:
+// il server ne ha uno, il browser un altro, e il testo usciva diverso ->
+// React lo segnala (errori 418/423/425) e, nel caso del 423, butta via
+// l'intera pagina renderizzata dal server per rifarla da capo nel browser,
+// rallentando l'admin. Qui si formatta a mano in UTC: stesso risultato
+// ovunque, sempre (14/08/2026, Flora).
+const due = (n) => String(n).padStart(2, "0");
+function dataIt(value) {
+  if (!value) return "?";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "?";
+  return `${due(d.getUTCDate())}/${due(d.getUTCMonth() + 1)}/${d.getUTCFullYear()}`;
+}
+function dataOraIt(value) {
+  if (!value) return "?";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "?";
+  return `${dataIt(value)}, ${due(d.getUTCHours())}:${due(d.getUTCMinutes())}`;
+}
+
 function Spinner() {
   return <span className="spinner" aria-hidden="true" />;
 }
@@ -311,7 +332,7 @@ function UsersTab() {
             </div>
             {finders.map((u, i) => (
               <div key={u.id} style={{ fontSize: 12.5, color: "var(--text-muted)" }}>
-                {i === 0 && "🥇 "}{u.nickname} — {new Date(u.konamiFoundAt).toLocaleDateString("it-IT")}
+                {i === 0 && "🥇 "}{u.nickname} — {dataIt(u.konamiFoundAt)}
               </div>
             ))}
           </div>
@@ -1248,6 +1269,26 @@ function DiagnosticaTab() {
           registrata. Tiene quella con più counter e ci sposta dentro gli altri. <strong>Registra prima le coppie</strong>
           nella tab Mostri, poi lancia &quot;Pulisci counter doppi&quot; qui sotto per togliere i counter ripetuti.
         </p>
+        {/* Anteprima di COSA verrebbe unito: da controllare prima di premere,
+            perché l'unione non si annulla (14/08/2026, Flora). */}
+        {dupInfo?.equivalentDefDetails?.length > 0 && (
+          <div style={{ marginTop: 10 }}>
+            <div className="f-mono" style={{ fontSize: 10, color: "var(--text-faint)", marginBottom: 6 }}>
+              COSA VERREBBE UNITO — controlla che siano davvero la stessa difesa
+            </div>
+            {dupInfo.equivalentDefDetails.map((gruppo, gi) => (
+              <div key={gi} style={{ background: "var(--bg-soft)", borderRadius: 6, padding: "8px 10px", marginBottom: 6 }}>
+                {gruppo.map((d, di) => (
+                  <div key={di} style={{ fontSize: 12.5, color: d.tenuta ? "var(--gold)" : "var(--text-muted)" }}>
+                    {d.tenuta ? "✓ resta: " : "→ confluisce: "}
+                    {d.monsters.join(" / ")}
+                    <span style={{ color: "var(--text-faint)" }}> ({d.counters} counter)</span>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        )}
         {mergeMsg && <p style={{ fontSize: 12.5, color: "var(--green)", marginTop: 8 }}>{mergeMsg}</p>}
       </div>
       <div className="card">
@@ -1463,7 +1504,7 @@ function SiegeDefenseImportCard() {
               <span style={{ fontSize: 12.5, flex: 1 }}>
                 {s.enemyGuilds?.join(" e ") || "—"}{" "}
                 <span style={{ color: "var(--text-faint)" }}>
-                  — {s.dateFrom ? new Date(s.dateFrom * 1000).toLocaleDateString() : "?"} · {s.battleCount} battaglie
+                  — {s.dateFrom ? dataIt(s.dateFrom * 1000) : "?"} · {s.battleCount} battaglie
                 </span>
               </span>
             </div>
@@ -2137,7 +2178,7 @@ function SiegeStatsProposalsTab({ isAdmin }) {
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 {archives.map((a) => (
                   <div key={a.seasonId} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13, background: "var(--bg-soft)", borderRadius: 6, padding: "6px 10px" }}>
-                    <span>{a.seasonId} — {a.proposals?.length ?? 0} proposal, {new Date(a.archivedAt).toLocaleString("it-IT")}</span>
+                    <span>{a.seasonId} — {a.proposals?.length ?? 0} proposal, {dataOraIt(a.archivedAt)}</span>
                     <button className="btn btn-ghost" disabled={deletingArchive === a.seasonId} onClick={() => deleteArchive(a.seasonId)}>🗑 Elimina</button>
                   </div>
                 ))}

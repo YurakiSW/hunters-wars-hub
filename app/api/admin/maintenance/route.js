@@ -19,6 +19,22 @@ export async function GET() {
     duplicateExtra: dupGroups.reduce((sum, g) => sum + g.length - 1, 0),
     equivalentDefGroups: equivDefs.length,
     equivalentDefExtra: equivDefs.reduce((sum, g) => sum + g.length - 1, 0),
+    // Elenco di COSA verrebbe unito, per poterlo controllare prima di
+    // premere: l'unione sposta counter tra Difese e non si annulla, e se
+    // una coppia collab fosse registrata male accorperebbe difese diverse
+    // (14/08/2026, Flora). Per ogni gruppo si segna quale resta (quella con
+    // più counter, a parità la più vecchia — stessa regola di
+    // mergeEquivalentDefs) e quali ci confluiscono dentro.
+    equivalentDefDetails: equivDefs.map((g) => {
+      const ordinate = [...g].sort(
+        (a, b) => (b.counters?.length || 0) - (a.counters?.length || 0) || String(a.id).localeCompare(String(b.id))
+      );
+      return ordinate.map((d, i) => ({
+        monsters: d.monsters,
+        counters: d.counters?.length || 0,
+        tenuta: i === 0,
+      }));
+    }),
   });
 }
 
