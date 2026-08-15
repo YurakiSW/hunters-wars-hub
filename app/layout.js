@@ -6,6 +6,7 @@ import StarrySky from "../components/StarrySky";
 import KonamiCode from "../components/KonamiCode";
 import TabTitleTease from "../components/TabTitleTease";
 import ConsoleEasterEgg from "../components/ConsoleEasterEgg";
+import ScrollToTop from "../components/ScrollToTop";
 
 export const metadata = {
   title: "Hunters Wars — Counter Siege",
@@ -31,6 +32,7 @@ export default function RootLayout({ children }) {
         <KonamiCode />
         <TabTitleTease />
         <ConsoleEasterEgg />
+        <ScrollToTop />
       </body>
     </html>
   );
