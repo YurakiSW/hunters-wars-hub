@@ -8,6 +8,17 @@ import Sticker from "../../components/Sticker";
 import NicknameHeart from "../../components/NicknameHeart";
 import LoadingScreen from "../../components/LoadingScreen";
 
+// Data formattata identica su server e browser: toLocaleDateString usa
+// lingua e fuso di chi la esegue, e la differenza fa scartare a React
+// l'intera pagina renderizzata dal server (14/08/2026, Flora).
+function dataIt(value) {
+  if (!value) return "?";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "?";
+  const due = (n) => String(n).padStart(2, "0");
+  return `${due(d.getUTCDate())}/${due(d.getUTCMonth() + 1)}/${d.getUTCFullYear()}`;
+}
+
 function rateColor(rate) {
   if (rate >= 0.8) return "var(--green)";
   if (rate >= 0.5) return "var(--gold)";
@@ -166,7 +177,7 @@ function GuildDefensesContent() {
                 <span style={{ fontSize: 13, flex: 1, minWidth: 160 }}>
                   {s.enemyGuilds?.join(" e ") || "—"}{" "}
                   <span style={{ color: "var(--text-faint)", fontSize: 11.5 }}>
-                    — {s.dateFrom ? new Date(s.dateFrom * 1000).toLocaleDateString() : "?"} · {s.battleCount} battaglie
+                    — {s.dateFrom ? dataIt(s.dateFrom * 1000) : "?"} · {s.battleCount} battaglie
                   </span>
                 </span>
                 {isAdmin && (
