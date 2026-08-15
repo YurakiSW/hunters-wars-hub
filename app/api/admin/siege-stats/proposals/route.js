@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser, canManage } from "../../../../../lib/auth";
+import { getCurrentUser, canManage, isAdmin } from "../../../../../lib/auth";
 import { listProposals, countProposalsByStatus, approveProposal, rejectProposal, purgePendingBelowThreshold, dismissUnderperforming, unpublishProposal, deleteProposal } from "../../../../../lib/siegeStats";
 import { safeJson } from "../../../../../lib/apiUtils";
 
@@ -39,6 +39,17 @@ export async function POST(request) {
   const { defK, counterK, action, override } = data;
   if (!defK || !counterK || !["approve", "reject", "dismiss", "unpublish", "delete_proposal"].includes(action)) {
     return NextResponse.json({ error: "Parametri mancanti o azione non valida." }, { status: 400 });
+  }
+
+  // Eliminazione definitiva di una proposal già rifiutata: solo Admin
+  // (14/08/2026, Flora). Non è semplice pulizia: lo stato "rifiutata" è la
+  // memoria che impedisce di riproporre una coppia già scartata, e
+  // cancellandola quella tornerà a comparire tra le proposte in attesa al
+  // primo import che la riporta sopra soglia.
+  // Tutto il resto (approvare, rifiutare, ignorare, togliere dal sito un
+  // counter sotto-performante) resta com'era, aperto anche ai Revisori.
+  if (action === "delete_proposal" && !isAdmin(user)) {
+    return NextResponse.json({ error: "Solo un Admin può eliminare definitivamente una proposal rifiutata." }, { status: 403 });
   }
 
   try {

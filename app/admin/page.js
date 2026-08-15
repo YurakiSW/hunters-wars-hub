@@ -2001,7 +2001,11 @@ function SiegeStatsProposalsTab({ isAdmin }) {
               </button>
             </>
           )}
-          {subTab === "rejected" && (
+          {/* Nella scheda "Rifiutate" i Revisori possono riapprovare, ma NON
+              eliminare: cancellare fa perdere la memoria del rifiuto e la
+              coppia tornerebbe a essere riproposta. Il server rifiuta
+              comunque la richiesta di chi non è Admin (14/08/2026, Flora). */}
+          {subTab === "rejected" && isAdmin && (
             <button className="btn btn-danger" disabled={selectedProposals.size === 0 || bulkApproving} onClick={() => setConfirmBulk("delete_proposal")}>
               🗑 Elimina definitivamente selezionati ({selectedProposals.size})
             </button>
@@ -2144,7 +2148,7 @@ function SiegeStatsProposalsTab({ isAdmin }) {
                 <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
                   <button className="btn btn-gold" disabled={busyKey === `${p.defK}::${p.counterK}`} onClick={() => act(p, "approve")}>Approva</button>
                   <button className="btn btn-ghost" disabled={busyKey === `${p.defK}::${p.counterK}`} onClick={() => setEditingProposal(p)}>✎ Modifica e approva</button>
-                  <button className="btn btn-danger" disabled={busyKey === `${p.defK}::${p.counterK}`} onClick={() => act(p, "delete_proposal")}>🗑 Elimina definitivamente</button>
+                  {isAdmin && <button className="btn btn-danger" disabled={busyKey === `${p.defK}::${p.counterK}`} onClick={() => act(p, "delete_proposal")}>🗑 Elimina definitivamente</button>}
                 </div>
               )}
             </div>
