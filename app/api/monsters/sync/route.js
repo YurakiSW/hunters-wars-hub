@@ -132,6 +132,45 @@ async function isConfirmedSecondAwakening(pk, ownName) {
 }
 
 // Logica vera della sincronizzazione, separata dalla route: la usano sia il
+// Scarica da swarfarm le stat base che il replay NON contiene (accuracy,
+// crit rate, crit damage) e la leader skill di ogni mostro.
+//
+// Perché serve (14/08/2026, Flora): erano fisse a 0/15/50 per tutti, ma
+// variano per mostro — Camilla parte da 30% di crit rate, Tesarion da 25%
+// di accuracy, e il sito li mostrava sbagliati. La leader skill non è
+// proprio nel replay ed è quella che, in Siege, alza le stat di tutta la
+// squadra (es. Feng Yan +44% DEF in guild content).
+//
+// Si usa l'API v2 perché la lista v1 (quella già scaricata sopra) espone
+// solo nome/icona/elemento/stelle. La v2 è paginata ma con page_size alto
+// bastano poche chiamate — MAI una richiesta per mostro (lezione 05/08/2026).
+async function fetchBaseStatsAndLeaderSkills() {
+  const byComId = new Map();
+  let url = `${SWARFARM_BASE}/api/v2/monsters/?format=json&page_size=500`;
+  let pagine = 0;
+  while (url && pagine < 40) { // limite di sicurezza: non deve mai ciclare all'infinito
+    const res = await fetch(url, { headers: { Accept: "application/json" } });
+    if (!res.ok) break; // se la v2 non risponde si tiene quello che si ha già
+    const data = await res.json();
+    for (const m of data?.results || []) {
+      if (m?.com2us_id == null) continue;
+      const ls = m.leader_skill;
+      byComId.set(m.com2us_id, {
+        baseAccuracy: typeof m.accuracy === "number" ? m.accuracy : null,
+        baseCritRate: typeof m.crit_rate === "number" ? m.crit_rate : null,
+        baseCritDamage: typeof m.crit_damage === "number" ? m.crit_damage : null,
+        element: m.element || null,
+        leaderSkill: ls
+          ? { attribute: ls.attribute ?? null, amount: ls.amount ?? null, area: ls.area ?? null, element: ls.element ?? null }
+          : null,
+      });
+    }
+    url = data?.next || null;
+    pagine++;
+  }
+  return byComId;
+}
+
 // link con il segreto (per il cron) sia il pulsante in Diagnostica, così
 // non esistono due copie della stessa cosa che possono divergere.
 export async function syncMonstersFromSwarfarm() {
@@ -142,17 +181,31 @@ export async function syncMonstersFromSwarfarm() {
 
   const neverCleanIds = new Set([...NEVER_CLEAN_NAME_IDS_SEED, ...(await getNeverCleanIds())]);
 
-  // L'accuracy base non è nella lista, solo nel dettaglio di ogni mostro —
-  // richiederebbe migliaia di chiamate per tutti. Nel dubbio si preserva
-  // quella già salvata da una sincronizzazione precedente, invece di
-  // perderla o inventarla: si aggiorna sempre nome/icona/ID (quelli sì
-  // affidabili dalla lista), l'accuracy resta quella vecchia se già nota.
+  // Stat base + leader skill dalla v2 (poche chiamate, vedi sopra). Se la
+  // chiamata fallisce la mappa resta vuota e si ricade sui valori vecchi,
+  // esattamente come prima: mai peggio di adesso.
+  const extraByComId = await fetchBaseStatsAndLeaderSkills();
+
+  // Valori già salvati da una sincronizzazione precedente: si usano come
+  // ripiego per i mostri che la v2 non dovesse restituire.
   const oldByComId = new Map();
   const oldIds = new Set();
   for (const m of await getSyncedMonsters()) {
     oldIds.add(m.com2usId);
     if (m.com2usId != null && m.baseAccuracy != null) oldByComId.set(m.com2usId, m.baseAccuracy);
   }
+
+  // Mette insieme i campi extra di un mostro, preferendo sempre il dato
+  // fresco della v2 e cadendo su quello vecchio solo se manca.
+  const extraFields = (comId) => {
+    const e = extraByComId.get(comId);
+    return {
+      baseAccuracy: e?.baseAccuracy ?? oldByComId.get(comId) ?? null,
+      baseCritRate: e?.baseCritRate ?? null,
+      baseCritDamage: e?.baseCritDamage ?? null,
+      leaderSkill: e?.leaderSkill ?? null,
+    };
+  };
 
   const byBareName = new Map();
   for (const m of raws) {
@@ -180,7 +233,7 @@ export async function syncMonstersFromSwarfarm() {
       // al successivo (che se non è a sua volta escluso, vince lui).
       const baseIndex = sorted.findIndex((v) => !neverCleanIds.has(v.com2usId));
       const base = baseIndex === -1 ? sorted[0] : sorted[baseIndex];
-      safeEntries.push({ name: displayName, iconUrl: base.iconUrl, com2usId: base.com2usId, baseAccuracy: oldByComId.get(base.com2usId) ?? null, naturalStars: base.naturalStars });
+      safeEntries.push({ name: displayName, iconUrl: base.iconUrl, com2usId: base.com2usId, naturalStars: base.naturalStars, ...extraFields(base.com2usId) });
       for (let i = 0; i < sorted.length; i++) {
         if (i === baseIndex || (baseIndex === -1 && i === 0)) continue;
         candidates.push({ displayName, bareName: name, extra: sorted[i] });
@@ -212,7 +265,7 @@ export async function syncMonstersFromSwarfarm() {
       name: isConfirmed ? `${c.displayName} 2A` : `${c.displayName} (ID ${c.extra.com2usId})`,
       iconUrl: c.extra.iconUrl,
       com2usId: c.extra.com2usId,
-      baseAccuracy: oldByComId.get(c.extra.com2usId) ?? null,
+      ...extraFields(c.extra.com2usId),
       naturalStars: c.extra.naturalStars,
     });
   }

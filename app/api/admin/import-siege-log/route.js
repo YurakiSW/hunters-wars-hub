@@ -97,11 +97,17 @@ export async function POST(request) {
       // da sole quando le guardi -- non serve ricaricare lo stesso log da capo.
       const units = m.offense.map((name, i) => {
         const richIdx = richIndexByUnitId.get(offenseIds[i]);
+        // `lead`: leader vero letto dal replay (leader_unit). Serve sia al
+        // form "Modifica e approva" (che guarda questo flag per spuntare la
+        // casella) sia al calcolo della leader skill, che in Siege alza le
+        // stat di tutta la squadra (14/08/2026, Flora).
+        const isLead = rich.offenseLeaderId != null && offenseIds[i] === rich.offenseLeaderId;
         if (richIdx == null) {
-          return { name: canon(name), rawRunes: null, rawArtifacts: null, rawRelics: null, rawSpd: null, rawCombatBase: null };
+          return { name: canon(name), lead: isLead, rawRunes: null, rawArtifacts: null, rawRelics: null, rawSpd: null, rawCombatBase: null };
         }
         return {
           name: canon(name),
+          lead: isLead,
           rawRunes: rich.offenseRunes[richIdx],
           rawArtifacts: rich.offenseArtifacts[richIdx],
           rawRelics: rich.offenseRelics?.[richIdx] ?? null,

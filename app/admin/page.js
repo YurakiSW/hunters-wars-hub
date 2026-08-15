@@ -1068,6 +1068,8 @@ function DiagnosticaTab() {
   const [cleaning, setCleaning] = useState(false);
 
   const [merging, setMerging] = useState(false);
+  const [recomputing, setRecomputing] = useState(false);
+  const [recomputeMsg, setRecomputeMsg] = useState("");
   const [mergeMsg, setMergeMsg] = useState("");
   const [reviewGroups, setReviewGroups] = useState([]);
   const [maintMsg, setMaintMsg] = useState("");
@@ -1102,6 +1104,21 @@ function DiagnosticaTab() {
   }
 
   useEffect(() => { load(); loadDupInfo(); loadDataHealth(); }, []);
+
+  // Rigenera le Combat Stats dei counter pubblicati dal Siege Log con le
+  // regole di calcolo attuali (14/08/2026, Flora).
+  async function recomputeStats() {
+    setRecomputing(true);
+    setRecomputeMsg("");
+    const res = await fetch("/api/admin/siege-stats/recompute-stats", { method: "POST" });
+    const data = await res.json();
+    setRecomputing(false);
+    if (!res.ok) return setRecomputeMsg(data.error || "Errore durante il ricalcolo.");
+    const pezzi = [`${data.aggiornati} counter aggiornati`];
+    if (data.saltatiManuali) pezzi.push(`${data.saltatiManuali} saltati perché corretti a mano`);
+    if (data.senzaDati) pezzi.push(`${data.senzaDati} senza dati grezzi da cui ricalcolare`);
+    setRecomputeMsg(pezzi.join(", ") + ".");
+  }
 
   async function mergeEquivalent() {
     setMerging(true);
@@ -1208,6 +1225,18 @@ function DiagnosticaTab() {
       ) : null}
 
       <div className="section-label" style={{ marginTop: 24 }}>Manutenzione contenuti</div>
+      <div className="card" style={{ marginBottom: 10 }}>
+        <button className="btn btn-ghost" disabled={recomputing} onClick={recomputeStats}>
+          {recomputing && <Spinner />}🔄 Ricalcola Combat Stats dei counter da Siege Log
+        </button>
+        <p style={{ fontSize: 11.5, color: "var(--text-faint)", marginTop: 8 }}>
+          I counter pubblicati hanno le Combat Stats <strong>congelate</strong> al momento dell&apos;approvazione:
+          dopo una correzione alle regole di calcolo (bonus set, stat base per mostro, leader skill) restano
+          quelle vecchie finché non arriva un import nuovo. Questo le rigenera tutte usando le regole attuali.
+          <strong> Non tocca i counter corretti a mano.</strong> Serve un bestiario già sincronizzato.
+        </p>
+        {recomputeMsg && <p style={{ fontSize: 12.5, color: "var(--green)", marginTop: 8 }}>{recomputeMsg}</p>}
+      </div>
       <div className="card" style={{ marginBottom: 10 }}>
         <button className="btn btn-danger" disabled={merging} onClick={mergeEquivalent}>
           {merging && <Spinner />}🔗 Unisci Difese uguali a meno della versione collab
@@ -2126,29 +2155,50 @@ function SiegeStatsProposalsTab({ isAdmin }) {
           onCancel={() => setConfirmSeasonEnd(false)}
         />
       )}
-      {editingProposal && (
-        <Modal title={`Modifica e approva — ${editingProposal.offenseNames.join(" / ")} contro ${editingProposal.defenseNames.join(" / ")}`} onClose={() => setEditingProposal(null)} wide>
-          <CounterForm
-            defMonsters={editingProposal.defenseNames}
-            initial={{
-              offense: editingProposal.offenseNames,
-              lead: editingProposal.offenseNames[0],
-              turnOrder: editingProposal.offenseNames,
-              units: editingProposal.bestVariant?.units || editingProposal.offenseNames.map((name) => ({
-                name, lead: false, runes: "", stats: "", statsFlexible: false, statsMinText: "",
-                artifactLeft: [], artifactRight: [], notes: [""],
-              })),
-              focus: [],
-              strategy: `Proposto dal sistema Siege Log: ${Math.round((editingProposal.currentWinRate || 0) * 100)}% vittorie su tutte le sieges osservate. Controlla comunque rune/artefatti/strategia.`,
-              warning: "",
-              video: null,
-              images: [],
-            }}
-            onSubmit={approveWithOverride}
-            onCancel={() => setEditingProposal(null)}
-          />
-        </Modal>
-      )}
+      {editingProposal && (() => {
+        // Corretto il 14/08/2026 (Flora): il form partiva con dati grezzi
+        // invece che con quelli del log — leader MAI spuntato (il nome
+        // stava in un campo a parte, mai scritto dentro units[].lead, che
+        // è dove il form guarda) e ordine turni = ordine posizione squadra
+        // invece dell'ordine vero per SPD di combattimento. Chi apriva
+        // "Modifica e approva" pubblicava quindi dati diversi da quelli
+        // dell'approvazione diretta.
+        const rawUnits = editingProposal.bestVariant?.units || editingProposal.offenseNames.map((name) => ({
+          name, lead: false, runes: "", stats: "", statsFlexible: false, statsMinText: "",
+          artifactLeft: [], artifactRight: [], notes: [""],
+        }));
+        // Leader dal log: l'unità già marcata `lead` nella variante; se
+        // manca (dati vecchi) si ripiega sul primo, come fa l'approvazione.
+        const leadName = rawUnits.find((u) => u.lead)?.name || editingProposal.offenseNames[0];
+        const units = rawUnits.map((u) => ({ ...u, lead: u.name === leadName }));
+        // Stesso identico criterio di turnOrderBySpd (lib/siegeStats.js):
+        // SPD di combattimento (torre + leader + set), mai l'ordine squadra.
+        const spdOf = (u) => u?.combatStats?.spdCombat ?? u?.combatStats?.spd ?? u?.spd;
+        const turnOrder = units.every((u) => typeof spdOf(u) === "number" && spdOf(u) > 0)
+          ? [...units].sort((a, b) => spdOf(b) - spdOf(a)).map((u) => u.name)
+          : editingProposal.offenseNames;
+
+        return (
+          <Modal title={`Modifica e approva — ${editingProposal.offenseNames.join(" / ")} contro ${editingProposal.defenseNames.join(" / ")}`} onClose={() => setEditingProposal(null)} wide>
+            <CounterForm
+              defMonsters={editingProposal.defenseNames}
+              initial={{
+                offense: editingProposal.offenseNames,
+                lead: leadName,
+                turnOrder,
+                units,
+                focus: [],
+                strategy: `Proposto dal sistema Siege Log: ${Math.round((editingProposal.currentWinRate || 0) * 100)}% vittorie su tutte le sieges osservate. Controlla comunque rune/artefatti/strategia.`,
+                warning: "",
+                video: null,
+                images: [],
+              }}
+              onSubmit={approveWithOverride}
+              onCancel={() => setEditingProposal(null)}
+            />
+          </Modal>
+        );
+      })()}
     </div>
   );
 }
