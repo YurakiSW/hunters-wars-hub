@@ -203,6 +203,9 @@ export async function syncMonstersFromSwarfarm() {
       baseAccuracy: e?.baseAccuracy ?? oldByComId.get(comId) ?? null,
       baseCritRate: e?.baseCritRate ?? null,
       baseCritDamage: e?.baseCritDamage ?? null,
+      // Serve per le leader skill ristrette a un elemento (es. "+33% SPD ai
+      // mostri Acqua"): senza, non si potrebbe sapere a chi applicarle.
+      element: e?.element ?? null,
       leaderSkill: e?.leaderSkill ?? null,
     };
   };
