@@ -114,12 +114,12 @@ function AdminPageContent() {
         {tab === "users" && isAdmin && <UsersTab />}
         {tab === "monsters" && <MonstersTab />}
         {tab === "content" && canManageContent && <ContentTab />}
-        {tab === "import" && isAdmin && (
-          <div>
-            <ImportTab />
-            <div style={{ marginTop: 18 }}><SiegeLogImportSection /></div>
-          </div>
-        )}
+        {/* L'import di Difese/Counter da file JSON (componente ImportTab)
+            è stato rimosso il 14/08/2026 (Flora): serviva a popolare il sito
+            dalla bozza iniziale, ormai fatto. I rari counter che arrivano da
+            fuori si inseriscono a mano. Resta l'import dei log di Siege, che
+            è il vero flusso di lavoro. */}
+        {tab === "import" && isAdmin && <SiegeLogImportSection />}
         {tab === "siegeStats" && canManageContent && <SiegeStatsProposalsTab isAdmin={isAdmin} />}
         {tab === "backup" && isAdmin && <BackupTab />}
         {tab === "diagnostica" && isAdmin && <DiagnosticaTab />}
@@ -1553,90 +1553,6 @@ function SiegeDefenseImportCard() {
   );
 }
 
-function ImportTab() {
-  const [status, setStatus] = useState("idle"); // idle | loading | done | error
-  const [result, setResult] = useState(null);
-  const [error, setError] = useState("");
-
-  function handleFile(file) {
-    setStatus("loading");
-    setError("");
-    setResult(null);
-    const reader = new FileReader();
-    reader.onload = async () => {
-      let parsed;
-      try {
-        parsed = JSON.parse(reader.result);
-      } catch {
-        setStatus("error");
-        setError("Il file non è un JSON valido.");
-        return;
-      }
-      try {
-        const res = await fetch("/api/admin/import-seed", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(parsed),
-        });
-        const raw = await res.text();
-        let data;
-        try {
-          data = JSON.parse(raw);
-        } catch {
-          throw new Error(
-            res.status === 504
-              ? "Il server ha impiegato troppo tempo (troppi dati insieme). Riprova, o dividi il file in più parti più piccole."
-              : `Il server ha risposto in modo inatteso (status ${res.status}). Riprova tra poco.`
-          );
-        }
-        if (!res.ok) throw new Error(data.error || "Errore sconosciuto");
-        setResult(data);
-        setStatus("done");
-      } catch (e) {
-        setStatus("error");
-        setError(String(e.message || e));
-      }
-    };
-    reader.readAsText(file);
-  }
-
-  return (
-    <div className="card">
-      <div className="section-label">Importa Difese e Counter da file JSON</div>
-      <p style={{ color: "var(--text-faint)", fontSize: 12.5, marginBottom: 12 }}>
-        Carica un file .json (es. quello preparato durante la fase di bozza) per popolare in blocco Difese e Counter.
-        Vengono importati già "approvati", con te come autore.
-      </p>
-      <label
-        style={{
-          display: "block", border: "1.5px dashed var(--border)", borderRadius: 8, padding: "18px 12px",
-          textAlign: "center", cursor: "pointer", color: "var(--text-muted)", fontSize: 12.5, background: "var(--bg-soft)",
-        }}
-      >
-        📎 Clicca per selezionare il file .json
-        <input type="file" accept="application/json" style={{ display: "none" }} onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])} />
-      </label>
-
-      {status === "loading" && <p style={{ color: "var(--text-muted)", fontSize: 13, marginTop: 10 }}><Spinner />Importazione in corso...</p>}
-      {status === "error" && <p style={{ color: "var(--red)", fontSize: 13, marginTop: 10 }}>{error}</p>}
-      {status === "done" && result && (
-        <div style={{ marginTop: 10 }}>
-          <p style={{ color: "var(--green)", fontSize: 13 }}>
-            Importate {result.importedDefs} Difese e {result.importedCounters} Counter.
-          </p>
-          {result.errors?.length > 0 && (
-            <details style={{ marginTop: 6 }}>
-              <summary style={{ color: "var(--ember)", fontSize: 12, cursor: "pointer" }}>{result.errors.length} avvisi</summary>
-              <ul style={{ fontSize: 11, color: "var(--text-faint)" }}>
-                {result.errors.map((e, i) => <li key={i}>{e}</li>)}
-              </ul>
-            </details>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
 
 // Limite FISSO di Vercel per le funzioni serverless: 4.5MB per richiesta,
 // non aggirabile via configurazione. Un log SWEX/SWProxy di una siege
@@ -2055,11 +1971,32 @@ function SiegeStatsProposalsTab({ isAdmin }) {
                 </div>
                 <div style={{ fontSize: 13, color: "var(--text-muted)" }}>
                   {Math.round((p.currentWinRate || 0) * 100)}% vittorie attuali
+                  {/* Conteggio esplicito: "67%" non dice se sono 2 su 3 o 40
+                      su 60 (14/08/2026, Flora). */}
+                  {p.total > 0 && (
+                    <span style={{ color: "var(--text-faint)" }}>
+                      {" "}— {p.wins} {p.wins === 1 ? "vittoria" : "vittorie"}
+                      {p.total - p.wins > 0 && `, ${p.total - p.wins} ${p.total - p.wins === 1 ? "sconfitta" : "sconfitte"}`}
+                    </span>
+                  )}
                   {p.status === "update_available" && (
                     <span style={{ color: "var(--gold)" }}> (approvato a {Math.round((p.approvedWinRate || 0) * 100)}%)</span>
                   )}
                   {p.status === "underperforming" && (
                     <span style={{ color: "var(--red)" }}> (era stato approvato a {Math.round((p.approvedWinRate || 0) * 100)}%, ora sotto il 90%)</span>
+                  )}
+                  {/* Chi ha perso: le sconfitte non lasciano un replay da cui
+                      ricavare la build (si cattura solo il vincitore), quindi
+                      senza il nome non si saprebbe nemmeno chi ci ha provato.
+                      Serve a capire se il counter è debole o se qualcuno l'ha
+                      giocato con la build sbagliata (14/08/2026, Flora). */}
+                  {p.losers && Object.keys(p.losers).length > 0 && (
+                    <div style={{ fontSize: 12, color: "var(--text-faint)", marginTop: 3 }}>
+                      ha perso: {Object.entries(p.losers)
+                        .sort((a, b) => b[1] - a[1])
+                        .map(([nome, quante]) => (quante > 1 ? `${nome} ×${quante}` : nome))
+                        .join(", ")}
+                    </div>
                   )}
                 </div>
               </div>
