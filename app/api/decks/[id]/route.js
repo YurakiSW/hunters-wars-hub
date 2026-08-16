@@ -35,7 +35,16 @@ export async function PATCH(request, { params }) {
     }
   }
 
-  const updated = await updateDeck(params.id, payload);
+  // Se qualcuno modifica la SQUADRA (rune, mostri, ordine), il deck non
+  // rispecchia più la build giocata nei log: da quel momento il nome da
+  // mostrare è quello di chi l'ha modificato, non del giocatore originale.
+  // Le modifiche che NON toccano la squadra (nome build, note, "da usare
+  // contro") lasciano tutto com'è (14/08/2026, Flora).
+  const patch = payload.units
+    ? { ...payload, logOwnerNickname: null, authorId: user.id, authorNickname: user.nickname }
+    : payload;
+
+  const updated = await updateDeck(params.id, patch);
   return NextResponse.json({ deck: updated });
 }
 

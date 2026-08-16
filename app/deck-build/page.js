@@ -128,8 +128,15 @@ function DeckRow({
               <span className="f-mono" style={{ fontSize: 11, color: "var(--text-faint)" }}>{targetCount} difes{targetCount === 1 ? "a" : "e"}</span>
             )}
           </div>
+          {/* Si mostra chi ha GIOCATO davvero quella build nei log, non chi
+              ha premuto "crea deck": è a lui che si chiedono le rune. Se il
+              deck viene poi modificato a mano il campo si azzera e torna il
+              nome di chi l'ha modificato (14/08/2026, Flora). */}
           <p className="f-mono" style={{ fontSize: 11, color: "var(--text-faint)", margin: "2px 0 0" }}>
-            Deck by <NicknameHeart isOwn={deck.authorId === user.id}>{formatNickname(deck.authorNickname)}</NicknameHeart>
+            Deck by{" "}
+            {deck.logOwnerNickname
+              ? <span style={{ color: "var(--gold)" }}>{deck.logOwnerNickname}</span>
+              : <NicknameHeart isOwn={deck.authorId === user.id}>{formatNickname(deck.authorNickname)}</NicknameHeart>}
           </p>
         </div>
         {!reorderMode && (

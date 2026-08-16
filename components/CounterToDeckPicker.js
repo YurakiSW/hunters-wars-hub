@@ -30,15 +30,22 @@ export default function CounterToDeckPicker({ onSelect, onCancel }) {
   }, []);
 
   const tokens = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  // Si cerca sia per mostro del counter sia per chi l'ha giocato: capita di
+  // ricordarsi "quello di Lucioxis" e non i tre mostri (14/08/2026, Flora).
   const filtered = tokens.length
-    ? counters.filter((c) => tokens.every((t) => c.offense.some((m) => m.toLowerCase().includes(t))))
+    ? counters.filter((c) =>
+        tokens.every((t) =>
+          c.offense.some((m) => m.toLowerCase().includes(t)) ||
+          (c.logOwnerNickname || "").toLowerCase().includes(t)
+        )
+      )
     : counters;
 
   return (
     <div>
       <input
         autoFocus
-        placeholder="Cerca per mostro nel counter..."
+        placeholder="Cerca per mostro o per chi l'ha giocato..."
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         style={{ marginBottom: 10 }}
@@ -61,7 +68,14 @@ export default function CounterToDeckPicker({ onSelect, onCancel }) {
               </div>
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontSize: 13 }}>{c.offense.join(" / ")}</div>
-                <div style={{ fontSize: 11, color: "var(--text-faint)" }}>contro {c.defMonsters.join(" / ")}</div>
+                <div style={{ fontSize: 11, color: "var(--text-faint)" }}>
+                  contro {c.defMonsters.join(" / ")}
+                  {/* Chi ha davvero giocato quella build nei log: serve a
+                      sapere a chi chiedere le rune (14/08/2026, Flora). */}
+                  {c.logOwnerNickname && (
+                    <span className="f-mono" style={{ color: "var(--gold)" }}> · {c.logOwnerNickname}</span>
+                  )}
+                </div>
               </div>
             </button>
           ))}
