@@ -326,11 +326,19 @@ function CounterCard({ counter: c, user, canManage, managerNicknames, onEdit, on
   return (
     <div className="card" style={{ marginBottom: 14 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, flexWrap: "wrap", gap: 8 }}>
-        <div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          {/* Icone dei mostri anche a scheda chiusa: si riconosce il counter
+              a colpo d'occhio senza doverlo aprire (14/08/2026, Flora).
+              Il leader ha il bordo dorato, come nel dettaglio. */}
+          <div style={{ display: "flex", gap: 3 }}>
+            {(c.units || []).slice(0, 4).map((u, i) => (
+              <MonsterCrest key={`${u.name}-${i}`} name={u.name} size={30} lead={u.lead} />
+            ))}
+          </div>
           <span className="f-display" style={{ fontSize: 16 }}>
             {c.offense.join(" · ")}
             {c.units?.[3] && <> / {c.units[3].name}</>}
-          </span>{" "}
+          </span>
           <span className={`badge ${c.status === "approved" ? "badge-approved" : "badge-pending"}`}>
             {c.status === "approved" ? "Approvato" : "In attesa"}
           </span>
