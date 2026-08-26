@@ -1586,6 +1586,27 @@ function SiegeLogImportSection() {
   const [progress, setProgress] = useState(null); // { part, total }
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
+  // Cronologia dei log già caricati, per non doverla ricordare a memoria
+  // (14/08/2026, Flora). Ricaricata dopo ogni import riuscito.
+  const [history, setHistory] = useState(null); // null = non ancora caricata
+  const [showHistory, setShowHistory] = useState(false);
+
+  function loadHistory() {
+    fetch("/api/admin/import-siege-log/history").then((r) => r.json()).then((d) => setHistory(d.history || []));
+  }
+  useEffect(loadHistory, []);
+
+  // STESSA identica formula di fingerprintLogText in lib/siegeStats.js:
+  // deve dare lo stesso numero per lo stesso contenuto, altrimenti l'avviso
+  // "già caricato" non funzionerebbe mai (14/08/2026, Flora).
+  function fingerprint(text) {
+    let h = 0;
+    for (let i = 0; i < text.length; i++) h = (Math.imul(31, h) + text.charCodeAt(i)) | 0;
+    return `${text.length}:${h}`;
+  }
+  const giaCaricato = logText && history
+    ? history.find((v) => v.fingerprint === fingerprint(logText))
+    : null;
 
   function handleFile(file) {
     setStatus("reading");
@@ -1635,6 +1656,14 @@ function SiegeLogImportSection() {
       }
       setResult(totals);
       setStatus("done");
+      // Registrato SOLO dopo che tutti i pezzi sono andati a buon fine: un
+      // import fallito a metà non deve comparire come "già caricato"
+      // (14/08/2026, Flora). Se questa chiamata fallisce non blocca nulla:
+      // l'import vero è già andato a segno, la cronologia è solo un diario.
+      fetch("/api/admin/import-siege-log/record-history", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ logText, stats: totals }),
+      }).then(() => loadHistory()).catch(() => {});
     } catch (e) {
       setStatus("error");
       setError(String(e.message || e));
@@ -1671,6 +1700,19 @@ function SiegeLogImportSection() {
         disabled={status === "loading" || status === "reading"}
         style={{ width: "100%", fontFamily: "monospace", fontSize: 11, marginBottom: 10 }}
       />
+      {/* Avviso se il contenuto è IDENTICO a un log già registrato -- non
+          blocca nulla (reimportare è sempre sicuro, le battaglie già viste
+          vengono saltate), è solo per evitare di farlo per sbaglio pensando
+          fosse un file nuovo (14/08/2026, Flora). */}
+      {giaCaricato && (
+        <p style={{ color: "var(--gold)", fontSize: 12.5, marginBottom: 10 }}>
+          ⚠️ Questo identico file risulta già caricato
+          {giaCaricato.ultimoCaricatoDa && ` da ${giaCaricato.ultimoCaricatoDa}`}
+          {" "}il {dataIt(giaCaricato.caricatoIl)}
+          {giaCaricato.volteRicaricato > 1 && ` (ricaricato ${giaCaricato.volteRicaricato} volte)`}.
+          Va bene comunque: le battaglie già viste vengono saltate, nessun doppio conteggio.
+        </p>
+      )}
       <button className="btn btn-gold" onClick={submit} disabled={status === "loading" || !logText.trim()}>
         {status === "loading" && <Spinner />}
         {status === "loading" ? (progress ? `Parte ${progress.part} di ${progress.total}...` : "Analisi in corso...") : "Importa dal log"}
@@ -1694,6 +1736,32 @@ function SiegeLogImportSection() {
           </p>
         </div>
       )}
+
+      {/* Elenco di TUTTO quello che è già stato caricato, per consultarlo
+          senza doverlo ricordare a memoria (14/08/2026, Flora). */}
+      <div style={{ marginTop: 16, borderTop: "1px solid var(--border-soft)", paddingTop: 12 }}>
+        <button className="btn btn-ghost" style={{ fontSize: 12.5 }} onClick={() => setShowHistory((v) => !v)}>
+          {showHistory ? "▲" : "▼"} Log già caricati {history ? `(${history.length})` : ""}
+        </button>
+        {showHistory && (
+          <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 6 }}>
+            {history?.length === 0 && <p style={{ color: "var(--text-faint)", fontSize: 12.5 }}>Nessun log caricato ancora.</p>}
+            {history?.map((v) => (
+              <div key={v.fingerprint} style={{ background: "var(--bg-soft)", borderRadius: 6, padding: "8px 10px", fontSize: 12 }}>
+                <div style={{ color: "var(--text)" }}>
+                  {dataOraIt(v.caricatoIl)}
+                  {v.caricatoDa && <span style={{ color: "var(--text-muted)" }}> — caricato da {v.caricatoDa}</span>}
+                </div>
+                <div style={{ color: "var(--text-faint)", marginTop: 2 }}>
+                  {v.battaglieTotali != null && `${v.battaglieTotali} attacchi`}
+                  {v.matchupVincenti != null && ` · ${v.matchupVincenti} coppie sopra soglia`}
+                  {v.volteRicaricato > 1 && ` · ricaricato ${v.volteRicaricato} volte (ultima da ${v.ultimoCaricatoDa || "?"} il ${dataIt(v.ultimoCaricamento)})`}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
