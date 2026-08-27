@@ -18,7 +18,10 @@ function UnitBuildDetails({ u }) {
   return (
     <>
       <div className="f-mono" style={{ fontSize: 11.5, color: "var(--text-muted)", marginBottom: 2 }}>
-        Rune: <span style={{ color: "var(--text)" }}>{u.statsFlexible ? "Set libero" : (u.runes || "—")}</span>
+        {/* Le rune ora possono essere indicate ANCHE con "set libero" spuntato
+            (16/08/2026, Flora): se scritte si mostrano sempre, "Set libero"
+            resta solo per quando il campo è vuoto. */}
+        Rune: <span style={{ color: "var(--text)" }}>{u.runes?.trim() || (u.statsFlexible ? "Set libero" : "—")}</span>
       </div>
       <div className="f-mono" style={{ fontSize: 11.5, color: "var(--text-muted)", marginBottom: 8 }}>
         Stat: <span style={{ color: "var(--text)" }}>{u.statsFlexible ? `+ ${u.statsMinText || "—"}` : (u.stats || "—")}</span>
@@ -248,7 +251,7 @@ export default function DeckBuildPage() {
   const [decks, setDecks] = useState([]);
   const [decksLoaded, setDecksLoaded] = useState(false);
   const [query, setQuery] = useState("");
-  const [sortMode, setSortMode] = useState("none"); // none | against_desc | stars_asc | stars_desc
+  const [sortMode, setSortMode] = useState("none"); // none | against_desc | stars_4 | stars_5
   const [starsByName, setStarsByName] = useState(new Map());
   const [openIds, setOpenIds] = useState(new Set());
   const [selectedIds, setSelectedIds] = useState(new Set());
@@ -312,22 +315,24 @@ export default function DeckBuildPage() {
     return known.length ? Math.max(...known) : null;
   }
 
-  const filtered = [...searched];
+  let filtered = [...searched];
   if (sortMode === "against_desc") {
     filtered.sort((a, b) => (b.against?.length || 0) - (a.against?.length || 0));
-  } else if (sortMode === "stars_asc" || sortMode === "stars_desc") {
-    filtered.sort((a, b) => {
-      const sa = deckMaxStars(a);
-      const sb = deckMaxStars(b);
-      if (sa == null && sb == null) return (b.against?.length || 0) - (a.against?.length || 0);
-      if (sa == null) return 1; // sconosciute in fondo, mai in cima a caso
-      if (sb == null) return -1;
-      if (sa !== sb) return sortMode === "stars_asc" ? sa - sb : sb - sa;
-      // A parità di stelle, il più versatile (più difese nemiche coperte)
-      // viene prima — utile a chi cerca "un buon deck a 4★" senza dover
-      // scorrere a caso tra quelli con la stessa stella.
-      return (b.against?.length || 0) - (a.against?.length || 0);
-    });
+  } else if (sortMode === "stars_4" || sortMode === "stars_5") {
+    // "4★"/"5★" ora FILTRANO, non ordinano soltanto (16/08/2026, Flora): un
+    // deck con anche un solo 5★ naturale non è utilizzabile su una torre
+    // 4★ (in game basta UN 5★ su tre a far contare tutto il team come 5★),
+    // quindi mescolarli in una lista ordinata confondeva — un deck 5★
+    // comunque compariva scorrendo "4★ prima", solo più in basso. Ora chi
+    // clicca "4★" vede SOLO i deck che si possono davvero usare lì.
+    // NON un `return` anticipato: sotto c'è ancora l'ordinamento dei
+    // preferiti, che deve valere anche qui.
+    const target = sortMode === "stars_4" ? 4 : 5;
+    filtered = filtered
+      .filter((d) => deckMaxStars(d) === target)
+      // A parità di stelle (sono tutte uguali qui), il più versatile
+      // (più difese nemiche coperte) viene prima.
+      .sort((a, b) => (b.against?.length || 0) - (a.against?.length || 0));
   }
   // I preferiti vengono sempre prima, qualunque sia il criterio scelto
   // sopra (o nessuno) — personali per account, non spostano l'ordine per
@@ -528,8 +533,8 @@ export default function DeckBuildPage() {
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
               {[
                 { value: "against_desc", label: "🛡 Più difese nemiche" },
-                { value: "stars_asc", label: "4★ prima" },
-                { value: "stars_desc", label: "5★ prima" },
+                { value: "stars_4", label: "Solo 4★" },
+                { value: "stars_5", label: "Solo 5★" },
               ].map((opt) => (
                 <button
                   key={opt.value}

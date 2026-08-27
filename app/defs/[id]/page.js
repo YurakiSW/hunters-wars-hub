@@ -251,7 +251,10 @@ function UnitBuildDetails({ u }) {
   return (
     <>
       <div className="f-mono" style={{ fontSize: 11.5, color: "var(--text-muted)", marginBottom: 2 }}>
-        Rune: <span style={{ color: "var(--text)" }}>{u.statsFlexible ? "Set libero" : (u.runes || "—")}</span>
+        {/* Le rune ora possono essere indicate ANCHE con "set libero" spuntato
+            (16/08/2026, Flora): se scritte si mostrano sempre, "Set libero"
+            resta solo per quando il campo è vuoto. */}
+        Rune: <span style={{ color: "var(--text)" }}>{u.runes?.trim() || (u.statsFlexible ? "Set libero" : "—")}</span>
       </div>
       <div className="f-mono" style={{ fontSize: 11.5, color: "var(--text-muted)", marginBottom: 8 }}>
         Stat: <span style={{ color: "var(--text)" }}>{u.statsFlexible ? `+ ${u.statsMinText || "—"}` : (u.stats || "—")}</span>

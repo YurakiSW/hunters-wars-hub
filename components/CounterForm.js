@@ -215,19 +215,20 @@ export default function CounterForm({ defMonsters = [], initial, isEdit, onSubmi
             <div style={{ fontSize: 11, marginBottom: 4, color: "var(--text-muted)" }}>Nome mostro <span style={{ color: "var(--red)" }}>*</span></div>
             <MonsterPicker value={u.name} onChange={(v) => setUnit(i, { name: v })} placeholder="Nome mostro" />
           </div>
-          {!u.statsFlexible && (
-            <div style={{ marginBottom: 10 }}>
-              <div style={{ fontSize: 11, marginBottom: 4, color: "var(--text-muted)" }}>Rune (fino a 3 set — es. 2+2+2 o 4+2) <span style={{ color: "var(--red)" }}>*</span></div>
-              <RunePicker value={u.runes} onChange={(v) => setUnit(i, { runes: v })} />
+          <div style={{ marginBottom: 10 }}>
+            <div style={{ fontSize: 11, marginBottom: 4, color: "var(--text-muted)" }}>
+              Rune (fino a 3 set — es. 2+2+2 o 4+2){" "}
+              <span style={{ color: "var(--text-faint)", fontWeight: 400 }}>— facoltativo</span>
             </div>
-          )}
+            <RunePicker value={u.runes} onChange={(v) => setUnit(i, { runes: v })} />
+          </div>
           <div style={{ marginBottom: 10 }}>
             <div style={{ fontSize: 11, marginBottom: 4, color: "var(--text-muted)" }}>Priorità statistiche</div>
             <label className="f-mono" style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11.5, color: "var(--text-muted)", marginBottom: 8, cursor: "pointer" }}>
               <input
                 type="checkbox"
                 checked={u.statsFlexible}
-                onChange={(e) => setUnit(i, { statsFlexible: e.target.checked, stats: "", statsMinText: "", runes: "" })}
+                onChange={(e) => setUnit(i, { statsFlexible: e.target.checked, stats: "", statsMinText: "" })}
               />
               Usa il set che preferisci purché tu raggiunga le stat indicate
             </label>
