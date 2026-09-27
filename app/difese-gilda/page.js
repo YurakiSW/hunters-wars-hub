@@ -161,6 +161,7 @@ function GuildDefensesContent() {
             Vista unificata per team — apri un team per vedere tutti i nostri giocatori che lo usano.
           </p>
           <a href="/difese-gilda/archivio" style={{ fontSize: 12.5, color: "var(--gold)" }}>📦 Archivio stagioni passate →</a>
+          <a href="/difese-gilda/best" style={{ fontSize: 12.5, color: "var(--gold)" }}>🏆 Best Def Rate →</a>
         </div>
 
         {!siegesLoading && sieges.length > 0 && (
