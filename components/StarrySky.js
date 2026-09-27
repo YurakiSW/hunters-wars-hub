@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 // Sopra il cielo stellato statico già nel body (app/globals.css) — questo
 // aggiunge un secondo livello di stelle più piccole che tremolano piano,
@@ -20,7 +20,20 @@ function makeStars() {
 }
 
 export default function StarrySky() {
-  const [stars] = useState(makeStars);
+  // Vuoto sia sul server sia al primo render nel browser: nessuna stella,
+  // nessun numero casuale, quindi server e browser producono ESATTAMENTE
+  // lo stesso HTML — niente hydration mismatch. Le stelle vere arrivano
+  // SOLO dopo, dentro useEffect, che gira esclusivamente nel browser.
+  // PRIMA `useState(makeStars)` chiamava Math.random() anche durante il
+  // disegno lato server, che produceva sempre posizioni diverse da quelle
+  // del browser: era la causa esatta degli errori React #418/423/425 su
+  // OGNI pagina del sito, perché questo componente è nel layout globale
+  // (27/09/2026, Flora — segnalato come "un pulsante non risponde più al
+  // click da nessuna parte", causato proprio da questo).
+  const [stars, setStars] = useState([]);
+  useEffect(() => {
+    setStars(makeStars());
+  }, []);
 
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: -1, pointerEvents: "none", overflow: "hidden" }}>
