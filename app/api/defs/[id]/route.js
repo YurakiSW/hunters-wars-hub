@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { redis } from "../../../../lib/redis";
 import { getCurrentUser, canManage } from "../../../../lib/auth";
 import { getDef, updateDef, deleteDef, findMatchingDef } from "../../../../lib/defs";
 import { isKnownMonster } from "../../../../lib/monsters";
@@ -9,6 +10,17 @@ export async function GET(request, { params }) {
   if (!user || user.status !== "approved") return NextResponse.json({ error: "Non autorizzato." }, { status: 401 });
   const def = await getDef(params.id);
   if (!def) return NextResponse.json({ error: "Non trovata." }, { status: 404 });
+  // Tracciamento uso del sito (27/09/2026, Flora): ogni apertura di una
+  // scheda Difesa/Counter conta, ripetizioni comprese — serve a distinguere
+  // chi guarda davvero i counter prima di giocare da chi non lo fa mai.
+  // Non blocca la risposta: se il salvataggio fallisce non deve impedire
+  // di vedere la difesa.
+  redis.get(`user:${user.id}`).then((fresh) => {
+    if (!fresh) return;
+    fresh.lastCounterViewAt = Date.now();
+    fresh.counterViewCount = (fresh.counterViewCount || 0) + 1;
+    return redis.set(`user:${user.id}`, fresh);
+  }).catch(() => {});
   return NextResponse.json({ def });
 }
 

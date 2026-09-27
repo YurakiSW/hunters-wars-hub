@@ -108,6 +108,11 @@ function AdminPageContent() {
           {canManageContent && <button className={`btn ${tab === "siegeStats" ? "btn-primary" : "btn-ghost"}`} onClick={() => setTab("siegeStats")}>Approvazioni Siege Log</button>}
           {isAdmin && <button className={`btn ${tab === "backup" ? "btn-primary" : "btn-ghost"}`} onClick={() => setTab("backup")}>Backup</button>}
           {isAdmin && <button className={`btn ${tab === "diagnostica" ? "btn-primary" : "btn-ghost"}`} onClick={() => setTab("diagnostica")}>Diagnostica</button>}
+          {/* Solo Admin, come Backup e Diagnostica (27/09/2026, Flora): chi
+              guarda davvero i Counter/Difese prima di giocare e chi no —
+              nasce dal sospetto che alcuni si inventino i counter invece di
+              controllare il sito. */}
+          {isAdmin && <button className={`btn ${tab === "utilizzo" ? "btn-primary" : "btn-ghost"}`} onClick={() => setTab("utilizzo")}>Utilizzo</button>}
         </div>
 
         {tab === "roster" && canSeeRoster && <RosterTab isAdmin={isAdmin} />}
@@ -123,6 +128,7 @@ function AdminPageContent() {
         {tab === "siegeStats" && canManageContent && <SiegeStatsProposalsTab isAdmin={isAdmin} />}
         {tab === "backup" && isAdmin && <BackupTab />}
         {tab === "diagnostica" && isAdmin && <DiagnosticaTab />}
+        {tab === "utilizzo" && isAdmin && <UsageTab />}
       </div>
     </div>
   );
@@ -392,6 +398,68 @@ function UsersTab() {
           onConfirm={() => deleteUser(confirmDelete.id)}
           onCancel={() => setConfirmDelete(null)}
         />
+      )}
+    </div>
+  );
+}
+
+// Chi usa davvero il sito prima di giocare, e chi no (27/09/2026, Flora):
+// nasce dal sospetto che alcuni si inventino i counter invece di
+// controllarli. Traccia solo due cose — login e apertura di una scheda
+// Difesa/Counter — a partire da OGGI: non esiste storico da prima, quindi
+// chi non ha ancora fatto nulla mostra "mai" finché non torna sul sito.
+// Ordinata con chi ha aperto un counter da MENO tempo in cima: è la lista
+// di chi controllare per primo.
+function UsageTab() {
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    fetch("/api/admin/users").then((r) => r.json()).then((d) => {
+      setUsers(d.users || []);
+      setLoading(false);
+    });
+  }, []);
+
+  // Chi non ha MAI aperto un counter (counterViewCount assente) va sempre
+  // in cima: è esattamente chi si vuole scovare per primo, prima ancora di
+  // chi lo apre di rado.
+  const sorted = [...users].sort((a, b) => (a.lastCounterViewAt || 0) - (b.lastCounterViewAt || 0));
+
+  return (
+    <div>
+      <p style={{ fontSize: 12.5, color: "var(--text-faint)", marginBottom: 14 }}>
+        Solo Admin. Traccia da oggi (27/09/2026): login e apertura di una scheda Difesa/Counter, ripetizioni comprese.
+        Chi non ha ancora aperto nulla resta "mai" finché non torna sul sito.
+      </p>
+      {loading ? (
+        <p style={{ color: "var(--text-faint)" }}>Caricamento...</p>
+      ) : (
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+          <thead>
+            <tr style={{ background: "var(--bg-soft)" }}>
+              <th style={{ textAlign: "left", padding: 8 }}>Nickname</th>
+              <th style={{ textAlign: "left", padding: 8 }}>Ultimo accesso</th>
+              <th style={{ textAlign: "left", padding: 8 }}>Login totali</th>
+              <th style={{ textAlign: "left", padding: 8 }}>Ultima scheda Counter</th>
+              <th style={{ textAlign: "left", padding: 8 }}>Counter aperti</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sorted.map((u) => (
+              <tr key={u.id} style={{ borderTop: "1px solid var(--border-soft)" }}>
+                <td style={{ padding: 8 }}>{formatNickname(u.nickname, u.role === "admin" || u.role === "reviewer")}</td>
+                <td style={{ padding: 8, color: u.lastLoginAt ? "var(--text)" : "var(--text-faint)" }}>
+                  {u.lastLoginAt ? dataOraIt(u.lastLoginAt) : "mai"}
+                </td>
+                <td style={{ padding: 8 }}>{u.loginCount || 0}</td>
+                <td style={{ padding: 8, color: u.lastCounterViewAt ? "var(--text)" : "var(--red)" }}>
+                  {u.lastCounterViewAt ? dataOraIt(u.lastCounterViewAt) : "mai"}
+                </td>
+                <td style={{ padding: 8 }}>{u.counterViewCount || 0}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       )}
     </div>
   );

@@ -26,6 +26,12 @@ export async function POST(request) {
   }
 
   const token = await createSessionToken(user.id, keepSignedIn);
+  // Tracciamento uso del sito (27/09/2026, Flora): solo login + apertura
+  // schede Counter/Difesa, visibile agli Admin in "Utilizzo". Parte da
+  // zero da oggi, nessun dato storico da recuperare.
+  user.lastLoginAt = Date.now();
+  user.loginCount = (user.loginCount || 0) + 1;
+  await redis.set(`user:${user.id}`, user);
   const res = NextResponse.json({ ok: true });
   res.cookies.set(SESSION_COOKIE.name, token, sessionCookieOptions(keepSignedIn));
   return res;
