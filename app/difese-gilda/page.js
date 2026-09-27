@@ -37,10 +37,8 @@ function GuildDefensesContent() {
   const [user, setUser] = useState(null);
   const [ownerQuery, setOwnerQuery] = useState("");
   const [teamQuery, setTeamQuery] = useState("");
-  const [mode, setMode] = useState("team"); // "team" | "owner" | "bestPerPlayer"
+  const [mode, setMode] = useState("team"); // "team" | "owner"
   const [defenses, setDefenses] = useState([]); // modalità owner: lista piatta
-  const [bestPerPlayer, setBestPerPlayer] = useState([]); // modalità bestPerPlayer: una riga a giocatore
-  const [allSieges, setAllSieges] = useState(false); // bestPerPlayer: ignora le spunte incluse/escluse, conta tutta la stagione mai caricata
   const [teams, setTeams] = useState([]); // modalità team: lista raggruppata
   const [loading, setLoading] = useState(true);
   const router = useRouter();
@@ -72,10 +70,7 @@ function GuildDefensesContent() {
     const myReqId = ++loadReqIdRef.current;
     setLoading(true);
     const params = new URLSearchParams();
-    if (wantBestPerPlayer) {
-      params.set("bestPerPlayer", "1");
-      if (wantAllSieges) params.set("allSieges", "1");
-    } else if (owner) params.set("owner", owner);
+    if (owner) params.set("owner", owner);
     else if (team) params.set("team", team);
     fetch(`/api/guild-defenses${params.toString() ? `?${params}` : ""}`)
       .then((r) => r.json())
@@ -83,22 +78,9 @@ function GuildDefensesContent() {
         if (loadReqIdRef.current !== myReqId) return; // risposta vecchia, scartata
         setMode(d.mode || "team");
         if (d.mode === "owner") setDefenses(d.defenses || []);
-        else if (d.mode === "bestPerPlayer") setBestPerPlayer(d.defenses || []);
         else setTeams(d.teams || []);
         setLoading(false);
       });
-  }
-
-  // "Miglior WR per player": non è una ricerca testuale come le altre due,
-  // è una vista fissa — svuota i campi di ricerca perché non hanno senso
-  // insieme a questa (14/09 non pertinente, si vuole vedere TUTTI i
-  // giocatori in classifica, non filtrarli).
-  function showBestPerPlayer(wantAllSieges) {
-    setOwnerQuery("");
-    setTeamQuery("");
-    setAllSieges(wantAllSieges);
-    router.replace(`/difese-gilda?best=1${wantAllSieges ? "&all=1" : ""}`, { scroll: false });
-    loadResults("", "", true, wantAllSieges);
   }
 
   function loadSieges() {
@@ -114,12 +96,9 @@ function GuildDefensesContent() {
   useEffect(() => {
     const o = searchParams.get("owner") || "";
     const t = searchParams.get("team") || "";
-    const best = searchParams.get("best") === "1";
-    const all = searchParams.get("all") === "1";
     setOwnerQuery(o);
     setTeamQuery(t);
-    setAllSieges(all);
-    loadResults(o, t, best, all);
+    loadResults(o, t);
     loadSieges();
   }, []);
 
@@ -223,32 +202,6 @@ function GuildDefensesContent() {
             style={{ flex: 1, minWidth: 200 }}
           />
         </div>
-        {/* Vista fissa, non una ricerca: per ogni giocatore, solo la sua
-            difesa col winrate migliore — utile per capire chi rende di più
-            in difesa, invece del winrate per team che mescola tutti
-            insieme. Il toggle "tutta la stagione" ignora le spunte
-            incluse/escluse qui sopra e usa OGNI siege mai caricata — le
-            altre viste (team, owner) restano invece legate alla selezione
-            corrente, di proposito. */}
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
-          <button
-            className={`btn ${mode === "bestPerPlayer" ? "btn-primary" : "btn-ghost"}`}
-            style={{ fontSize: 12.5 }}
-            onClick={() => showBestPerPlayer(allSieges)}
-          >
-            🏆 Best Def Rate
-          </button>
-          {mode === "bestPerPlayer" && (
-            <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--text-faint)" }}>
-              <input
-                type="checkbox"
-                checked={allSieges}
-                onChange={(e) => showBestPerPlayer(e.target.checked)}
-              />
-              Tutta la stagione (ignora le spunte qui sopra)
-            </label>
-          )}
-        </div>
 
         {loading ? (
           <div style={{ textAlign: "center", marginTop: 30 }}>
@@ -265,24 +218,6 @@ function GuildDefensesContent() {
             </div>
           ) : (
             defenses.map((d) => <DefenseRow key={d.defenseKey} summary={d} user={user} />)
-          )
-        ) : mode === "bestPerPlayer" ? (
-          bestPerPlayer.length === 0 ? (
-            <div style={{ textAlign: "center", marginTop: 20, color: "var(--text-faint)" }}>
-              <Sticker name="depresso" revealOnClick="emozionato" size={190} />
-              <p>Nessun dato ancora — includi almeno una siege qui sopra.</p>
-            </div>
-          ) : (
-            <>
-              {/* Nessuna soglia minima di battaglie: un 1/1 risulta "100%"
-                  proprio come un 20/20. Il numero totale, già mostrato da
-                  DefenseRow accanto alla percentuale, è lì apposta per
-                  poterlo giudicare a colpo d'occhio. */}
-              <p style={{ color: "var(--text-faint)", fontSize: 12, marginBottom: 10 }}>
-                Per ogni giocatore, la difesa con il winrate più alto tra quelle schierate.
-              </p>
-              {bestPerPlayer.map((d) => <DefenseRow key={d.defenseKey} summary={d} user={user} />)}
-            </>
           )
         ) : teams.length === 0 ? (
           <div style={{ textAlign: "center", marginTop: 20, color: "var(--text-faint)" }}>
