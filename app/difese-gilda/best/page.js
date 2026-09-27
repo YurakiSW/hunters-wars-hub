@@ -25,7 +25,6 @@ export default function BestDefRatePage() {
   const [user, setUser] = useState(null);
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [allSieges, setAllSieges] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -36,19 +35,21 @@ export default function BestDefRatePage() {
     });
   }, []);
 
-  function load(wantAllSieges) {
+  // Sempre "tutta la stagione", MAI legata alle spunte incluse/escluse di
+  // Difese Gilda: era la richiesta originale ("non come selezione siege di
+  // adesso, deve tenere conto di tutte le siege che carico"). Non è
+  // un'opzione da attivare — è l'unico comportamento di questa pagina
+  // (27/09/2026, Flora — prima girava di default con `allSieges: false`,
+  // mostrando "nessun dato" ogni volta che le spunte erano vuote).
+  useEffect(() => {
     setLoading(true);
-    const params = new URLSearchParams({ bestPerPlayer: "1" });
-    if (wantAllSieges) params.set("allSieges", "1");
-    fetch(`/api/guild-defenses?${params}`)
+    fetch("/api/guild-defenses?bestPerPlayer=1&allSieges=1")
       .then((r) => r.json())
       .then((d) => {
         setRows(d.defenses || []);
         setLoading(false);
       });
-  }
-
-  useEffect(() => { load(allSieges); }, [allSieges]);
+  }, []);
 
   if (!user) return <LoadingScreen />;
 
@@ -61,13 +62,8 @@ export default function BestDefRatePage() {
           <a href="/difese-gilda" style={{ fontSize: 12.5, color: "var(--gold)" }}>← Torna a Difese Gilda</a>
         </div>
         <p style={{ color: "var(--text-faint)", fontSize: 13, marginBottom: 16 }}>
-          Per ogni giocatore, la difesa con il winrate più alto tra quelle schierate.
+          Per ogni giocatore, la difesa con il winrate più alto tra quelle schierate — su tutte le siege mai caricate, a prescindere dalle spunte incluse/escluse in Difese Gilda.
         </p>
-
-        <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, color: "var(--text-faint)", marginBottom: 16 }}>
-          <input type="checkbox" checked={allSieges} onChange={(e) => setAllSieges(e.target.checked)} />
-          Tutta la stagione (ignora le spunte incluse/escluse su Difese Gilda)
-        </label>
 
         {loading ? (
           <div style={{ textAlign: "center", marginTop: 30 }}>
@@ -77,7 +73,7 @@ export default function BestDefRatePage() {
         ) : rows.length === 0 ? (
           <div style={{ textAlign: "center", marginTop: 20, color: "var(--text-faint)" }}>
             <Sticker name="depresso" revealOnClick="emozionato" size={190} />
-            <p>Nessun dato ancora — includi almeno una siege su Difese Gilda, oppure spunta &quot;tutta la stagione&quot; qui sopra.</p>
+            <p>Nessun dato ancora — carica un log di Siege con qualche battaglia di difesa (sezione Difese Gilda).</p>
           </div>
         ) : (
           rows.map((d) => <Row key={d.defenseKey} summary={d} user={user} />)
