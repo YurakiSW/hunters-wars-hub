@@ -25,6 +25,7 @@ export default function BestDefRatePage() {
   const [user, setUser] = useState(null);
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const router = useRouter();
 
   useEffect(() => {
@@ -43,12 +44,27 @@ export default function BestDefRatePage() {
   // mostrando "nessun dato" ogni volta che le spunte erano vuote).
   useEffect(() => {
     setLoading(true);
-    fetch("/api/guild-defenses?bestPerPlayer=1&allSieges=1")
-      .then((r) => r.json())
+    setError("");
+    // Tetto di attesa lato pagina: se il server non risponde entro 55s
+    // (poco sotto il limite di 60s della route) si mostra un errore vero
+    // invece di lasciare "Caricamento..." per sempre.
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 55000);
+    fetch("/api/guild-defenses?bestPerPlayer=1&allSieges=1", { signal: controller.signal })
+      .then((r) => {
+        if (!r.ok) throw new Error(`Il server ha risposto ${r.status}`);
+        return r.json();
+      })
       .then((d) => {
         setRows(d.defenses || []);
         setLoading(false);
-      });
+      })
+      .catch((e) => {
+        setError(e.name === "AbortError" ? "Il server ci sta mettendo troppo (oltre 55 secondi)." : e.message);
+        setLoading(false);
+      })
+      .finally(() => clearTimeout(timer));
+    return () => { clearTimeout(timer); controller.abort(); };
   }, []);
 
   if (!user) return <LoadingScreen />;
@@ -69,6 +85,11 @@ export default function BestDefRatePage() {
           <div style={{ textAlign: "center", marginTop: 30 }}>
             <Sticker name="totem" size={170} />
             <p style={{ color: "var(--text-faint)", marginTop: 8 }}>Caricamento...</p>
+          </div>
+        ) : error ? (
+          <div style={{ textAlign: "center", marginTop: 20 }}>
+            <p style={{ color: "var(--red)" }}>Non sono riuscito a caricare i dati: {error}</p>
+            <button className="btn btn-ghost" style={{ marginTop: 10 }} onClick={() => window.location.reload()}>Riprova</button>
           </div>
         ) : rows.length === 0 ? (
           <div style={{ textAlign: "center", marginTop: 20, color: "var(--text-faint)" }}>

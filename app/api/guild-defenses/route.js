@@ -2,6 +2,12 @@ import { NextResponse } from "next/server";
 import { getCurrentUser } from "../../../lib/auth";
 import { listGuildDefenses, listGuildDefensesByTeam, searchGuildDefenseTeams, listBestDefensePerPlayer } from "../../../lib/guildDefenses";
 
+// La modalità "tutta la stagione" (allSieges=1) può dover leggere lo
+// storico intero della gilda a blocchi (vedi loadAllBattlesByDefense in
+// lib/guildDefenses.js) — serve più dei 10 secondi di default
+// (27/09/2026, Flora).
+export const maxDuration = 60;
+
 // Quattro modalità, decise dal parametro presente:
 // - nessuno: vista unificata per TEAM (tutti i giocatori sommati insieme)
 // - ?owner=X: lista piatta delle difese di QUEL giocatore, senza raggruppare
