@@ -7,23 +7,30 @@ import NicknameHeart from "../../../components/NicknameHeart";
 import LoadingScreen from "../../../components/LoadingScreen";
 import Sticker from "../../../components/Sticker";
 
-// Pagina A SÉ STANTE, deliberatamente isolata da /difese-gilda (27/09/2026,
-// Flora): quella pagina principale ha un pulsante che non risponde al
-// click su schermo, causa non ancora confermata con certezza — creare
-// "Best Def Rate" come rotta indipendente, con la propria pagina, il
-// proprio fetch e i propri componenti (duplicati qui apposta, non
-// importati dall'altra pagina) elimina qualunque dipendenza da quello
-// stato/quel bug, qualunque esso sia. Nessuna modifica al file esistente:
-// zero rischio di romperlo ulteriormente.
+// Pagina A SÉ STANTE, isolata da /difese-gilda (27/09/2026, Flora): classifica
+// dei giocatori per winrate in difesa, sempre su TUTTE le siege caricate, a
+// prescindere dalle spunte incluse/escluse di Difese Gilda. I dati arrivano da
+// /api/guild-defenses?bestPerPlayer=1&allSieges=1 (lib/guildDefenses.js) e si
+// aggiornano da soli a ogni log importato dal pulsante delle difese.
+
 function rateColor(rate) {
   if (rate >= 0.8) return "var(--green)";
   if (rate >= 0.5) return "var(--gold)";
   return "var(--red)";
 }
 
+// Data identica su server e browser (UTC, scritta a mano): toLocaleDateString
+// dipende da lingua e fuso di chi la esegue e causava errori di idratazione.
+const due = (n) => String(n).padStart(2, "0");
+function dataIt(seconds) {
+  if (!seconds) return "?";
+  const d = new Date(seconds * 1000);
+  return `${due(d.getUTCDate())}/${due(d.getUTCMonth() + 1)}/${d.getUTCFullYear()}`;
+}
+
 export default function BestDefRatePage() {
   const [user, setUser] = useState(null);
-  const [rows, setRows] = useState([]);
+  const [data, setData] = useState(null); // { players, lowData, guildAvg, minBattles }
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const router = useRouter();
@@ -36,18 +43,12 @@ export default function BestDefRatePage() {
     });
   }, []);
 
-  // Sempre "tutta la stagione", MAI legata alle spunte incluse/escluse di
-  // Difese Gilda: era la richiesta originale ("non come selezione siege di
-  // adesso, deve tenere conto di tutte le siege che carico"). Non è
-  // un'opzione da attivare — è l'unico comportamento di questa pagina
-  // (27/09/2026, Flora — prima girava di default con `allSieges: false`,
-  // mostrando "nessun dato" ogni volta che le spunte erano vuote).
+  // Sempre "tutta la stagione", MAI legata alle spunte incluse/escluse: era la
+  // richiesta originale. Con tetto di attesa: se il server non risponde entro
+  // 55s si mostra un errore vero invece di "Caricamento..." per sempre.
   useEffect(() => {
     setLoading(true);
     setError("");
-    // Tetto di attesa lato pagina: se il server non risponde entro 55s
-    // (poco sotto il limite di 60s della route) si mostra un errore vero
-    // invece di lasciare "Caricamento..." per sempre.
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 55000);
     fetch("/api/guild-defenses?bestPerPlayer=1&allSieges=1", { signal: controller.signal })
@@ -56,7 +57,7 @@ export default function BestDefRatePage() {
         return r.json();
       })
       .then((d) => {
-        setRows(d.defenses || []);
+        setData({ players: d.players || [], lowData: d.lowData || [], guildAvg: d.guildAvg || null, minBattles: d.minBattles || 10 });
         setLoading(false);
       })
       .catch((e) => {
@@ -69,6 +70,9 @@ export default function BestDefRatePage() {
 
   if (!user) return <LoadingScreen />;
 
+  const avgRate = data?.guildAvg?.winRate ?? 0;
+  const vuoto = data && data.players.length === 0 && data.lowData.length === 0;
+
   return (
     <div>
       <Header user={user} />
@@ -77,8 +81,9 @@ export default function BestDefRatePage() {
           <h1 style={{ fontSize: 22, marginBottom: 4 }}>🏆 Best Def Rate</h1>
           <a href="/difese-gilda" style={{ fontSize: 12.5, color: "var(--gold)" }}>← Torna a Difese Gilda</a>
         </div>
-        <p style={{ color: "var(--text-faint)", fontSize: 13, marginBottom: 16 }}>
-          Per ogni giocatore, la difesa con il winrate più alto tra quelle schierate — su tutte le siege mai caricate, a prescindere dalle spunte incluse/escluse in Difese Gilda.
+        <p style={{ color: "var(--text-faint)", fontSize: 13, marginBottom: 12 }}>
+          Giocatori dal più forte al più debole in difesa, su tutte le siege mai caricate (a prescindere dalle spunte
+          incluse/escluse in Difese Gilda). Apri un giocatore per vedere ogni sua squadra e come è andato siege per siege.
         </p>
 
         {loading ? (
@@ -91,81 +96,123 @@ export default function BestDefRatePage() {
             <p style={{ color: "var(--red)" }}>Non sono riuscito a caricare i dati: {error}</p>
             <button className="btn btn-ghost" style={{ marginTop: 10 }} onClick={() => window.location.reload()}>Riprova</button>
           </div>
-        ) : rows.length === 0 ? (
+        ) : vuoto ? (
           <div style={{ textAlign: "center", marginTop: 20, color: "var(--text-faint)" }}>
             <Sticker name="depresso" revealOnClick="emozionato" size={190} />
             <p>Nessun dato ancora — carica un log di Siege con qualche battaglia di difesa (sezione Difese Gilda).</p>
           </div>
         ) : (
-          rows.map((d) => <Row key={d.defenseKey} summary={d} user={user} />)
+          <>
+            {data.guildAvg && (
+              <div style={{ background: "var(--bg-soft)", border: "1px solid var(--border-soft)", borderRadius: 8, padding: "10px 14px", marginBottom: 14, display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 8, fontSize: 13 }}>
+                <span>
+                  Media della gilda in difesa:{" "}
+                  <strong style={{ color: rateColor(avgRate) }}>{Math.round(avgRate * 100)}%</strong>
+                </span>
+                <span className="f-mono" style={{ fontSize: 11.5, color: "var(--text-faint)" }}>
+                  {data.guildAvg.wins} vittorie · {data.guildAvg.losses} sconfitte · {data.guildAvg.playerCount} giocatori
+                </span>
+              </div>
+            )}
+
+            {data.players.map((pl) => <PlayerRow key={pl.ownerNick} player={pl} user={user} avgRate={avgRate} />)}
+
+            {data.lowData.length > 0 && (
+              <>
+                <div className="f-mono" style={{ fontSize: 11, color: "var(--text-faint)", margin: "22px 0 8px" }}>
+                  POCHI DATI — MENO DI {data.minBattles} BATTAGLIE, NON IN CLASSIFICA
+                </div>
+                {data.lowData.map((pl) => <PlayerRow key={pl.ownerNick} player={pl} user={user} avgRate={avgRate} lowData />)}
+              </>
+            )}
+          </>
         )}
       </div>
     </div>
   );
 }
 
-// Copia diretta di DefenseRow da app/difese-gilda/page.js — duplicata di
-// proposito (vedi nota in cima al file), non importata.
-function Row({ summary, user }) {
-  const isOwn = user?.nickname && summary.ownerNick && user.nickname.trim().toLowerCase() === summary.ownerNick.trim().toLowerCase();
+// Una riga per GIOCATORE: winrate complessivo in difesa e distanza dalla media
+// della gilda; nella tendina, ogni squadra col suo winrate (evidenziata quella
+// che gli costa più sconfitte) e l'andamento siege per siege. Tutti i dati
+// arrivano già con la lista: nessuna richiesta di dettaglio.
+function PlayerRow({ player, user, avgRate, lowData }) {
+  const isOwn = user?.nickname && user.nickname.trim().toLowerCase() === player.ownerNick.trim().toLowerCase();
   const [open, setOpen] = useState(false);
-  const [detail, setDetail] = useState(null);
-  const [loadingDetail, setLoadingDetail] = useState(false);
-
-  function toggle() {
-    if (!open && !detail) {
-      setLoadingDetail(true);
-      fetch(`/api/guild-defenses/${encodeURIComponent(summary.defenseKey)}`)
-        .then((r) => r.json())
-        .then((d) => { setDetail(d.detail || null); setLoadingDetail(false); });
-    }
-    setOpen((v) => !v);
-  }
+  // differenza tra i due numeri come li vedi scritti, così la sottrazione torna a occhio
+  const delta = Math.round(player.winRate * 100) - Math.round(avgRate * 100);
+  const deltaColor = delta > 0 ? "var(--green)" : delta < 0 ? "var(--red)" : "var(--text-faint)";
 
   return (
-    <div className="card" style={{ marginBottom: 10 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", flexWrap: "wrap" }} onClick={toggle}>
+    <div className="card" style={{ marginBottom: 10, opacity: lowData ? 0.75 : 1 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", flexWrap: "wrap" }} onClick={() => setOpen((v) => !v)}>
         <span style={{ fontSize: 12, color: "var(--text-faint)" }}>{open ? "▼" : "▶"}</span>
-        <div style={{ display: "flex", gap: 4 }}>
-          {summary.monsterNames.map((n, i) => <MonsterCrest key={i} name={n} size={34} />)}
-        </div>
         <div style={{ flex: 1, minWidth: 140 }}>
-          <div style={{ fontSize: 14.5, fontWeight: 600 }}><NicknameHeart isOwn={isOwn}>{summary.ownerNick}</NicknameHeart></div>
-          <div style={{ fontSize: 11.5, color: "var(--text-faint)" }}>{summary.monsterNames.join(" / ")}</div>
+          <div style={{ fontSize: 15.5, fontWeight: 600 }}><NicknameHeart isOwn={isOwn}>{player.ownerNick}</NicknameHeart></div>
+          <div style={{ fontSize: 11.5, color: "var(--text-faint)" }}>
+            {player.defenses.length} {player.defenses.length === 1 ? "squadra" : "squadre"} · {player.total} battaglie
+          </div>
         </div>
         <div style={{ textAlign: "right" }}>
-          <div style={{ fontSize: 15, fontWeight: 700, color: rateColor(summary.winRate) }}>
-            {Math.round(summary.winRate * 100)}%
+          <div style={{ fontSize: 16, fontWeight: 700, color: rateColor(player.winRate) }}>
+            {Math.round(player.winRate * 100)}% win in difesa
           </div>
+          {!lowData && (
+            <div style={{ fontSize: 11.5, fontWeight: 600, color: deltaColor }}>
+              {delta > 0 ? "+" : ""}{delta} punti sulla media
+            </div>
+          )}
           <div className="f-mono" style={{ fontSize: 10.5, color: "var(--text-faint)" }}>
-            {summary.wins} vittorie · {summary.losses} sconfitte
+            {player.wins} vittorie · {player.losses} sconfitte
           </div>
         </div>
       </div>
+
       {open && (
-        loadingDetail ? (
-          <p style={{ color: "var(--text-faint)", fontSize: 12.5, marginTop: 10 }}>Caricamento...</p>
-        ) : detail ? (
-          <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border-soft)" }}>
-            <div className="f-mono" style={{ fontSize: 10.5, color: "var(--text-faint)", marginBottom: 6 }}>
-              PER GILDA NEMICA
+        <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border-soft)" }}>
+          <div className="f-mono" style={{ fontSize: 10.5, color: "var(--text-faint)", marginBottom: 6 }}>SQUADRE IN DIFESA</div>
+          {player.defenses.map((d) => (
+            <div
+              key={d.defenseKey}
+              style={{
+                display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap",
+                background: "var(--bg-soft)", borderRadius: 6, padding: "8px 10px", marginBottom: 6,
+                borderLeft: d.costliest ? "3px solid var(--red)" : "3px solid transparent",
+              }}
+            >
+              <div style={{ display: "flex", gap: 4 }}>
+                {d.monsterNames.map((n, i) => <MonsterCrest key={i} name={n} size={30} />)}
+              </div>
+              <div style={{ flex: 1, minWidth: 140 }}>
+                <div style={{ fontSize: 12.5, color: "var(--text-muted)" }}>{d.monsterNames.join(" / ")}</div>
+                {d.costliest && (
+                  <div style={{ fontSize: 11, color: "var(--red)", marginTop: 2 }}>
+                    ⚠ È la squadra che ti costa più sconfitte ({d.losses})
+                  </div>
+                )}
+              </div>
+              <div style={{ textAlign: "right" }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: rateColor(d.winRate) }}>{Math.round(d.winRate * 100)}%</div>
+                <div className="f-mono" style={{ fontSize: 10.5, color: "var(--text-faint)" }}>{d.wins} vittorie · {d.losses} sconfitte</div>
+              </div>
             </div>
-            {detail.enemyGuilds.map((g) => {
-              const total = g.wins + g.losses;
-              const rate = total ? g.wins / total : 0;
-              return (
-                <div key={g.guild} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "var(--bg-soft)", borderRadius: 6, padding: "7px 10px", marginBottom: 5, fontSize: 12.5 }}>
-                  <span style={{ color: "var(--text-muted)" }}>{g.guild}</span>
-                  <span className="f-mono" style={{ color: rateColor(rate), fontWeight: 600 }}>
-                    {g.wins} vittorie — {g.losses} sconfitte ({Math.round(rate * 100)}%)
-                  </span>
-                </div>
-              );
-            })}
+          ))}
+
+          <div className="f-mono" style={{ fontSize: 10.5, color: "var(--text-faint)", margin: "14px 0 6px" }}>
+            ANDAMENTO PER SIEGE — DALLA PIÙ RECENTE
           </div>
-        ) : (
-          <p style={{ color: "var(--red)", fontSize: 12.5, marginTop: 10 }}>Errore nel caricare il dettaglio.</p>
-        )
+          {player.sieges.map((sg) => (
+            <div key={sg.siegeKey} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", background: "var(--bg-soft)", borderRadius: 6, padding: "7px 10px", marginBottom: 5, fontSize: 12.5 }}>
+              <span>
+                <span className="f-mono" style={{ color: "var(--text-faint)" }}>{dataIt(sg.dateFrom)}</span>{" "}
+                <span style={{ color: "var(--text-muted)" }}>{sg.enemyGuilds.length ? sg.enemyGuilds.join(" e ") : "siege"}</span>
+              </span>
+              <span className="f-mono" style={{ color: rateColor(sg.winRate), fontWeight: 600 }}>
+                {Math.round(sg.winRate * 100)}% · {sg.wins} vittorie — {sg.losses} sconfitte
+              </span>
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );

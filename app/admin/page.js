@@ -1554,6 +1554,8 @@ function SiegeDefenseImportCard() {
         Le siege importate si includono/escludono dalla pagina pubblica <strong>🛡 Difese Gilda</strong>, non da qui.
       </p>
 
+      <DuplicateCleanupBlock onDone={loadSieges} />
+
       <div style={{ marginTop: 18, borderTop: "1px solid var(--border-soft)", paddingTop: 12 }}>
         <div className="f-mono" style={{ fontSize: 11, color: "var(--text-faint)", marginBottom: 8 }}>
           SIEGE DA ARCHIVIARE — scegli qui, apposta per questa archiviazione (non tocca le spunte della pagina pubblica)
@@ -1621,6 +1623,108 @@ function SiegeDefenseImportCard() {
   );
 }
 
+
+// Controllo e ripulitura dei doppioni già salvati (28/09/2026, Flora). Le siege
+// importate col vecchio sistema possono avere ogni battaglia salvata più volte:
+// una siege con 500-760 battaglie invece delle ~250 vere è il segnale tipico.
+// Prima si guarda l'ANTEPRIMA (non cambia niente), poi si conferma. Solo Admin,
+// come "elimina siege": lo impone anche il server.
+function DuplicateCleanupBlock({ onDone }) {
+  const [preview, setPreview] = useState(null);
+  const [checking, setChecking] = useState(false);
+  const [applying, setApplying] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [msg, setMsg] = useState("");
+
+  async function call(action) {
+    const res = await fetch("/api/admin/siege-defenses", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Errore sconosciuto");
+    return data;
+  }
+
+  async function check() {
+    setChecking(true);
+    setMsg("");
+    setPreview(null);
+    try { setPreview(await call("dedupe_preview")); } catch (e) { setMsg(String(e.message || e)); }
+    setChecking(false);
+  }
+
+  async function apply() {
+    setApplying(true);
+    try {
+      const d = await call("dedupe_apply");
+      setPreview(null);
+      setMsg(`Fatto: ${d.totalRemoved} doppioni eliminati. Ora le battaglie salvate sono ${d.totalAfter}.`);
+      if (onDone) onDone();
+    } catch (e) {
+      setMsg(String(e.message || e));
+    }
+    setConfirming(false);
+    setApplying(false);
+  }
+
+  return (
+    <div style={{ marginTop: 18, borderTop: "1px solid var(--border-soft)", paddingTop: 12 }}>
+      <div className="f-mono" style={{ fontSize: 11, color: "var(--text-faint)", marginBottom: 6 }}>
+        DOPPIONI GIÀ SALVATI
+      </div>
+      <p style={{ fontSize: 11.5, color: "var(--text-faint)", marginBottom: 8 }}>
+        Le siege importate col vecchio sistema possono avere ogni battaglia contata più volte: una siege con 500-760
+        battaglie invece di ~250 è il segnale tipico. Qui trovi i doppioni e ne tieni una sola copia per battaglia.
+        Prima vedi un&apos;anteprima: non si cancella niente finché non confermi.
+      </p>
+      <button className="btn btn-ghost" disabled={checking || applying} onClick={check}>
+        {checking && <Spinner />}🔍 Controlla doppioni
+      </button>
+
+      {preview && (
+        preview.totalRemoved === 0 ? (
+          <p style={{ fontSize: 12.5, color: "var(--green)", marginTop: 10 }}>
+            Nessun doppione: ogni battaglia salvata compare una volta sola ({preview.totalBefore} battaglie in {preview.checkedSieges} siege).
+          </p>
+        ) : (
+          <div style={{ marginTop: 10 }}>
+            <p style={{ fontSize: 12.5, marginBottom: 6 }}>
+              Trovati <strong style={{ color: "var(--gold)" }}>{preview.totalRemoved} doppioni</strong> su {preview.totalBefore} battaglie salvate.
+              Dopo la ripulitura ne resterebbero {preview.totalAfter}.
+            </p>
+            {preview.sieges.map((sg) => (
+              <div key={sg.siegeKey} style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", background: "var(--bg-soft)", borderRadius: 6, padding: "6px 10px", marginBottom: 4, fontSize: 12.5 }}>
+                <span>
+                  {sg.enemyGuilds?.join(" e ") || "—"}{" "}
+                  <span style={{ color: "var(--text-faint)" }}>— {sg.dateFrom ? dataIt(sg.dateFrom * 1000) : "?"}</span>
+                </span>
+                <span className="f-mono">{sg.before} → {sg.after} <span style={{ color: "var(--red)" }}>(−{sg.removed})</span></span>
+              </div>
+            ))}
+            <p style={{ fontSize: 11, color: "var(--text-faint)", margin: "6px 0 8px" }}>
+              Le altre siege sono a posto. Nessuna battaglia vera va persa: si elimina solo dove ne esiste già una identica
+              (stessa siege, giocatore, orario, squadra, esito e nemico). Le spunte incluse/escluse non cambiano.
+            </p>
+            <button className="btn btn-danger" disabled={applying} onClick={() => setConfirming(true)}>
+              {applying && <Spinner />}🧹 Elimina {preview.totalRemoved} doppioni
+            </button>
+          </div>
+        )
+      )}
+      {msg && <p style={{ fontSize: 12.5, color: msg.startsWith("Fatto") ? "var(--green)" : "var(--red)", marginTop: 8 }}>{msg}</p>}
+
+      {confirming && preview && (
+        <ConfirmModal
+          message={`Eliminare ${preview.totalRemoved} battaglie duplicate in ${preview.sieges.length} siege? Per ogni battaglia ne resta una sola copia, nessuna battaglia vera va persa. Non si può annullare.`}
+          confirmLabel={applying ? "..." : "Elimina i doppioni"}
+          onConfirm={apply}
+          onCancel={() => setConfirming(false)}
+        />
+      )}
+    </div>
+  );
+}
 
 // Limite FISSO di Vercel per le funzioni serverless: 4.5MB per richiesta,
 // non aggirabile via configurazione. Un log SWEX/SWProxy di una siege

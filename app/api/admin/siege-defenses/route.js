@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser, canManage, isAdmin } from "../../../../lib/auth";
-import { listSieges, setSiegeIncluded, deleteSiege, getGuildName, setGuildName } from "../../../../lib/guildDefenses";
+import { listSieges, setSiegeIncluded, deleteSiege, getGuildName, setGuildName, dedupeStoredBattles } from "../../../../lib/guildDefenses";
 import { safeJson } from "../../../../lib/apiUtils";
+
+// Il controllo/ripulitura dei doppioni legge tutte le battaglie salvate, a blocchi:
+// con lo storico intero servono più dei 10 secondi di default (28/09/2026).
+export const maxDuration = 60;
 
 // GET: elenco siege — visibile a chiunque sia loggato (serve anche solo per
 // capire quali siege sono incluse quando si guarda la pagina pubblica).
@@ -27,6 +31,16 @@ export async function POST(request) {
       return NextResponse.json({ error: "Solo gli Admin possono eliminare una siege." }, { status: 403 });
     }
     const result = await deleteSiege(data.siegeKey);
+    return NextResponse.json({ ok: true, ...result });
+  }
+
+  // Ripulitura dei doppioni già salvati: elimina dati, quindi SOLO Admin (come
+  // "elimina siege"). "dedupe_preview" non tocca niente: mostra cosa farebbe.
+  if (data.action === "dedupe_preview" || data.action === "dedupe_apply") {
+    if (!isAdmin(user)) {
+      return NextResponse.json({ error: "Solo gli Admin possono ripulire i doppioni." }, { status: 403 });
+    }
+    const result = await dedupeStoredBattles({ dryRun: data.action === "dedupe_preview" });
     return NextResponse.json({ ok: true, ...result });
   }
 
