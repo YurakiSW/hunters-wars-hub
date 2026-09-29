@@ -162,10 +162,22 @@ function PlayerRow({ player, user, avgRate, lowData }) {
               {delta > 0 ? "+" : ""}{delta} punti sulla media
             </div>
           )}
-          <div className="f-mono" style={{ fontSize: 10.5, color: "var(--text-faint)" }}>
-            {player.wins} vittorie · {player.losses} sconfitte
-          </div>
         </div>
+      </div>
+      {/* I tre numeri richiesti espliciti, non solo dentro il testo:
+          attacchi subiti (totale), difese win, difese loose — la
+          percentuale sopra è calcolata proprio da questi tre
+          (28/09/2026, Flora). */}
+      <div style={{ display: "flex", gap: 18, marginTop: 8, paddingTop: 8, borderTop: "1px solid var(--border-soft)", flexWrap: "wrap" }}>
+        <span className="f-mono" style={{ fontSize: 11.5, color: "var(--text-muted)" }}>
+          Attacchi subiti: <strong style={{ color: "var(--text)" }}>{player.total}</strong>
+        </span>
+        <span className="f-mono" style={{ fontSize: 11.5, color: "var(--text-muted)" }}>
+          Difese win: <strong style={{ color: "var(--green)" }}>{player.wins}</strong>
+        </span>
+        <span className="f-mono" style={{ fontSize: 11.5, color: "var(--text-muted)" }}>
+          Difese loose: <strong style={{ color: "var(--red)" }}>{player.losses}</strong>
+        </span>
       </div>
 
       {open && (
