@@ -4,12 +4,18 @@ import { getCurrentUser, canManage } from "../../../../lib/auth";
 import { getDef, updateDef, deleteDef, findMatchingDef } from "../../../../lib/defs";
 import { isKnownMonster } from "../../../../lib/monsters";
 import { safeJson } from "../../../../lib/apiUtils";
+import { defenseKey } from "../../../../lib/siegeLogParser";
+import { getDefenseOverallWinRate } from "../../../../lib/siegeStats";
 
 export async function GET(request, { params }) {
   const user = await getCurrentUser();
   if (!user || user.status !== "approved") return NextResponse.json({ error: "Non autorizzato." }, { status: 401 });
   const def = await getDef(params.id);
   if (!def) return NextResponse.json({ error: "Non trovata." }, { status: 404 });
+  // Winrate complessivo della gilda contro questa difesa (29/09/2026,
+  // Flora): somma su TUTTI i counter mai provati, non solo quello
+  // approvato — vedi la nota in getDefenseOverallWinRate.
+  const overallWinRate = await getDefenseOverallWinRate(defenseKey(def.monsters));
   // Tracciamento uso del sito (27/09/2026, Flora): ogni apertura di una
   // scheda Difesa/Counter conta, ripetizioni comprese — serve a distinguere
   // chi guarda davvero i counter prima di giocare da chi non lo fa mai.
@@ -21,7 +27,7 @@ export async function GET(request, { params }) {
     fresh.counterViewCount = (fresh.counterViewCount || 0) + 1;
     return redis.set(`user:${user.id}`, fresh);
   }).catch(() => {});
-  return NextResponse.json({ def });
+  return NextResponse.json({ def, overallWinRate });
 }
 
 export async function PATCH(request, { params }) {

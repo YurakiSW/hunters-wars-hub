@@ -18,6 +18,7 @@ export default function DefDetailPage({ params }) {
   const [managerNicknames, setManagerNicknames] = useState([]);
   const [user, setUser] = useState(null);
   const [def, setDef] = useState(null);
+  const [overallWinRate, setOverallWinRate] = useState(null); // { wins, total, winRate } | null
   const [showForm, setShowForm] = useState(false);
   const [showTemplatePicker, setShowTemplatePicker] = useState(false);
   const [template, setTemplate] = useState(null);
@@ -33,6 +34,7 @@ export default function DefDetailPage({ params }) {
     const res = await fetch(`/api/defs/${params.id}`);
     const data = await res.json();
     setDef(data.def);
+    setOverallWinRate(data.overallWinRate || null);
   }
 
   useEffect(() => {
@@ -158,6 +160,24 @@ export default function DefDetailPage({ params }) {
           )}
         </div>
         {def.desc && <p style={{ color: "var(--text-muted)" }}>{def.desc}</p>}
+
+        {/* Winrate COMPLESSIVO della gilda contro questa difesa (29/09/2026,
+            Flora): somma tutti i counter mai provati, non solo quello
+            consigliato — anche i tentativi persi mai approvati. `null`
+            (non 0%) quando non esiste nessun tentativo registrato, per
+            distinguerlo da "provato e sempre perso". */}
+        {overallWinRate && (
+          <div style={{ background: "var(--bg-soft)", border: "1px solid var(--border-soft)", borderRadius: 8, padding: "9px 14px", marginTop: 14, fontSize: 13 }}>
+            La gilda vince il{" "}
+            <strong style={{ color: overallWinRate.winRate >= 0.8 ? "var(--green)" : overallWinRate.winRate >= 0.5 ? "var(--gold)" : "var(--red)" }}>
+              {Math.round(overallWinRate.winRate * 100)}%
+            </strong>{" "}
+            delle volte contro questa difesa{" "}
+            <span className="f-mono" style={{ color: "var(--text-faint)", fontSize: 11.5 }}>
+              ({overallWinRate.wins} vittorie su {overallWinRate.total} tentativi)
+            </span>
+          </div>
+        )}
 
         <div style={{ display: "flex", justifyContent: "space-between", margin: "22px 0 14px", flexWrap: "wrap", gap: 8 }}>
           <div className="section-label">Counter proposti ({def.counters.length})</div>
