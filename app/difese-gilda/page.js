@@ -176,6 +176,22 @@ function GuildDefensesContent() {
                   onChange={(e) => toggleSiege(s.siegeKey, e.target.checked)}
                 />
                 <span style={{ fontSize: 13, flex: 1, minWidth: 160 }}>
+                  {/* Piazzamento (1st/2nd/3rd), come si vede in gioco a fine
+                      siege — presente solo per gli import fatti da oggi in
+                      poi, o dopo il recupero manuale per quelle vecchie
+                      (29/09/2026, Flora). */}
+                  {s.ourRank && (
+                    <span
+                      className="f-mono"
+                      style={{
+                        fontSize: 10.5, fontWeight: 700, marginRight: 6, padding: "1px 6px", borderRadius: 4,
+                        color: s.ourRank === 1 ? "#3a2f0a" : "#1a1a1a",
+                        background: s.ourRank === 1 ? "var(--gold)" : s.ourRank === 2 ? "#c7cdd6" : "#c98a4b",
+                      }}
+                    >
+                      {s.ourRank === 1 ? "1st" : s.ourRank === 2 ? "2nd" : `${s.ourRank}th`}
+                    </span>
+                  )}
                   {s.enemyGuilds?.join(" e ") || "—"}{" "}
                   <span style={{ color: "var(--text-faint)", fontSize: 11.5 }}>
                     — {s.dateFrom ? dataIt(s.dateFrom * 1000) : "?"} · {s.battleCount} battaglie
