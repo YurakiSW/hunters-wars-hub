@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser, canManage, isAdmin } from "../../../../lib/auth";
-import { listSieges, setSiegeIncluded, deleteSiege, getGuildName, setGuildName, dedupeStoredBattles } from "../../../../lib/guildDefenses";
+import { listSieges, setSiegeIncluded, deleteSiege, getGuildName, setGuildName, dedupeStoredBattles, setManualRank } from "../../../../lib/guildDefenses";
 import { safeJson } from "../../../../lib/apiUtils";
 
 // Il controllo/ripulitura dei doppioni legge tutte le battaglie salvate, a blocchi:
@@ -32,6 +32,21 @@ export async function POST(request) {
     }
     const result = await deleteSiege(data.siegeKey);
     return NextResponse.json({ ok: true, ...result });
+  }
+
+  // Piazzamento inserito A MANO (29/09/2026, Flora) — per le siege troppo
+  // vecchie per averlo nel log. Solo Admin: sovrascrive un dato che
+  // altrimenti resterebbe mancante per sempre, stessa cautela di "elimina".
+  if (data.action === "set_manual_rank") {
+    if (!isAdmin(user)) {
+      return NextResponse.json({ error: "Solo gli Admin possono farlo." }, { status: 403 });
+    }
+    try {
+      const record = await setManualRank(data.siegeKey, data.rank);
+      return NextResponse.json({ ok: true, siege: record });
+    } catch (err) {
+      return NextResponse.json({ error: String(err.message || err) }, { status: 400 });
+    }
   }
 
   // Ripulitura dei doppioni già salvati: elimina dati, quindi SOLO Admin (come

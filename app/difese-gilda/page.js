@@ -119,6 +119,19 @@ function GuildDefensesContent() {
     loadResults("", v);
   }
 
+  // Piazzamento inserito A MANO (29/09/2026, Flora) — per le siege troppo
+  // vecchie per averlo nel log: se qualcuno in gilda se lo ricorda, si
+  // scrive qui. Solo Admin.
+  async function setRankManually(siegeKey, rank) {
+    setBusySiege(siegeKey);
+    const res = await fetch("/api/admin/siege-defenses", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "set_manual_rank", siegeKey, rank }),
+    });
+    setBusySiege(null);
+    if (res.ok) loadSieges();
+  }
+
   async function toggleSiege(siegeKey, included) {
     setBusySiege(siegeKey);
     const res = await fetch("/api/admin/siege-defenses", {
@@ -190,6 +203,7 @@ function GuildDefensesContent() {
                       }}
                     >
                       {s.ourRank === 1 ? "1st" : s.ourRank === 2 ? "2nd" : `${s.ourRank}th`}
+                      {s.ourRankManual && <span title="Inserito a mano, non dal log"> ✎</span>}
                     </span>
                   )}
                   {s.enemyGuilds?.join(" e ") || "—"}{" "}
@@ -197,6 +211,24 @@ function GuildDefensesContent() {
                     — {s.dateFrom ? dataIt(s.dateFrom * 1000) : "?"} · {s.battleCount} battaglie
                   </span>
                 </span>
+                {/* Nessun piazzamento (troppo vecchia per averlo nel log):
+                    se qualcuno in gilda se lo ricorda, un Admin lo scrive
+                    qui a mano (29/09/2026, Flora). Nessun punteggio, solo
+                    il piazzamento — quello di solito ce lo si ricorda,
+                    il punteggio esatto no. */}
+                {!s.ourRank && isAdmin && (
+                  <span style={{ display: "flex", gap: 3 }} title="Piazzamento non nel log — inseriscilo a mano se te lo ricordi">
+                    {[1, 2, 3].map((r) => (
+                      <button
+                        key={r} className="btn btn-ghost" disabled={busySiege === s.siegeKey}
+                        style={{ fontSize: 10, padding: "2px 6px" }}
+                        onClick={() => setRankManually(s.siegeKey, r)}
+                      >
+                        {r === 1 ? "1st" : r === 2 ? "2nd" : "3rd"}
+                      </button>
+                    ))}
+                  </span>
+                )}
                 {isAdmin && (
                   <button className="btn btn-ghost" style={{ fontSize: 11 }} onClick={() => setConfirmDeleteSiege(s.siegeKey)}>🗑</button>
                 )}

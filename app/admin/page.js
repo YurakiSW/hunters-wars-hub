@@ -1555,7 +1555,6 @@ function SiegeDefenseImportCard() {
       </p>
 
       <DuplicateCleanupBlock onDone={loadSieges} />
-      <RankRecoveryBlock onDone={loadSieges} />
 
       <div style={{ marginTop: 18, borderTop: "1px solid var(--border-soft)", paddingTop: 12 }}>
         <div className="f-mono" style={{ fontSize: 11, color: "var(--text-faint)", marginBottom: 8 }}>
@@ -1727,82 +1726,6 @@ function DuplicateCleanupBlock({ onDone }) {
   );
 }
 
-// Strumento TEMPORANEO (29/09/2026, Flora): recupera il piazzamento
-// (1st/2nd/3rd) per le siege importate PRIMA che il codice lo leggesse,
-// usando log già caricati anche per i counter (stesso comando, contiene
-// entrambe le cose). DA TOGLIERE una volta recuperato lo storico — da
-// quel momento il piazzamento arriva da solo con l'import normale delle
-// difese qui sopra, niente da fare a mano.
-function RankRecoveryBlock({ onDone }) {
-  const [logText, setLogText] = useState("");
-  const [status, setStatus] = useState("idle"); // idle | reading | loading | done | error
-  const [result, setResult] = useState(null);
-  const [error, setError] = useState("");
-
-  function handleFile(file) {
-    if (!file) return;
-    setStatus("reading");
-    setError(""); setResult(null);
-    const reader = new FileReader();
-    reader.onload = () => { setLogText(reader.result); setStatus("idle"); };
-    reader.onerror = () => { setStatus("error"); setError("Non sono riuscito a leggere il file."); };
-    reader.readAsText(file);
-  }
-
-  async function submit() {
-    setStatus("loading");
-    setError(""); setResult(null);
-    try {
-      const res = await fetch("/api/admin/siege-defenses/import-ranks", {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ logText }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Errore sconosciuto");
-      setResult(data);
-      setStatus("done");
-      if (data.updated > 0 && onDone) onDone();
-    } catch (e) {
-      setStatus("error");
-      setError(String(e.message || e));
-    }
-  }
-
-  return (
-    <div style={{ marginTop: 18, borderTop: "1px solid var(--border-soft)", paddingTop: 12 }}>
-      <div className="f-mono" style={{ fontSize: 11, color: "var(--gold)", marginBottom: 6 }}>
-        ⚠️ TEMPORANEO — RECUPERO PIAZZAMENTO SIEGE VECCHIE
-      </div>
-      <p style={{ fontSize: 11.5, color: "var(--text-faint)", marginBottom: 8 }}>
-        Le siege importate prima di oggi non hanno il piazzamento (1st/2nd/3rd) salvato. Carica qui un log già usato
-        per i counter o per le difese — il piazzamento sta nello stesso comando, in un punto diverso dalle battaglie.
-        Aggancia il piazzamento SOLO a siege già salvate: non crea nulla di nuovo. Va bene rilanciarlo più volte,
-        anche con lo stesso file.
-      </p>
-      <div
-        onClick={() => document.getElementById("rank-recovery-file-input").click()}
-        style={{ border: "1px dashed var(--border)", borderRadius: 8, padding: "10px 14px", textAlign: "center", cursor: "pointer", marginBottom: 8 }}
-      >
-        {status === "reading" ? <><Spinner />Lettura del file in corso...</> : "📎 Clicca per selezionare il file di log (.txt)"}
-      </div>
-      <input id="rank-recovery-file-input" type="file" accept=".txt" style={{ display: "none" }} onChange={(e) => handleFile(e.target.files?.[0])} />
-      <textarea
-        value={logText} onChange={(e) => setLogText(e.target.value)} placeholder="...oppure incolla qui il testo del log"
-        style={{ width: "100%", minHeight: 70, fontFamily: "var(--font-mono)", fontSize: 11.5, marginBottom: 8 }}
-      />
-      <button className="btn btn-ghost" disabled={status === "loading" || !logText.trim()} onClick={submit}>
-        {status === "loading" && <Spinner />}Recupera piazzamento da questo log
-      </button>
-      {result && (
-        <p style={{ fontSize: 12.5, color: "var(--green)", marginTop: 8 }}>
-          {result.updated} siege aggiornate
-          {result.unchanged > 0 && `, ${result.unchanged} già a posto`}
-          {result.notFound > 0 && `, ${result.notFound} non ancora salvate (nessuna azione)`}.
-        </p>
-      )}
-      {error && <p style={{ fontSize: 12.5, color: "var(--red)", marginTop: 8 }}>{error}</p>}
-    </div>
-  );
-}
 
 // Limite FISSO di Vercel per le funzioni serverless: 4.5MB per richiesta,
 // non aggirabile via configurazione. Un log SWEX/SWProxy di una siege
