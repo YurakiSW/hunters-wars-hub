@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { redis } from "../../../../lib/redis";
 import { getCurrentUser, canManage } from "../../../../lib/auth";
 import { getDef, updateDef, deleteDef, findMatchingDef } from "../../../../lib/defs";
-import { isKnownMonster } from "../../../../lib/monsters";
+import { isKnownMonster, getCanonicalNameMap } from "../../../../lib/monsters";
+import { canonicalMonsterName } from "../../../../lib/textUtils";
 import { safeJson } from "../../../../lib/apiUtils";
 import { defenseKey } from "../../../../lib/siegeLogParser";
 import { getDefenseOverallWinRate } from "../../../../lib/siegeStats";
@@ -13,9 +14,18 @@ export async function GET(request, { params }) {
   const def = await getDef(params.id);
   if (!def) return NextResponse.json({ error: "Non trovata." }, { status: 404 });
   // Winrate complessivo della gilda contro questa difesa (29/09/2026,
+  // 30/09/2026 — Flora, corretto): i nomi vanno CANONICALIZZATI prima di
+  // calcolare la chiave, esattamente come fa l'import quando registra un
+  // attacco (app/api/admin/import-siege-log/route.js, `defense.map(canon)`).
+  // Senza questo passaggio, una difesa il cui nome salvato non coincide più
+  // con la forma canonica attuale (es. mappatura aggiornata dopo che la
+  // difesa era già stata creata) risultava sempre "nessun dato", anche con
+  // counter approvati e battaglie vere registrate sotto la chiave giusta.
+  const canonicalMap = await getCanonicalNameMap();
+  const canonicalMonsterNames = def.monsters.map((n) => canonicalMonsterName(n, canonicalMap));
   // Flora): somma su TUTTI i counter mai provati, non solo quello
   // approvato — vedi la nota in getDefenseOverallWinRate.
-  const overallWinRate = await getDefenseOverallWinRate(defenseKey(def.monsters));
+  const overallWinRate = await getDefenseOverallWinRate(defenseKey(canonicalMonsterNames));
   // Tracciamento uso del sito (27/09/2026, Flora): ogni apertura di una
   // scheda Difesa/Counter conta, ripetizioni comprese — serve a distinguere
   // chi guarda davvero i counter prima di giocare da chi non lo fa mai.
