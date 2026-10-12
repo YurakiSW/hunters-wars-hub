@@ -180,7 +180,7 @@ function RosterTab({ isAdmin }) {
         const data = JSON.parse(reader.result);
         const members = data?.guild?.guild_members;
         if (!members) throw new Error("Non trovo guild.guild_members in questo file.");
-        entries = Object.values(members).map((m) => ({ nickname: m.wizard_name, grade: m.grade }));
+        entries = Object.values(members).map((m) => ({ nickname: m.wizard_name, grade: m.grade, wizardId: m.wizard_id ?? null }));
       } catch (e) {
         setLoading(false);
         setError("File non valido: " + (e.message || e));
