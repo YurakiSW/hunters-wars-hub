@@ -10,7 +10,7 @@ const PUBLIC_PATHS = [
 
 export async function middleware(request) {
   const { pathname } = request.nextUrl;
-  if (PUBLIC_PATHS.some((p) => pathname.startsWith(p)) || pathname.startsWith("/api/monsters/sync")) {
+  if (PUBLIC_PATHS.some((p) => pathname.startsWith(p)) || pathname.startsWith("/api/monsters/sync") || pathname.startsWith("/api/ingest/")) {
     return NextResponse.next();
   }
 
