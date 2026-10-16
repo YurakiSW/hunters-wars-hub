@@ -3,6 +3,8 @@ import { timingSafeEqual } from "crypto";
 import { redis } from "../../../../lib/redis";
 import { safeJson } from "../../../../lib/apiUtils";
 import { importSiegeDefenseLog, listSieges, getGuildName } from "../../../../lib/guildDefenses";
+import { getRoster } from "../../../../lib/roster";
+import { applyRosterUpdate, sameRoster } from "../../../../lib/rosterSync";
 
 // Riceve i log delle difese di gilda DIRETTAMENTE dal plugin SWEX (16/10/2026,
 // Flora) — stesso import del caricamento a mano, quindi stessa deduplica: una
@@ -57,6 +59,33 @@ export async function POST(request) {
       const text = `Request:\n{"command":"GetGuildSiegeBattleLog"}\nResponse:\n${JSON.stringify(resp)}\n`;
       const result = await importSiegeDefenseLog(text);
       return NextResponse.json({ ok: true, ...result });
+    }
+
+    // 3) "roster": la lista membri di gilda, mandata dal plugin quando il
+    //    gioco la invia (GetGuildInfo / login). Stessa logica dell'upload a
+    //    mano del JSON (applyRosterUpdate), con controlli in più perché qui
+    //    non c'è una persona a guardare il risultato:
+    //    - la gilda deve essere la NOSTRA (stesso nome salvato sul sito);
+    //    - tra 10 e 30 membri (una lista monca non deve mai sovrascrivere);
+    //    - ogni voce con nome, grado e ID account;
+    //    - se è uguale a quella già salvata non si fa niente.
+    if (data.action === "roster") {
+      const guildName = await getGuildName();
+      if (data.guildName !== guildName) {
+        return NextResponse.json({ error: `Gilda "${data.guildName}" diversa da quella del sito ("${guildName}"): ignorata.` }, { status: 400 });
+      }
+      const entries = Array.isArray(data.entries) ? data.entries : [];
+      const valid = entries.every((e) => e && typeof e.nickname === "string" && e.nickname.trim() &&
+        Number.isInteger(e.grade) && Number.isInteger(e.wizardId));
+      if (entries.length < 10 || entries.length > 30 || !valid) {
+        return NextResponse.json({ error: `Lista membri non valida (${entries.length} voci, servono 10-30 con nome, grado e ID).` }, { status: 400 });
+      }
+      const clean = entries.map((e) => ({ nickname: e.nickname, grade: e.grade, wizardId: e.wizardId }));
+      if (sameRoster(await getRoster(), clean)) {
+        return NextResponse.json({ ok: true, changed: false, count: clean.length });
+      }
+      const { count, notFound } = await applyRosterUpdate(clean);
+      return NextResponse.json({ ok: true, changed: true, count, notFound: notFound.length });
     }
 
     return NextResponse.json({ error: "Azione sconosciuta." }, { status: 400 });

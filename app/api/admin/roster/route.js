@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser, defaultRoleForGrade, defaultCanUploadRosterForGrade, isAdmin } from "../../../../lib/auth";
-import { getRoster, setRoster, normalizeNickname } from "../../../../lib/roster";
+import { getCurrentUser, isAdmin } from "../../../../lib/auth";
+import { getRoster, normalizeNickname } from "../../../../lib/roster";
+import { applyRosterUpdate } from "../../../../lib/rosterSync";
 import { redis } from "../../../../lib/redis";
 
 export async function GET() {
@@ -46,45 +47,8 @@ export async function POST(request) {
   }
 
   try {
-    await setRoster(entries);
-
-    // Ricalcola ruolo/permesso di ogni utente esistente che combacia col nuovo
-    // roster, MA solo se non è stato impostato a mano dall'Admin in precedenza.
-    // Nota: KEYS è ok per una gilda (poche decine di utenti); se in futuro
-    // servisse scalare molto di più, meglio mantenere un Set "user:ids" come
-    // fatto per le Difese in lib/defs.js.
-    const userIds = await redis.keys("user:user_*");
-    const notFound = [];
-    for (const key of userIds) {
-      const u = await redis.get(key);
-      if (!u) continue;
-      const match = entries.find((r) => normalizeNickname(r.nickname) === normalizeNickname(u.nickname));
-
-      if (!match) {
-        // Non combacia col roster appena caricato — MA non significa per
-        // forza che abbia lasciato la gilda: può aver semplicemente
-        // cambiato nickname in gioco. Non si elimina più in automatico:
-        // finisce in una lista di revisione che l'Admin conferma a mano
-        // (vedi POST /api/admin/roster/remove-members).
-        if (u.role !== "admin") {
-          notFound.push({ id: u.id, nickname: u.nickname, email: u.email || null, grade: u.grade, role: u.role });
-        }
-        continue;
-      }
-
-      const patch = { grade: match.grade };
-      if (u.status === "pending") patch.status = "approved";
-      if (!u.manualRole) patch.role = defaultRoleForGrade(match.grade);
-      if (!u.manualPerm) patch.canUploadRoster = defaultCanUploadRosterForGrade(match.grade);
-      await redis.set(key, { ...u, ...patch });
-    }
-
-    // Sovrascrive la lista di revisione con quella appena calcolata (riflette
-    // sempre lo stato ATTUALE roster-vs-sito, non si accumula tra un upload
-    // e l'altro).
-    await redis.set("roster:removal_candidates", notFound);
-
-    return NextResponse.json({ ok: true, count: entries.length, notFound });
+    const { count, notFound } = await applyRosterUpdate(entries);
+    return NextResponse.json({ ok: true, count, notFound });
   } catch (err) {
     return NextResponse.json({ error: "Errore nell'aggiornamento del roster: " + String(err.message || err) }, { status: 500 });
   }
