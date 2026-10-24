@@ -348,6 +348,7 @@ function UsersTab() {
         <thead>
           <tr style={{ background: "var(--bg-soft)" }}>
             <th style={{ textAlign: "left", padding: 8 }}>Nickname</th>
+            <th style={{ textAlign: "left", padding: 8 }}>Email</th>
             <th style={{ textAlign: "left", padding: 8 }}>Grado</th>
             <th style={{ textAlign: "left", padding: 8 }}>Stato</th>
             <th style={{ textAlign: "left", padding: 8 }}>Ruolo</th>
@@ -360,6 +361,18 @@ function UsersTab() {
           {users.map((u) => (
             <tr key={u.id} style={{ borderTop: "1px solid var(--border-soft)" }}>
               <td style={{ padding: 8 }}>{formatNickname(u.nickname, u.role === "admin" || u.role === "reviewer")}</td>
+              <td style={{ padding: 8, fontSize: 12.5, wordBreak: "break-all" }}>
+                {u.email ? (
+                  <>
+                    {u.email}
+                    {u.emailLookupOk === false && (
+                      <span title="Questa email non è collegata all'account: login e recupero password con questa email NON funzionano." style={{ color: "var(--red)", marginLeft: 6, cursor: "help" }}>⚠</span>
+                    )}
+                  </>
+                ) : (
+                  <span style={{ color: "var(--red)" }}>nessuna email</span>
+                )}
+              </td>
               <td style={{ padding: 8 }}>{gradeLabel(u.grade)}</td>
               <td style={{ padding: 8 }}><span className={`badge ${u.status === "approved" ? "badge-approved" : "badge-pending"}`}>{u.status}</span></td>
               <td style={{ padding: 8 }}>
