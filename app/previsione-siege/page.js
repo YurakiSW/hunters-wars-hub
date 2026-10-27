@@ -24,6 +24,10 @@ const probColor = (p) => (p >= 0.8 ? "var(--green)" : p >= 0.2 ? "var(--gold)" :
 const sign = (n) => (n > 0 ? `+${n}` : String(n));
 const rankRange = (r) => (r.p10 === r.p90 ? `${r.p50}°` : `${r.p50}° (${r.p10}°–${r.p90}°)`);
 
+// Ricerca che ignora maiuscole, accenti e lettere "stilizzate" (es. ᴍɪꜱꜰɪᴛꜱ = misfits).
+const SMALL_CAPS = { "ᴀ": "a", "ʙ": "b", "ᴄ": "c", "ᴅ": "d", "ᴇ": "e", "ꜰ": "f", "ɢ": "g", "ʜ": "h", "ɪ": "i", "ᴊ": "j", "ᴋ": "k", "ʟ": "l", "ᴍ": "m", "ɴ": "n", "ᴏ": "o", "ᴘ": "p", "ʀ": "r", "ꜱ": "s", "ᴛ": "t", "ᴜ": "u", "ᴠ": "v", "ᴡ": "w", "ʏ": "y", "ᴢ": "z" };
+const fold = (str) => String(str).normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[ᴀʙᴄᴅᴇꜰɢʜɪᴊᴋʟᴍɴᴏᴘʀꜱᴛᴜᴠᴡʏᴢ]/g, (c) => SMALL_CAPS[c]).toLowerCase();
+
 export default function PrevisioneSiegePage() {
   const router = useRouter();
   const [user, setUser] = useState(null);
@@ -78,6 +82,13 @@ export default function PrevisioneSiegePage() {
           <Box>
             Nessuna classifica ancora salvata. Installa il plugin aggiornato in SWEX e, in gioco, apri la <b>classifica siege</b> e la schermata siege:
             il plugin manda tutto qui da solo.
+          </Box>
+        )}
+
+        {f && f.season && f.season.end && Date.now() / 1000 > f.season.end && (
+          <Box>
+            La stagione {f.season.seasonNumber} è finita. Appena apri la classifica siege in gioco con la stagione nuova, questa viene archiviata da sola
+            (la trovi qui sotto in "Stagioni concluse") e la previsione riparte da zero.
           </Box>
         )}
 
@@ -200,7 +211,7 @@ export default function PrevisioneSiegePage() {
                   </thead>
                   <tbody>
                     {f.rows
-                      .filter((r) => (filter === "all" || r.needed.status === filter) && (!query.trim() || r.name.toLowerCase().includes(query.trim().toLowerCase())))
+                      .filter((r) => (filter === "all" || r.needed.status === filter) && (!query.trim() || fold(r.name).includes(fold(query.trim()))))
                       .map((r) => {
                         const mine = f.ours && r.guildId === f.ours.guildId;
                         const st = STATUS[r.needed.status];
@@ -275,6 +286,8 @@ export default function PrevisioneSiegePage() {
           </>
         )}
         {state.loading && !f && !state.error && !state.empty && <LoadingScreen />}
+
+        <ArchiveSection />
       </div>
     </div>
   );
@@ -332,5 +345,79 @@ function NeedBadges({ needed, full }) {
       {b(c.l, "rgba(216,72,82,.22)", "#ff8d95", "3° nel match (sconfitta)")}
       {full && <span style={{ fontSize: 12, color: "var(--text-faint)" }}>vittorie / pareggi / sconfitte</span>}
     </span>
+  );
+}
+
+// Stagioni concluse: archiviate da sole quando arriva la prima classifica della stagione dopo.
+function ArchiveSection() {
+  const [list, setList] = useState(null);
+  const [open, setOpen] = useState(false);
+  const [sel, setSel] = useState(null);
+  const [detail, setDetail] = useState(null);
+
+  useEffect(() => {
+    fetch("/api/siege-forecast?archive=list").then((r) => r.json()).then((d) => {
+      if (d.ok) { setList(d.seasons); if (d.seasons[0]) setSel(d.seasons[0].seasonId); } else setList([]);
+    }).catch(() => setList([]));
+  }, []);
+  useEffect(() => {
+    if (sel == null) return;
+    setDetail(null);
+    fetch(`/api/siege-forecast?archive=${sel}`).then((r) => r.json()).then((d) => setDetail(d.ok ? d.season : false)).catch(() => setDetail(false));
+  }, [sel]);
+
+  if (list === null) return null;
+  const meta = list.find((x) => x.seasonId === sel);
+  const rows = detail ? detail.final.rows.slice().sort((x, y) => x[0] - y[0]) : [];
+  const ours = detail && detail.final.ours;
+  return (
+    <details open={open} onToggle={(e) => setOpen(e.target.open)} style={{ marginTop: 18, fontSize: 13.5 }}>
+      <summary style={{ cursor: "pointer", color: "var(--text)", fontWeight: 600 }}>Stagioni concluse ({list.length})</summary>
+      <div style={{ marginTop: 10 }}>
+        {!list.length && <Box>Nessuna stagione archiviata ancora. La prima verrà salvata da sola all'inizio della stagione nuova.</Box>}
+        {list.length > 0 && (
+          <>
+            <select value={sel ?? ""} onChange={(e) => setSel(parseInt(e.target.value, 10))} style={{ marginBottom: 10 }}>
+              {list.map((x) => (
+                <option key={x.seasonId} value={x.seasonId}>Stagione {x.seasonNumber ?? x.seasonId}{x.end ? ` (fino al ${fmtDay(x.end)})` : ""}</option>
+              ))}
+            </select>
+            {detail === null && <div style={{ color: "var(--text-muted)" }}>Carico…</div>}
+            {detail === false && <Box color="var(--red)">Non riesco a caricare questa stagione.</Box>}
+            {detail && (
+              <>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10, marginBottom: 12 }}>
+                  <Card label="Il nostro risultato" value={ours ? `${ours.rank}°` : "?"} sub={ours ? `${ours.score} punti` : ""} color="var(--gold)" />
+                  <Card label="Ultimo posto utile (32°)" value={meta && meta.cutoff32 != null ? meta.cutoff32 : "?"} sub="punti" />
+                  <Card label="Periodo" value={detail.begin ? `${fmtDay(detail.begin)} → ${fmtDay(detail.end)}` : "?"} sub={`${detail.snapshotCount} classifiche salvate`} />
+                </div>
+                {detail.final.stale && <div style={{ color: "var(--text-muted)", fontSize: 12, marginBottom: 8 }}>L'ultima classifica salvata poteva non includere l'ultima siege.</div>}
+                <div style={{ overflowX: "auto", border: "1px solid var(--border)", borderRadius: 10 }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                    <thead>
+                      <tr style={{ textAlign: "left", color: "var(--text-faint)" }}>
+                        <th style={th}>Pos.</th><th style={th}>Gilda</th><th style={{ ...th, textAlign: "right" }}>Punti</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rows.map((r) => {
+                        const me = ours && r[1] === ours.guildId;
+                        return (
+                          <tr key={r[1]} style={{ background: me ? "rgba(211,169,79,.15)" : "transparent", borderBottom: r[0] === 32 ? "2px dashed var(--gold)" : "1px solid var(--border)" }}>
+                            <td style={td} className="f-mono">{r[0]}</td>
+                            <td style={{ ...td, fontWeight: me ? 700 : 400 }}>{r[2]}</td>
+                            <td style={{ ...td, textAlign: "right" }} className="f-mono">{r[3]}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+          </>
+        )}
+      </div>
+    </details>
   );
 }
