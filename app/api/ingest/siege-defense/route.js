@@ -5,6 +5,7 @@ import { safeJson } from "../../../../lib/apiUtils";
 import { importSiegeDefenseLog, listSieges, getGuildName } from "../../../../lib/guildDefenses";
 import { getRoster } from "../../../../lib/roster";
 import { applyRosterUpdate, sameRoster } from "../../../../lib/rosterSync";
+import { addRankingSnapshot, saveSeason } from "../../../../lib/siegeForecast";
 
 // Riceve i log delle difese di gilda DIRETTAMENTE dal plugin SWEX (16/10/2026,
 // Flora) — stesso import del caricamento a mano, quindi stessa deduplica: una
@@ -86,6 +87,23 @@ export async function POST(request) {
       }
       const { count, notFound } = await applyRosterUpdate(clean);
       return NextResponse.json({ ok: true, changed: true, count, notFound: notFound.length });
+    }
+
+    // 4) "siegeRanking" e "siegeSeason": classifica siege (top 100) e date della
+    //    stagione, mandate dal plugin quando in gioco si apre la classifica /
+    //    la schermata siege. Alimentano la pagina "Previsione Siege".
+    //    La classifica deve contenere la NOSTRA gilda (stesso nome del sito).
+    if (data.action === "siegeRanking") {
+      const guildName = await getGuildName();
+      if (!data.snapshot || !data.snapshot.ours || data.snapshot.ours.name !== guildName) {
+        return NextResponse.json({ error: `La classifica non è della gilda "${guildName}": ignorata.` }, { status: 400 });
+      }
+      const result = await addRankingSnapshot(data.snapshot);
+      return NextResponse.json({ ok: true, ...result });
+    }
+    if (data.action === "siegeSeason") {
+      const result = await saveSeason(data.season);
+      return NextResponse.json({ ok: true, ...result });
     }
 
     return NextResponse.json({ error: "Azione sconosciuta." }, { status: 400 });

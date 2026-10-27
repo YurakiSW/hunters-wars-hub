@@ -380,6 +380,7 @@ function UsersTab() {
                   <option value="pending">In attesa</option>
                   <option value="member">Membro</option>
                   <option value="reviewer">Revisore Counters</option>
+                  <option value="siege_leader">Siege Leader</option>
                   <option value="admin">Admin</option>
                 </select>
               </td>

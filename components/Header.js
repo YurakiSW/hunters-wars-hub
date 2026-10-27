@@ -134,6 +134,9 @@ export default function Header({ user }) {
           <NavPill href="/defs" icon="⚔" accent="gold">Counters</NavPill>
           <NavPill href="/difese-gilda" icon="🛡" accent="blue">Difese Gilda</NavPill>
           <NavPill href="/deck-build" icon="🗡" accent="violet">ATK Deck</NavPill>
+          {(user?.role === "admin" || user?.role === "siege_leader") && (
+            <NavPill href="/previsione-siege" icon="📈" accent="red">Previsione</NavPill>
+          )}
           {canManage && (
             <NavPill href="/admin" icon="⚙" accent="ember">{user.role === "admin" ? "Admin" : "Gestione"}</NavPill>
           )}
