@@ -74,7 +74,7 @@ export default function PrevisioneSiegePage() {
       <div style={{ maxWidth: 1040, margin: "0 auto", padding: "20px 20px 60px" }}>
         <h2 className="f-hero" style={{ color: "var(--gold)", fontSize: 22, margin: "0 0 4px" }}>Previsione Siege</h2>
         <p style={{ color: "var(--text-muted)", fontSize: 13, margin: "0 0 16px" }}>
-          Cosa serve a ogni gilda per entrare nel torneo (prime 32) e quanto è probabile che ci riesca. È una stima: i dati li salva da solo il plugin quando apri la classifica siege in gioco.
+          Chi entra nel torneo (prime 32) e chi sale a 3 stelle (prime 50). Stima aggiornata dal plugin SWEX.
         </p>
 
         {state.error && <Box color="var(--red)">{state.error}</Box>}
@@ -98,13 +98,13 @@ export default function PrevisioneSiegePage() {
             <div style={{ display: "flex", gap: 14, flexWrap: "wrap", alignItems: "center", marginBottom: 14 }}>
               <label style={{ fontSize: 13, color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 8 }}>
                 Prime
-                <select value={cutoff} onChange={(e) => setCutoff(Number(e.target.value))} style={{ width: 90 }}>
+                <select value={cutoff} onChange={(e) => setCutoff(Number(e.target.value))} style={{ width: 130 }}>
                   {[32, 35, 50, 60, 100].map((n) => <option key={n} value={n}>{n}{n === 32 ? " (torneo)" : ""}</option>)}
                 </select>
                 gilde
               </label>
               <label style={{ fontSize: 13, color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 8 }}>
-                Siege rimanenti
+                Siege da giocare
                 <select value={sieges} onChange={(e) => setSieges(e.target.value)} style={{ width: 150 }}>
                   <option value="">Automatico ({f.sieges.auto})</option>
                   {[0, 1, 2, 3, 4].map((n) => <option key={n} value={n}>{n}</option>)}
@@ -116,16 +116,19 @@ export default function PrevisioneSiegePage() {
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 10, marginBottom: 14 }}>
               <Card label={`Soglia per le prime ${f.cutoff}`} value={f.target} sub={`stima: punteggio con cui chiude il ${f.cutoff}° posto`} color="var(--gold)" />
               <Card label={`${f.cutoff}° posto oggi`} value={f.nthNow ? f.nthNow.score : "?"} sub={f.nthNow ? f.nthNow.name : ""} />
-              <Card label="Siege rimanenti" value={f.sieges.simulated} sub={f.stale ? "compresa quella non ancora in lista" : "da giocare"} />
-              <Card label="Stagione" value={f.season?.seasonNumber ?? "?"} sub={f.season ? `finisce il ${fmtDay(f.season.end)}` : "date non note"} />
+              <Card label="Siege da giocare" value={f.sieges.used} sub={f.sieges.dates.length && sieges === "" ? f.sieges.dates.map(fmtDay).join(" · ") : sieges !== "" ? "impostate a mano" : "nessuna"} />
+              <Card label="Stagione" value={f.season?.seasonNumber ?? "?"} sub={f.season ? `fine ${fmtDay(f.season.end)}` : "date non note"} />
             </div>
 
-            <div className="f-mono" style={{ fontSize: 11.5, color: "var(--text-faint)", lineHeight: 1.7, marginBottom: 14 }}>
-              Classifica del {fmt(f.snapshotAt)} ({f.visibleCount} gilde visibili)
-              {f.season ? <> · Stagione {f.season.seasonNumber ?? "?"}, fine {fmt(f.season.end)}</> : <> · <span style={{ color: "var(--red)" }}>fine stagione non nota: apri la schermata siege in gioco</span></>}
-              {" "}· Siege da giocare: {f.sieges.used}{f.sieges.dates.length && sieges === "" ? ` (${f.sieges.dates.map(fmtDay).join(", ")})` : ""}
-              {f.stale && <><br />La lista del gioco è indietro di una siege (si aggiorna dopo mezzanotte): ne ho tenuto conto
-                {f.pending ? ` — per noi ${sign(f.pending.delta)} già incluso.` : "."}</>}
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 14 }}>
+              <Chip>Classifica del {fmt(f.snapshotAt)}</Chip>
+              <Chip>{f.visibleCount} gilde visibili</Chip>
+              {f.stale && (
+                <Chip color="var(--gold)" title={`La lista del gioco è indietro di una siege (si aggiorna dopo mezzanotte): l'ho già conteggiata${f.pending ? `, per noi ${sign(f.pending.delta)}` : ""}.`}>
+                  Lista in ritardo di 1 siege · già corretta
+                </Chip>
+              )}
+              {!f.season && <Chip color="var(--red)">Fine stagione non nota: apri la mappa siege in gioco</Chip>}
             </div>
 
             {/* La nostra gilda */}
@@ -135,7 +138,7 @@ export default function PrevisioneSiegePage() {
                   <Stat label="Oggi" value={`${f.ours.rank}°`} sub={`${f.ours.score} punti`} />
                   <Stat label="Previsto a fine stagione" value={`${f.oursRow.finalRank.p50}°`} sub={`di solito tra ${f.oursRow.finalRank.p10}° e ${f.oursRow.finalRank.p90}°`} />
                   <Stat label={`Nelle prime ${f.cutoff}`} value={pctText(f.oursRow.probTop)} color={probColor(f.oursRow.probTop)} sub={`l'${f.cutoff}° chiuderà a ~${f.cutoffScore.p50} punti`} />
-                  <Stat label="Stelle a fine stagione" value={gr(f.oursRow.stars.final)} color={f.oursRow.stars.final === 3 ? "var(--gold)" : "var(--text)"} sub={`oggi ${gr(f.oursRow.stars.now)} · 3★ con ${pctText(f.oursRow.stars.prob3)} (primi 50)`} />
+                  <Stat label="Probabilità 3 stelle" value={pctText(f.oursRow.stars.prob3)} color={probColor(f.oursRow.stars.prob3)} sub={`oggi ${gr(f.oursRow.stars.now)} · 3 stelle = primi 50 posti`} />
                   <Stat label="Punti previsti" value={f.oursRow.finalScore.p50} sub={`tra ${f.oursRow.finalScore.p10} e ${f.oursRow.finalScore.p90}`} />
                 </div>
 
@@ -159,6 +162,7 @@ export default function PrevisioneSiegePage() {
                             <th style={{ padding: "4px 8px" }}>Punti per siege</th>
                             <th style={{ padding: "4px 8px" }}>Posizione finale</th>
                             <th style={{ padding: "4px 8px" }}>Nelle prime {f.cutoff}</th>
+                            <th style={{ padding: "4px 8px" }} title="Probabilità di essere a 3 stelle (primi 50 posti) a fine stagione">Stelle</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -172,6 +176,10 @@ export default function PrevisioneSiegePage() {
                                 <td className="f-mono" style={{ padding: "6px 8px" }}>{sign(lo.delta)} / <b>{sign(mid.delta)}</b> / {sign(hi.delta)}</td>
                                 <td className="f-mono" style={{ padding: "6px 8px" }}><b>{mid.finalRank}°</b>{best !== worst ? ` (${best}°–${worst}°)` : ""}</td>
                                 <td className="f-mono" style={{ padding: "6px 8px", color: probColor(mid.probTop) }}>{pctText(mid.probTop)}</td>
+                                <td className="f-mono" style={{ padding: "6px 8px", color: probColor(mid.prob3), whiteSpace: "nowrap" }}>
+                                  {mid.prob3 >= 0.5 ? gr(3) : gr(f.ours.rating ? Math.min(f.ours.rating % 10, 2) || 2 : 2)} {pctText(mid.prob3)}{" "}
+                                  <span style={{ color: "var(--text-faint)", fontSize: 11 }}>di 3★</span>
+                                </td>
                               </tr>
                             );
                           })}
@@ -208,7 +216,7 @@ export default function PrevisioneSiegePage() {
                       <th style={th}>Finale</th>
                       <th style={th}>Stato</th>
                       <th style={th}>Prob. prime {f.cutoff}</th>
-                      <th style={th} title="Stelle oggi → stelle previste a fine stagione (3 stelle = primi 50 posti)">Stelle</th>
+                      <th style={th} title="Stelle oggi → probabilità di essere a 3 stelle a fine stagione (3 stelle = primi 50 posti)">Stelle (prob. 3★)</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -282,7 +290,7 @@ export default function PrevisioneSiegePage() {
                 "Servono" e lo stato (Sicura / Servono risultati / Fuori) sono calcolati con i punti normali (+18, +3, −2): Sicura se la gilda ci arriva anche perdendo tutte le siege rimaste, Fuori se non ci arriva nemmeno vincendole tutte; la soglia è il punteggio medio con cui, nella simulazione, si chiude l'ultimo posto utile. Ogni siege mette di fronte 3 gilde: chi arriva 1° prende <b>+16/+18/+20</b>, 2° <b>+1/+3/+5</b>, 3° <b>−3/−2/−1</b>
                 (gli estremi dipendono dalla differenza di punti con la media del match). Per ogni gilda del top 100 simulo {f.sims.toLocaleString("it-IT")} volte le siege rimaste,
                 pescando le variazioni dalle classifiche passate della sua fascia di posizione ({f.poolPairs ? `${f.poolPairs} confronti raccolti dal plugin + ` : ""}storico di luglio–ottobre).
-                <b>Stelle</b>: 3 stelle rosse (G3) sono i primi ~50 posti della classifica, dal 51° in giù 2 stelle (G2) (confine osservato in tutte le classifiche salvate). La stella prevista è quella più probabile a fine stagione, la percentuale è la probabilità di chiudere nei primi 50.<br />
+                <b>Stelle</b>: 3 stelle rosse (G3) sono i primi ~50 posti della classifica, dal 51° in giù 2 stelle (G2) (confine osservato in tutte le classifiche salvate). La percentuale accanto alle 3 stelle è la probabilità di chiudere nei primi 50, cioè di essere a 3 stelle a fine stagione.<br />
                 Non conosco gli accoppiamenti futuri, quindi è una probabilità, non un risultato. Le gilde fuori dal top 100 non sono visibili e possono comunque entrare;
                 chi ha giocato poco o niente conta come variazione 0. La fascia più bassa del top 100 è ribilanciata (un terzo vittorie, pareggi, sconfitte) perché chi perde esce dalla lista e sparirebbe dai dati.
               </div>
@@ -361,7 +369,7 @@ function ArchiveSection() {
 
   useEffect(() => {
     fetch("/api/siege-forecast?archive=list").then((r) => r.json()).then((d) => {
-      if (d.ok) { setList(d.seasons); if (d.seasons[0]) setSel(d.seasons[0].seasonId); } else setList([]);
+      const ss = d.ok && Array.isArray(d.seasons) ? d.seasons : []; setList(ss); if (ss[0]) setSel(ss[0].seasonId);
     }).catch(() => setList([]));
   }, []);
   useEffect(() => {
@@ -428,13 +436,19 @@ function ArchiveSection() {
 
 // Stelle: oggi → previste a fine stagione, con la probabilità di essere a 3★ (primi 50 posti).
 function Stars({ s }) {
-  const col = s.final === 3 ? "var(--gold)" : "var(--text-muted)";
   return (
-    <span className="f-mono" style={{ fontSize: 12, whiteSpace: "nowrap" }}>
+    <span className="f-mono" style={{ fontSize: 12, whiteSpace: "nowrap" }} title="Probabilità di essere a 3 stelle (primi 50 posti) a fine stagione">
       <span style={{ color: "var(--text-faint)" }}>{gr(s.now)}</span>
       {" → "}
-      <span style={{ color: col, fontWeight: 600 }}>{gr(s.final)}</span>
-      <span style={{ color: "var(--text-faint)", marginLeft: 6 }}>{pctText(s.prob3)}</span>
+      <span style={{ color: probColor(s.prob3), fontWeight: 600 }}>{gr(3)} {pctText(s.prob3)}</span>
+    </span>
+  );
+}
+
+function Chip({ children, color, title }) {
+  return (
+    <span title={title} className="f-mono" style={{ fontSize: 11.5, padding: "3px 10px", borderRadius: 999, border: `1px solid ${color || "var(--border)"}`, color: color || "var(--text-muted)", background: "var(--surface)", cursor: title ? "help" : "default" }}>
+      {children}
     </span>
   );
 }
