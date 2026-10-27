@@ -2,14 +2,14 @@ import { NextResponse } from "next/server";
 import { timingSafeEqual } from "crypto";
 import { redis } from "../../../../lib/redis";
 import { safeJson } from "../../../../lib/apiUtils";
-import { importSiegeDefenseLog, listSieges, getGuildName } from "../../../../lib/guildDefenses";
+import { importSiegeDefenseLog, listSieges, getGuildName, archiveCurrentSeason } from "../../../../lib/guildDefenses";
 import { getRoster } from "../../../../lib/roster";
 import { applyRosterUpdate, sameRoster } from "../../../../lib/rosterSync";
 import { addRankingSnapshot, saveSeason } from "../../../../lib/siegeForecast";
 
 // Riceve i log delle difese di gilda DIRETTAMENTE dal plugin SWEX (16/10/2026,
 // Flora) — stesso import del caricamento a mano, quindi stessa deduplica: una
-// battaglia già registrata viene scartata, le siege nuove nascono ESCLUSE.
+// battaglia già registrata viene scartata, le siege nuove nascono INCLUSE.
 //
 // Non c'è il cookie di sessione (la chiama il PC con SWEX, non un browser):
 // si autentica con una chiave segreta, variabile d'ambiente SWEX_INGEST_TOKEN
@@ -99,6 +99,23 @@ export async function POST(request) {
         return NextResponse.json({ error: `La classifica non è della gilda "${guildName}": ignorata.` }, { status: 400 });
       }
       const result = await addRankingSnapshot(data.snapshot);
+      // Cambio stagione: oltre alla classifica, si archiviano da sole anche le
+      // Difese Gilda della stagione finita (TUTTE le siege presenti) e si
+      // svuota il "vivo" per la nuova. Archivia prima, svuota dopo: se
+      // l'archivio non si salva, non si cancella niente.
+      if (result.archivedSeason) {
+        try {
+          const all = (await listSieges()).map((s) => s.siegeKey);
+          if (all.length) {
+            const prev = result.archivedSeason.seasonNumber;
+            const label = prev ? `SEASON ${prev}` : undefined;
+            const d = await archiveCurrentSeason(all, { label });
+            result.archivedDefenses = { label: d.label, siegeCount: d.siegeCount, defenseCount: d.defenseCount };
+          }
+        } catch (e) {
+          result.archivedDefensesError = String(e.message || e);
+        }
+      }
       return NextResponse.json({ ok: true, ...result });
     }
     if (data.action === "siegeSeason") {

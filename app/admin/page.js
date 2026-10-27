@@ -1396,7 +1396,7 @@ function DiagnosticaTab() {
           </div>
         )}
       </div>
-      <div className="section-label" style={{ marginTop: 28 }}>🛡️ Difese Gilda — import log</div>
+      <div className="section-label" style={{ marginTop: 28 }}>🛡️ Difese Gilda</div>
       <SiegeDefenseImportCard />
     </div>
   );
@@ -1410,11 +1410,6 @@ function SiegeDefenseImportCard() {
   const [guildName, setGuildNameState] = useState("");
   const [guildNameInput, setGuildNameInput] = useState("");
   const [savingName, setSavingName] = useState(false);
-  const [logText, setLogText] = useState("");
-  const [readingFile, setReadingFile] = useState(false);
-  const [importing, setImporting] = useState(false);
-  const [importMsg, setImportMsg] = useState("");
-  const [importProgress, setImportProgress] = useState(null);
   // Selettore DEDICATO all'archiviazione: caselle proprie, separate da
   // quelle della pagina pubblica — scegli qui, apposta per QUESTA
   // archiviazione, invece di dover fidarti di quello che era rimasto
@@ -1480,14 +1475,6 @@ function SiegeDefenseImportCard() {
     loadSieges();
   }
 
-  function handleFile(file) {
-    setReadingFile(true);
-    const reader = new FileReader();
-    reader.onload = () => { setLogText(reader.result); setReadingFile(false); };
-    reader.onerror = () => { setReadingFile(false); setImportMsg("Non sono riuscito a leggere il file."); };
-    reader.readAsText(file);
-  }
-
   async function saveGuildName() {
     setSavingName(true);
     const res = await fetch("/api/admin/siege-defenses", {
@@ -1497,37 +1484,6 @@ function SiegeDefenseImportCard() {
     const data = await res.json();
     setSavingName(false);
     if (res.ok) setGuildNameState(data.guildName);
-  }
-
-  async function doImport() {
-    setImporting(true);
-    setImportMsg("");
-    setImportProgress(null);
-    const chunks = splitLogIntoChunks(logText);
-    const totals = { imported: 0, skippedDuplicate: 0 };
-    try {
-      for (let i = 0; i < chunks.length; i++) {
-        if (chunks.length > 1) setImportProgress({ part: i + 1, total: chunks.length });
-        const res = await fetch("/api/admin/siege-defenses/import", {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ logText: chunks[i] }),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "Errore sconosciuto");
-        totals.imported += data.imported;
-        totals.skippedDuplicate += data.skippedDuplicate;
-      }
-      setImportMsg(
-        totals.imported === 0
-          ? `Nessuna battaglia di difesa nuova (${totals.skippedDuplicate} già viste, o nessuna riguarda "${guildName}").`
-          : `${totals.imported} battaglie di difesa importate (${totals.skippedDuplicate} già viste, scartate). Le siege nuove nascono ESCLUSE dal conteggio — vai su Difese Gilda per includerle.`
-      );
-      if (totals.imported > 0) { setLogText(""); loadSieges(); }
-    } catch (e) {
-      setImportMsg(String(e.message || e));
-    }
-    setImporting(false);
-    setImportProgress(null);
   }
 
   return (
@@ -1544,28 +1500,9 @@ function SiegeDefenseImportCard() {
         letto direttamente dal dato del gioco, non dedotto.
       </p>
 
-      <label
-        style={{
-          display: "block", border: "1.5px dashed var(--border)", borderRadius: 8, padding: "12px",
-          textAlign: "center", cursor: readingFile ? "default" : "pointer", color: "var(--text-muted)", fontSize: 12.5,
-          background: "var(--bg-soft)", marginBottom: 8, opacity: readingFile ? 0.6 : 1,
-        }}
-      >
-        {readingFile ? <><Spinner />Lettura del file in corso...</> : "📎 Clicca per selezionare il file di log (.txt)"}
-        <input type="file" accept=".txt,text/plain" disabled={readingFile} style={{ display: "none" }} onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])} />
-      </label>
-      <textarea
-        value={logText} onChange={(e) => setLogText(e.target.value)}
-        placeholder="...oppure incolla qui il testo del log (serve la schermata Battle Info → Defense aperta durante la cattura)"
-        rows={4} disabled={readingFile} style={{ width: "100%", fontFamily: "monospace", fontSize: 12 }}
-      />
-      <button className="btn btn-gold" disabled={importing || readingFile || !logText.trim()} onClick={doImport} style={{ marginTop: 8 }}>
-        {importing && <Spinner />}
-        {importProgress ? `📥 Importazione parte ${importProgress.part}/${importProgress.total}...` : "📥 Importa log Difese Gilda"}
-      </button>
-      {importMsg && <p style={{ fontSize: 12.5, color: importMsg.startsWith("Nessuna") ? "var(--text-muted)" : "var(--green)", marginTop: 8 }}>{importMsg}</p>}
-      <p style={{ fontSize: 11.5, color: "var(--text-faint)", marginTop: 6 }}>
-        Le siege importate si includono/escludono dalla pagina pubblica <strong>🛡 Difese Gilda</strong>, non da qui.
+      <p style={{ fontSize: 12.5, color: "var(--green)", marginBottom: 6 }}>
+        ✅ Le difese arrivano da sole dal plugin SWEX: non serve più caricare nessun log a mano. Le siege nuove entrano da sole nel conteggio della pagina
+        pubblica <strong>🛡 Difese Gilda</strong> e nel rate individuale; qui sotto puoi escluderne una se serve.
       </p>
 
       <DuplicateCleanupBlock onDone={loadSieges} />

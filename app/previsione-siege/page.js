@@ -21,6 +21,7 @@ function fmtDay(t) {
 }
 const pctText = (p) => (p >= 0.995 ? "≈100%" : p <= 0.005 ? "≈0%" : `${Math.round(p * 100)}%`);
 const probColor = (p) => (p >= 0.8 ? "var(--green)" : p >= 0.2 ? "var(--gold)" : "var(--red)");
+const gr = (n) => (n ? "★".repeat(n) : "?"); // stelle rosse del livello siege (3 = G3, 2 = G2, 1 = G1)
 const sign = (n) => (n > 0 ? `+${n}` : String(n));
 const rankRange = (r) => (r.p10 === r.p90 ? `${r.p50}°` : `${r.p50}° (${r.p10}°–${r.p90}°)`);
 
@@ -134,6 +135,7 @@ export default function PrevisioneSiegePage() {
                   <Stat label="Oggi" value={`${f.ours.rank}°`} sub={`${f.ours.score} punti`} />
                   <Stat label="Previsto a fine stagione" value={`${f.oursRow.finalRank.p50}°`} sub={`di solito tra ${f.oursRow.finalRank.p10}° e ${f.oursRow.finalRank.p90}°`} />
                   <Stat label={`Nelle prime ${f.cutoff}`} value={pctText(f.oursRow.probTop)} color={probColor(f.oursRow.probTop)} sub={`l'${f.cutoff}° chiuderà a ~${f.cutoffScore.p50} punti`} />
+                  <Stat label="Stelle a fine stagione" value={gr(f.oursRow.stars.final)} color={f.oursRow.stars.final === 3 ? "var(--gold)" : "var(--text)"} sub={`oggi ${gr(f.oursRow.stars.now)} · 3★ con ${pctText(f.oursRow.stars.prob3)} (primi 50)`} />
                   <Stat label="Punti previsti" value={f.oursRow.finalScore.p50} sub={`tra ${f.oursRow.finalScore.p10} e ${f.oursRow.finalScore.p90}`} />
                 </div>
 
@@ -206,6 +208,7 @@ export default function PrevisioneSiegePage() {
                       <th style={th}>Finale</th>
                       <th style={th}>Stato</th>
                       <th style={th}>Prob. prime {f.cutoff}</th>
+                      <th style={th} title="Stelle oggi → stelle previste a fine stagione (3 stelle = primi 50 posti)">Stelle</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -219,7 +222,7 @@ export default function PrevisioneSiegePage() {
                             <td className="f-mono" style={td}>{r.rank}°</td>
                             <td style={{ ...td, fontWeight: mine ? 700 : 400, color: mine ? "var(--gold)" : "var(--text)" }}>
                               {r.name}{mine ? " (noi)" : ""}
-                              <span className="f-mono" style={{ fontSize: 10, marginLeft: 6, color: "var(--text-faint)" }}>{r.rating === 4003 ? "alto" : "basso"}</span>
+                              <span className="f-mono" style={{ fontSize: 10, marginLeft: 6, color: "var(--text-faint)" }}>{gr(r.stars.now)}</span>
                             </td>
                             <td className="f-mono" style={td}>{r.current}</td>
                             <td style={td}><NeedBadges needed={r.needed} /></td>
@@ -233,6 +236,7 @@ export default function PrevisioneSiegePage() {
                                 <span className="f-mono" style={{ fontSize: 12, color: probColor(r.probTop) }}>{pctText(r.probTop)}</span>
                               </div>
                             </td>
+                            <td style={td}><Stars s={r.stars} /></td>
                           </tr>
                         );
                       })}
@@ -278,6 +282,7 @@ export default function PrevisioneSiegePage() {
                 "Servono" e lo stato (Sicura / Servono risultati / Fuori) sono calcolati con i punti normali (+18, +3, −2): Sicura se la gilda ci arriva anche perdendo tutte le siege rimaste, Fuori se non ci arriva nemmeno vincendole tutte; la soglia è il punteggio medio con cui, nella simulazione, si chiude l'ultimo posto utile. Ogni siege mette di fronte 3 gilde: chi arriva 1° prende <b>+16/+18/+20</b>, 2° <b>+1/+3/+5</b>, 3° <b>−3/−2/−1</b>
                 (gli estremi dipendono dalla differenza di punti con la media del match). Per ogni gilda del top 100 simulo {f.sims.toLocaleString("it-IT")} volte le siege rimaste,
                 pescando le variazioni dalle classifiche passate della sua fascia di posizione ({f.poolPairs ? `${f.poolPairs} confronti raccolti dal plugin + ` : ""}storico di luglio–ottobre).
+                <b>Stelle</b>: 3 stelle rosse (G3) sono i primi ~50 posti della classifica, dal 51° in giù 2 stelle (G2) (confine osservato in tutte le classifiche salvate). La stella prevista è quella più probabile a fine stagione, la percentuale è la probabilità di chiudere nei primi 50.<br />
                 Non conosco gli accoppiamenti futuri, quindi è una probabilità, non un risultato. Le gilde fuori dal top 100 non sono visibili e possono comunque entrare;
                 chi ha giocato poco o niente conta come variazione 0. La fascia più bassa del top 100 è ribilanciata (un terzo vittorie, pareggi, sconfitte) perché chi perde esce dalla lista e sparirebbe dai dati.
               </div>
@@ -418,5 +423,18 @@ function ArchiveSection() {
         )}
       </div>
     </details>
+  );
+}
+
+// Stelle: oggi → previste a fine stagione, con la probabilità di essere a 3★ (primi 50 posti).
+function Stars({ s }) {
+  const col = s.final === 3 ? "var(--gold)" : "var(--text-muted)";
+  return (
+    <span className="f-mono" style={{ fontSize: 12, whiteSpace: "nowrap" }}>
+      <span style={{ color: "var(--text-faint)" }}>{gr(s.now)}</span>
+      {" → "}
+      <span style={{ color: col, fontWeight: 600 }}>{gr(s.final)}</span>
+      <span style={{ color: "var(--text-faint)", marginLeft: 6 }}>{pctText(s.prob3)}</span>
+    </span>
   );
 }

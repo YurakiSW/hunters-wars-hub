@@ -32,8 +32,10 @@ export async function GET(request) {
   if (bestPerPlayer) {
     // Classifica dei giocatori per winrate in difesa, ciascuno con tutte le
     // sue squadre (lib/guildDefenses.js, listPlayerDefenseRanking).
-    const ranking = await listPlayerDefenseRanking(allSieges); // { players, lowData, guildAvg, minBattles }
-    return NextResponse.json({ ok: true, mode: "bestPerPlayer", allSieges, ...ranking });
+    // Rate individuale: SEMPRE tutte le siege della stagione e tutte le difese di ognuno,
+    // a prescindere dalle spunte (decisione del 27/10/2026, Flora).
+    const ranking = await listPlayerDefenseRanking(true); // { players, lowData, guildAvg, minBattles }
+    return NextResponse.json({ ok: true, mode: "bestPerPlayer", allSieges: true, ...ranking });
   }
   if (team) {
     const teams = await searchGuildDefenseTeams(team);
