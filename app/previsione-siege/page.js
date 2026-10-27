@@ -5,7 +5,7 @@ import Header from "../../components/Header";
 import LoadingScreen from "../../components/LoadingScreen";
 
 // Previsione di fine stagione della classifica siege (27/10/2026, Flora).
-// Solo Admin e Siege Leader. I dati li manda da solo il plugin SWEX quando in
+// Visibile a tutti i membri approvati. I dati li manda da solo il plugin SWEX quando in
 // gioco si apre la classifica siege; i calcoli stanno in lib/siegeForecast.js.
 
 const due = (n) => String(n).padStart(2, "0");
@@ -44,7 +44,6 @@ export default function PrevisioneSiegePage() {
     fetch("/api/me").then((r) => r.json()).then((d) => {
       if (!d.user) return router.push("/login");
       if (d.user.status !== "approved") return router.push("/pending");
-      if (d.user.role !== "admin" && d.user.role !== "siege_leader") return router.push("/defs");
       setUser(d.user);
     });
   }, []);
