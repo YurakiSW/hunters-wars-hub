@@ -207,6 +207,14 @@ function GuildDefensesContent() {
                       {s.ourRankManual && <span title="Inserito a mano, non dal log"> ✎</span>}
                     </span>
                   )}
+                  {s.ourLive && (
+                    <span
+                      className="f-mono" title="Siege in corso: il piazzamento si sa solo a fine siege"
+                      style={{ fontSize: 10.5, fontWeight: 700, marginRight: 6, padding: "1px 6px", borderRadius: 4, color: "#1a1a1a", background: "#7fa8de" }}
+                    >
+                      IN CORSO
+                    </span>
+                  )}
                   {s.enemyGuilds?.join(" e ") || "—"}{" "}
                   <span style={{ color: "var(--text-faint)", fontSize: 11.5 }}>
                     — {s.dateFrom ? dataIt(s.dateFrom * 1000) : "?"} · {s.battleCount} battaglie
@@ -217,7 +225,7 @@ function GuildDefensesContent() {
                     qui a mano (29/09/2026, Flora). Nessun punteggio, solo
                     il piazzamento — quello di solito ce lo si ricorda,
                     il punteggio esatto no. */}
-                {!s.ourRank && isAdmin && (
+                {!s.ourRank && !s.ourLive && isAdmin && (
                   <span style={{ display: "flex", gap: 3 }} title="Piazzamento non nel log — inseriscilo a mano se te lo ricordi">
                     {[1, 2, 3].map((r) => (
                       <button
