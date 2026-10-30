@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "../../../lib/auth";
-import { listGuildDefenses, listGuildDefensesByTeam, searchGuildDefenseTeams, listPlayerDefenseRanking } from "../../../lib/guildDefenses";
+import { listGuildDefenses, listGuildDefensesByTeam, searchGuildDefenseTeams, listPlayerDefenseRanking, listSieges, getSiegeEnemyBreakdown } from "../../../lib/guildDefenses";
 
 // La modalità "tutta la stagione" (allSieges=1) può dover leggere lo
 // storico intero della gilda a blocchi (vedi loadAllBattlesByDefense in
@@ -24,6 +24,14 @@ export async function GET(request) {
   const team = searchParams.get("team");
   const bestPerPlayer = searchParams.get("bestPerPlayer");
   const allSieges = searchParams.get("allSieges") === "1";
+
+  // ?siege=<siegeKey>: per ogni gilda avversaria di QUELLA siege, contro quale nostro team ha perso di più
+  const siege = searchParams.get("siege");
+  if (siege) {
+    const known = (await listSieges()).some((s) => s.siegeKey === siege);
+    if (!known) return NextResponse.json({ error: "Siege non trovata." }, { status: 404 });
+    return NextResponse.json({ ok: true, mode: "siege", siegeKey: siege, ...(await getSiegeEnemyBreakdown(siege)) });
+  }
 
   if (owner) {
     const defenses = await listGuildDefenses(owner);

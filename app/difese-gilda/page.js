@@ -47,6 +47,7 @@ function GuildDefensesContent() {
   const [sieges, setSieges] = useState([]);
   const [siegesLoading, setSiegesLoading] = useState(true);
   const [busySiege, setBusySiege] = useState(null);
+  const [openSiege, setOpenSiege] = useState(null); // siege con il dettaglio per gilda aperto
   const [confirmDeleteSiege, setConfirmDeleteSiege] = useState(null);
   const [deletingSiege, setDeletingSiege] = useState(false);
 
@@ -229,9 +230,17 @@ function GuildDefensesContent() {
                     ))}
                   </span>
                 )}
+                <button
+                  className="btn btn-ghost" style={{ fontSize: 11 }}
+                  title="Per ogni gilda avversaria di questa siege: contro quale nostro team ha perso di più"
+                  onClick={() => setOpenSiege(openSiege === s.siegeKey ? null : s.siegeKey)}
+                >
+                  {openSiege === s.siegeKey ? "▾ Dettaglio" : "▸ Dettaglio"}
+                </button>
                 {isAdmin && (
                   <button className="btn btn-ghost" style={{ fontSize: 11 }} onClick={() => setConfirmDeleteSiege(s.siegeKey)}>🗑</button>
                 )}
+                {openSiege === s.siegeKey && <SiegeBreakdown siegeKey={s.siegeKey} />}
               </div>
             ))}
           </div>
@@ -446,6 +455,65 @@ function PlayerSubRow({ player, user }) {
           })}
         </div>
       )}
+    </div>
+  );
+}
+
+// Dettaglio di una siege: per ogni gilda avversaria, quanti attacchi ha fatto, quanti
+// ne ha persi e contro QUALE nostro team ha perso di più. Non dipende dalle spunte.
+function SiegeBreakdown({ siegeKey }) {
+  const [info, setInfo] = useState(null); // null = carico, false = errore
+  const [openGuild, setOpenGuild] = useState(null);
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    fetch(`/api/guild-defenses?siege=${encodeURIComponent(siegeKey)}`).then((r) => r.json())
+      .then((d) => setInfo(d.ok ? d : false)).catch(() => setInfo(false));
+  }, [siegeKey, tick]);
+  const data = info ? info.guilds : info;
+  const upd = info && info.lastBattleAt ? new Date(info.lastBattleAt * 1000) : null;
+
+  return (
+    <div style={{ flexBasis: "100%", margin: "6px 0 10px", padding: 12, border: "1px solid var(--border)", borderRadius: 10, background: "var(--bg-soft)" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 8 }}>
+        <button className="btn btn-ghost" style={{ fontSize: 11 }} onClick={() => setTick((t) => t + 1)} title="Ricarica i dati (utile con la siege in corso)">🔄 Aggiorna</button>
+        {info && (
+          <span className="f-mono" style={{ fontSize: 11, color: "var(--text-faint)" }}>
+            {info.battleCount} battaglie{upd ? ` · ultimo attacco ${String(upd.getDate()).padStart(2, "0")}/${String(upd.getMonth() + 1).padStart(2, "0")} ${String(upd.getHours()).padStart(2, "0")}:${String(upd.getMinutes()).padStart(2, "0")}` : ""}
+            {" "}· i dati sono fermi all&apos;ultima volta che qualcuno ha aperto il log in gioco con SWEX
+          </span>
+        )}
+      </div>
+      {data === null && <span style={{ color: "var(--text-faint)", fontSize: 12.5 }}>Carico…</span>}
+      {data === false && <span style={{ color: "var(--red)", fontSize: 12.5 }}>Non riesco a caricare questa siege.</span>}
+      {data && !data.length && <span style={{ color: "var(--text-faint)", fontSize: 12.5 }}>Nessuna battaglia di difesa in questa siege.</span>}
+      {data && data.map((g) => {
+        const shown = openGuild === g.guild ? g.teams : g.teams.slice(0, 3);
+        const lossPct = g.attacks ? Math.round((g.enemyLosses / g.attacks) * 100) : 0;
+        return (
+          <div key={g.guild} style={{ marginBottom: 14 }}>
+            <div style={{ display: "flex", alignItems: "baseline", flexWrap: "wrap", gap: 10, marginBottom: 6 }}>
+              <b style={{ fontSize: 14, color: "var(--gold)" }}>{g.guild}</b>
+              <span className="f-mono" style={{ fontSize: 11.5, color: "var(--text-muted)" }}>
+                {g.attacks} attacchi · persi da loro <b style={{ color: "var(--green)" }}>{g.enemyLosses}</b> ({lossPct}%) · vinti <b style={{ color: "var(--red)" }}>{g.enemyWins}</b>
+              </span>
+            </div>
+            {shown.map((t) => (
+              <div key={t.teamKey} style={{ display: "flex", alignItems: "center", gap: 8, padding: "3px 0", flexWrap: "wrap" }}>
+                <span style={{ display: "flex", gap: 3 }}>{t.monsterNames.map((n, i) => <MonsterCrest key={i} name={n} size={30} />)}</span>
+                <span className="f-mono" style={{ fontSize: 12.5 }}>
+                  hanno perso <b style={{ color: t.enemyLosses ? "var(--green)" : "var(--text-faint)" }}>{t.enemyLosses}</b> su {t.attacks}
+                  {t.enemyWins > 0 && <span style={{ color: "var(--text-faint)" }}> · vinto {t.enemyWins}</span>}
+                </span>
+              </div>
+            ))}
+            {g.teams.length > 3 && (
+              <button className="btn btn-ghost" style={{ fontSize: 11, marginTop: 2 }} onClick={() => setOpenGuild(openGuild === g.guild ? null : g.guild)}>
+                {openGuild === g.guild ? "Mostra meno" : `Mostra tutti i team (${g.teams.length})`}
+              </button>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
